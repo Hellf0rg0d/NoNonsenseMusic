@@ -1,0 +1,31 @@
+[project]
+name = "music-backend"
+version = "0.1.0"
+description = "Personal music streaming backend"
+readme = "README.md"
+authors = [
+    { name = "ego004", email = "221738094+ego004@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "argon2-cffi>=25.1.0",
+    "fastapi[standard-no-fastapi-cloud-cli]>=0.141.1",   # [standard] also loads FastAPI Cloud's tools (Sentry among them): 96 -> 89 MB
+    "fractional-indexing>=0.1.3",
+    "httpx>=0.28.1",
+    "psycopg[binary,pool]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "pydes>=2.0.1",
+    "rapidfuzz>=3.14.6",
+    "yt-dlp>=2026.8.19",
+    "ytmusicapi>=1.12.3",
+]
+
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

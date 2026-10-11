@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+.idea/
+.DS_Store
+mac/build/
+xcuserdata/
+*.xcuserstate
+
+# secrets and local settings: never commit (the repo is public)
+.env
+
+# Instruments recordings and their exports: large, and they hold paths from your Mac
+*.trace/
+mac/tp_*.xml
+mac/build-opt/
+
+# kept on this Mac, not published (11 Oct): raw API dumps, the docs being rewritten, tool scratch
+backend/samples/
+docs/
+.playwright-mcp/
+
+# working notes, kept out of the repository
+TICKETS.md
+handoff.md
