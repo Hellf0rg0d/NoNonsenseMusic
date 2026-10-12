@@ -608,6 +608,7 @@ private struct AccountSettings: View {
     @Environment(Account.self) private var account
     @Environment(LibraryStore.self) private var library
     @State private var choosingFiles = false
+    @AppStorage("checkUpdates") private var checkUpdates = true      // UpdateCheck.enabled reads the same key
     private var importer: SpotifyImporter { .shared }
     @State private var signingOut = false
     @State private var deviceDraft = Account.deviceName      // saved on Return
@@ -672,6 +673,15 @@ private struct AccountSettings: View {
             } footer: {
                 Text("Liked songs and playlists. Get the files from exportify.net, or from Spotify's Privacy settings (Download your data). Only song names leave this Mac.")
                     .foregroundStyle(.secondary)
+            }
+            Section {
+                LabeledContent("Version") { Text(UpdateCheck.current).foregroundStyle(.secondary) }
+                Toggle(isOn: $checkUpdates) {
+                    Text("Check for updates")
+                    Text("At launch, asks GitHub whether a newer version exists.").foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Updates")
             }
             Section {
                 Button(signingOut ? "Signing Out…" : "Sign Out") {

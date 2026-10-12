@@ -40,7 +40,7 @@ class NowPlaying extends StatelessWidget {
               if (t.image != null)
                 Opacity(
                   opacity: theme.brightness == Brightness.dark ? 0.55 : 0.4,
-                  child: Image.network(t.image!, fit: BoxFit.cover, cacheWidth: 12, cacheHeight: 12, filterQuality: FilterQuality.high, gaplessPlayback: true,
+                  child: Image(image: ResizeImage(coverProvider(t.image!), width: 12, height: 12), fit: BoxFit.cover, filterQuality: FilterQuality.high, gaplessPlayback: true,
                       errorBuilder: (_, _, _) => const SizedBox.shrink()),
                 ),
               DecoratedBox(

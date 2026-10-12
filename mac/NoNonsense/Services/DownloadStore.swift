@@ -98,6 +98,7 @@ final class DownloadStore {
                 save()
                 if !quietly { notify("Downloaded “\(track.title)”", "arrow.down.circle.fill") }
                 downloaded(track)
+                if let saved = items.first { await keepCover(saved) }
                 return true
             } catch {
                 continue
@@ -122,6 +123,7 @@ final class DownloadStore {
         guard let item = item(for: track) else { return }
         try? FileManager.default.removeItem(at: folder.appending(path: item.file))
         try? FileManager.default.removeItem(at: lyricsURL(item))
+        try? FileManager.default.removeItem(at: coverURL(item))
         items.removeAll { $0.key == item.key }
         save()
     }
@@ -130,6 +132,7 @@ final class DownloadStore {
         for item in items {
             try? FileManager.default.removeItem(at: folder.appending(path: item.file))
             try? FileManager.default.removeItem(at: lyricsURL(item))
+            try? FileManager.default.removeItem(at: coverURL(item))
         }
         items = []
         save()
@@ -147,6 +150,34 @@ final class DownloadStore {
     }
 
     private func lyricsURL(_ item: Item) -> URL { folder.appending(path: item.file + ".lyrics.json") }
+
+    // MARK: covers kept with downloads
+    // A downloaded song's cover is kept beside it (`<file>.cover`), and ArtworkCache reads it before the network. Before
+    // 12 Oct covers showed offline only while URLSession's own HTTP cache (Cache.db, a few MB) still held them, and
+    // macOS empties that cache when it likes.
+
+    private func coverURL(_ item: Item) -> URL { folder.appending(path: item.file + ".cover") }
+
+    /// The kept cover for this cover address, if a download has it.
+    func keptCover(for image: URL) -> URL? {
+        let address = image.absoluteString
+        guard let item = items.first(where: { $0.image == address }) else { return nil }
+        let url = coverURL(item)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    private func keepCover(_ item: Item) async {
+        guard let address = item.image, let image = URL(string: address),
+              !FileManager.default.fileExists(atPath: coverURL(item).path),
+              let (data, response) = try? await URLSession.shared.data(from: image),
+              (response as? HTTPURLResponse)?.statusCode == 200, !data.isEmpty else { return }
+        try? data.write(to: coverURL(item), options: .atomic)
+    }
+
+    /// Downloads made before covers were kept: each gets its cover once, while there is internet.
+    func keepMissingCovers() async {
+        for item in items { await keepCover(item) }
+    }
 
     private func save() {
         if let data = try? JSONEncoder().encode(items) { try? data.write(to: indexURL, options: .atomic) }

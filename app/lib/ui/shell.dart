@@ -3,10 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/jam.dart';
 import '../core/links.dart';
 import '../core/social.dart';
+import '../core/update_check.dart';
 
 import 'browse_nav.dart';
 import 'friends.dart';
@@ -62,6 +65,30 @@ class _ShellState extends State<Shell> {
     PlaylistLinks.pending.addListener(_openLink);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openLink());
     WidgetsBinding.instance.addPostFrameCallback((_) => _goOnline());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
+  }
+
+  /// "NoNonsenseMusic 0.3.0 is available": Download opens the release page; Skip This Version is not offered again.
+  Future<void> _offerUpdate() async {
+    final settings = Scope.of(context).settings;
+    if (!settings.checkUpdates) return;
+    final current = (await PackageInfo.fromPlatform()).version;
+    final update = await checkForUpdate(current: current, skipped: settings.skippedUpdate);
+    if (update == null || !mounted) return;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('NoNonsenseMusic ${update.version} is available'),
+        content: Text('You have $current. The release page has the download and what is new.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, 'skip'), child: const Text('Skip This Version')),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Not Now')),
+          FilledButton(onPressed: () => Navigator.pop(c, 'download'), child: const Text('Download')),
+        ],
+      ),
+    );
+    if (choice == 'download') await launchUrl(update.page, mode: LaunchMode.externalApplication);
+    if (choice == 'skip') await settings.skipUpdate(update.version);
   }
 
   /// Friends, notifications and jams are live from sign-in on (main.dart stops them at sign-out).

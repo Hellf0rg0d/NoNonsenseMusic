@@ -770,6 +770,9 @@ enum SelfTest {
                 $0.bytes > 500_000 && FileManager.default.fileExists(atPath: downloads.folder.appending(path: $0.file).path) })
             check("the index is saved: a fresh store finds both", DownloadStore().items.count == 2)
             check("songs know they are downloaded", songs.allSatisfy(downloads.isDownloaded))
+            let covers = downloads.items.compactMap { $0.image.flatMap(URL.init(string:)).flatMap(downloads.keptCover(for:)) }
+            check("each download keeps its cover beside it", covers.count == 2, "\(covers.count) of 2")
+            check("…an image the cover cache draws offline", covers.allSatisfy { (try? Data(contentsOf: $0)).flatMap { ArtworkCache.decoded($0) } != nil })
 
             ServerLauncher.shared.stop()                                  // now no server at all
             try? await Task.sleep(for: .seconds(1))

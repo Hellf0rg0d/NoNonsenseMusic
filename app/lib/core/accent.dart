@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:flutter/foundation.dart';
 
+import 'download_store.dart';
+
 /// Holds the playing cover's most vivid colour, adjusted so it reads on the current background.
 ///
 /// Buttons, the progress line and the selection take the accent, as on the Mac (ThemeStore's "Song"). The value stays
@@ -25,7 +27,9 @@ class Accent extends ValueNotifier<Color?> {
       return;
     }
     try {
-      final stream = ResizeImage(NetworkImage(url), width: 24, height: 24).resolve(ImageConfiguration.empty);
+      final kept = DownloadStore.shared.keptCover(url); // a download's kept cover: the accent works offline too
+      final stream = ResizeImage(kept != null ? FileImage(kept) : NetworkImage(url), width: 24, height: 24)
+          .resolve(ImageConfiguration.empty);
       final done = Completer<ui.Image>();
       late final ImageStreamListener listener;
       listener = ImageStreamListener((info, _) {

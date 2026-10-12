@@ -4,6 +4,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nononsense/core/api.dart';
+import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
 import 'package:nononsense/core/audio_cache.dart';
 import 'package:nononsense/core/audio_download.dart';
@@ -188,9 +190,14 @@ void main() {
       fetches: AudioDownloads(cache: cache, fetcher: quick(host)),
       fetcher: quick(host),
       linkFor: (l) async => Uri.parse('http://audio.test/${l.id == 'bad' ? 'missing' : 'second'}.mp4'),
+      client: MockClient((r) async => r.url.host == 'img.test' ? http.Response.bytes(blob(700), 200) : http.Response('', 404)),
     );
     await store.load(Directory('${dir.path}/Downloads'));
     expect(await store.download(track), isTrue);
+    expect(store.keptCover('http://img.test/cover.jpg')?.readAsBytesSync(), blob(700), reason: 'the cover is kept: it shows offline');
+    await store.keepLyrics(track, Lyrics('lrclib', true, [LyricLine(1000, 'a line', translation: 'una línea')]));
+    final lyrics = await store.keptLyrics(track);
+    expect((lyrics?.source, lyrics?.lines.single.text, lyrics?.lines.single.translation), ('lrclib', 'a line', 'una línea'));
     expect(store.items.single.key, 'jiosaavn:second');
     expect(store.isDownloaded(track), isTrue);
     expect(store.fileFor(track)!.readAsBytesSync(), blob(5000));
@@ -199,8 +206,11 @@ void main() {
     final again = DownloadStore(cache: cache);
     await again.load(Directory('${dir.path}/Downloads'));
     expect(again.items.single.track.title, 'Song bad', reason: 'the song as shown, not the copy that was fetched');
+    final kept = again.keptCover('http://img.test/cover.jpg');
+    expect(kept, isNotNull, reason: 'a restart finds the kept cover');
     await again.remove(track);
     expect(again.isDownloaded(track), isFalse);
+    expect((kept!.existsSync(), again.keptCover('http://img.test/cover.jpg')), (false, null), reason: 'removed with the song');
   });
 
   test('a download copies from the cache when the song is there, without fetching', () async {

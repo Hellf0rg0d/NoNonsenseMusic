@@ -227,10 +227,7 @@ class Api {
       'song_duration': t.duration,
       'youtube_id': youtube,
     }) as Map<String, dynamic>;
-    return Lyrics(j['lyrics_source'] as String?, j['synced'] as bool, [
-      for (final l in j['lines'] as List)
-        LyricLine((l['start_ms'] as num?)?.toInt(), l['text'] as String, translation: l['translation'] as String?),
-    ]);
+    return Lyrics.fromJson(j);
   }
 
   /// Fetch Genius notes (experimental; asked only with Settings › Lyrics › Genius notes on). The main artist alone:
@@ -317,6 +314,17 @@ class Lyrics {
   final bool synced;
   final List<LyricLine> lines;
   Lyrics(this.source, this.synced, this.lines);
+
+  /// The server's shape, also the file a download keeps its lyrics in.
+  factory Lyrics.fromJson(Map<String, dynamic> j) => Lyrics(j['lyrics_source'] as String?, j['synced'] as bool, [
+        for (final l in j['lines'] as List)
+          LyricLine((l['start_ms'] as num?)?.toInt(), l['text'] as String, translation: l['translation'] as String?),
+      ]);
+  Map<String, dynamic> toJson() => {
+        'lyrics_source': source,
+        'synced': synced,
+        'lines': [for (final l in lines) {'start_ms': l.startMs, 'text': l.text, 'translation': ?l.translation}],
+      };
   String? get sourceName => source == 'lrclib' ? 'LRCLIB' : source == 'ytmusic' ? 'YouTube Music' : null;
 
   /// The line being sung at `seconds`, or -1 before the first.

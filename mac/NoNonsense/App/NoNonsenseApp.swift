@@ -22,6 +22,8 @@ struct NoNonsenseApp: App {
         downloads.notify = { [weak library] text, symbol in library?.notify(text, symbol: symbol) }
         let lyrics = LyricsStore(downloads: downloads)
         downloads.downloaded = { [weak lyrics] track in Task { await lyrics?.keep(for: track) } }   // offline lyrics
+        ArtworkCache.shared.keptCover = { [weak downloads] in downloads?.keptCover(for: $0) }        // and covers
+        Task { await downloads.keepMissingCovers() }
         _lyrics = State(initialValue: lyrics)
         _library = State(initialValue: library)
         _presence = State(initialValue: presence)

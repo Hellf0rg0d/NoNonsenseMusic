@@ -56,6 +56,7 @@
 		C3D45EF8E04EE77DA5CECD1A /* Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219EB9D529F5EF24B0F08DDD /* Home.swift */; };
 		D044B7F4E4BE1BD07AC6E6B1 /* SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3D0063CBD5878029E2E727 /* SelfTest.swift */; };
 		D14701BCE220BFFE52359ABA /* Social.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC180CBD9CAE5022E863BAD /* Social.swift */; };
+		D44F2A587722CA75FA8CDA97 /* UpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */; };
 		D6C295E72FEA5C8128DA9059 /* JamViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488DEC685DA0304B893444B7 /* JamViews.swift */; };
 		E3C1BAD6A0079F7A5A5860C2 /* Translation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E78AB03F8D61BD062EA5D8 /* Translation.swift */; };
 		EAD89C6A64DF6656871BE823 /* Playlists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F6AD91ABE9ABF1546E6470 /* Playlists.swift */; };
@@ -84,6 +85,7 @@
 		26CFDB9AA45C45E878F131FD /* Footprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Footprint.swift; sourceTree = "<group>"; };
 		292804CD0EB5D2B5A39CF640 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		329D0FA5B9551CCD2A1718DE /* ImportSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSelfTest.swift; sourceTree = "<group>"; };
+		3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheck.swift; sourceTree = "<group>"; };
 		3BE09B7F546BD239B2AFD81C /* PlayerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViews.swift; sourceTree = "<group>"; };
 		413FB74B40D0CE16AB8515BB /* DownloadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStore.swift; sourceTree = "<group>"; };
 		488DEC685DA0304B893444B7 /* JamViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamViews.swift; sourceTree = "<group>"; };
@@ -231,6 +233,7 @@
 				0EC180CBD9CAE5022E863BAD /* Social.swift */,
 				E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */,
 				D2B2FE4C7E6EEAA589159B7F /* ThemeStore.swift */,
+				3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */,
 				172BF860B15E1251D0DF0E1C /* YouTubeLookup.swift */,
 			);
 			path = Services;
@@ -366,6 +369,7 @@
 				AE2446E87AE50D3E1F6FAE13 /* ThemeStore.swift in Sources */,
 				E3C1BAD6A0079F7A5A5860C2 /* Translation.swift in Sources */,
 				646E0989884970389B751CCE /* TranslationSelfTest.swift in Sources */,
+				D44F2A587722CA75FA8CDA97 /* UpdateCheck.swift in Sources */,
 				28B98636A1E0595CBA384EC3 /* YouTubeLookup.swift in Sources */,
 				247AC5B08012F05B68A9FAE3 /* YouTubeSelfTest.swift in Sources */,
 			);
@@ -439,7 +443,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = NoNonsense/Info.plist;
@@ -447,7 +451,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.2.0;
 				NN_URL_SCHEME = "nononsense-debug";
 				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music.debug;
 				PRODUCT_NAME = NoNonsenseMusic;
@@ -527,7 +531,7 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = NoNonsense/Info.plist;
@@ -535,7 +539,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.2.0;
 				NN_URL_SCHEME = nononsense;
 				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music;
 				PRODUCT_NAME = NoNonsenseMusic;

@@ -61,7 +61,10 @@ Future<void> main() async {
   watchInFront();
   // Measurement only: the window reports itself as behind after two seconds; BEHIND is unset in a normal build.
   if (const bool.fromEnvironment('BEHIND')) Timer(const Duration(seconds: 2), () => inFront.value = false);
-  runApp(NoNonsenseApp(player: player, library: library, lyrics: LyricsStore(), settings: settings, auth: auth));
+  final lyrics = LyricsStore();
+  DownloadStore.shared.onDownloaded = lyrics.keep; // offline lyrics, as the Mac keeps them
+  unawaited(DownloadStore.shared.keepMissingCovers()); // covers of downloads made before covers were kept
+  runApp(NoNonsenseApp(player: player, library: library, lyrics: lyrics, settings: settings, auth: auth));
   // Measurement only (--dart-define=AUTOPLAY=<search>, NOW_PLAYING=lyrics|upNext): plays the first result, muted,
   // so CPU can be read while a song plays without the user touching it. Not set in a normal build.
   const autoplay = String.fromEnvironment('AUTOPLAY');

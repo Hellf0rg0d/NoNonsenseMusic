@@ -140,6 +140,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: const Text('When Up Next runs low, similar songs to the last one are added.'),
         ),
         SwitchListTile(
+          value: s.settings.checkUpdates,
+          onChanged: (on) async {
+            await s.settings.setCheckUpdates(on);
+            setState(() {});
+          },
+          title: const Text('Check for updates'),
+          subtitle: const Text('At launch, asks GitHub whether a newer version exists.'),
+        ),
+        SwitchListTile(
           value: s.settings.explicit,
           onChanged: s.settings.setExplicit,
           title: const Text('Play the explicit version'),

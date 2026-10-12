@@ -113,6 +113,7 @@ The Mac app is written in SwiftUI and follows the platform closely.
 
 - The apps collect no telemetry, analytics or crash reports.
 - YouTube links are looked up by your own device, not by the server.
+- Once per launch, the apps ask GitHub whether a newer version exists. Settings can turn this off.
 - The server does not log IP addresses, searches or passwords.
 - Your library is stored in your server's database.
 

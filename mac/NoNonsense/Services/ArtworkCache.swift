@@ -15,6 +15,8 @@ final class ArtworkCache {
         return cache
     }()
     private var loading: [String: Task<NSImage?, Never>] = [:]
+    /// The file a download keeps for a cover (DownloadStore.keptCover): read before the network, so it shows offline.
+    var keptCover: ((URL) -> URL?)?
     private var grids: [URL: [Color]] = [:]
 
     /// Two sizes. A cover shown at up to 128 pt (lists, shelves, the bar) is decoded at 256 px, about 0.25 MB; a larger
@@ -32,8 +34,15 @@ final class ArtworkCache {
         let pixels = Self.pixels(for: points), key = Self.key(url, pixels)
         if let hit = images.object(forKey: key as NSString) { return hit }
         if let running = loading[key] { return await running.value }
+        let kept = keptCover?(url)
         let task = Task { () -> NSImage? in
-            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+            let data: Data
+            if let kept, let local = try? Data(contentsOf: kept) {
+                data = local
+            } else {
+                guard let (fetched, _) = try? await URLSession.shared.data(from: url) else { return nil }
+                data = fetched
+            }
             return await Task.detached(priority: .utility) { Self.decoded(data, maxPixels: pixels) }.value
         }
         loading[key] = task

@@ -46,8 +46,10 @@ class DownloadItem {
 /// Songs kept on this device to play with no server and no internet. The files live in their own folder beside an
 /// `index.json` with each song's details. A download is never evicted, unlike the audio cache: only the user removes it.
 class DownloadStore extends ChangeNotifier {
-  DownloadStore({AudioCache? cache, AudioDownloads? fetches, RangeFetcher? fetcher, Future<Uri> Function(Listing)? linkFor})
+  DownloadStore({AudioCache? cache, AudioDownloads? fetches, RangeFetcher? fetcher, Future<Uri> Function(Listing)? linkFor,
+      http.Client? client})
       : cache = cache ?? AudioCache.shared,
+        _http = client ?? http.Client(),
         fetches = fetches ?? AudioDownloads.shared,
         fetcher = fetcher ?? RangeFetcher(http.Client()),
         linkFor = linkFor ?? _serverLink;
@@ -58,6 +60,7 @@ class DownloadStore extends ChangeNotifier {
   final AudioDownloads fetches;
   final RangeFetcher fetcher;
   final Future<Uri> Function(Listing) linkFor;
+  final http.Client _http; // covers
 
   static Future<Uri> _serverLink(Listing l) async => Uri.parse(await Api.audioUrl(l));
 
@@ -68,6 +71,13 @@ class DownloadStore extends ChangeNotifier {
 
   /// Songs being downloaded now (by Track.id).
   final inProgress = <String>{};
+
+  /// Called after each song is downloaded: the app keeps its lyrics beside it (LyricsStore.keep).
+  Future<void> Function(Track)? onDownloaded;
+
+  /// Kept covers by cover address: a downloaded song's cover shows from its file, also offline (coverProvider).
+  /// Before 12 Oct no cover was kept, and Image.network keeps none on disk: offline, downloads had none.
+  final _covers = <String, File>{};
 
   int get totalBytes => items.fold(0, (sum, i) => sum + i.bytes);
 
@@ -84,6 +94,10 @@ class DownloadStore extends ChangeNotifier {
       items = saved.where((i) => File('${base.path}/${i.file}').existsSync()).toList();
     } catch (_) {
       items = [];
+    }
+    for (final i in items) {
+      final f = _coverFile(i);
+      if (i.image != null && f.existsSync()) _covers[i.image!] = f;
     }
     notifyListeners();
   }
@@ -122,6 +136,8 @@ class DownloadStore extends ChangeNotifier {
           items.insert(0, DownloadItem(key: l.key, file: '$name.m4a', best: t.best, listings: t.listings, image: t.image,
               bytes: await target.length(), added: DateTime.now()));
           await _save();
+          await _keepCover(items.first);
+          await onDownloaded?.call(t);
           return true;
         } catch (_) {
           continue;
@@ -190,8 +206,53 @@ class DownloadStore extends ChangeNotifier {
   }
 
   Future<void> _delete(DownloadItem i) async {
-    final f = File('${folder!.path}/${i.file}');
-    if (await f.exists()) await f.delete();
+    for (final f in [File('${folder!.path}/${i.file}'), _coverFile(i), _lyricsFile(i)]) {
+      if (await f.exists()) await f.delete();
+    }
+    _covers.remove(i.image);
+  }
+
+  File _coverFile(DownloadItem i) => File('${folder!.path}/${i.file}.cover');
+  File _lyricsFile(DownloadItem i) => File('${folder!.path}/${i.file}.lyrics.json');
+
+  /// The kept cover for this cover address, if a download has one.
+  File? keptCover(String url) => _covers[url];
+
+  Future<void> _keepCover(DownloadItem i) async {
+    final address = i.image;
+    if (address == null || _covers.containsKey(address)) return;
+    try {
+      final r = await _http.get(Uri.parse(address)).timeout(const Duration(seconds: 15));
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) return;
+      final f = _coverFile(i);
+      await f.writeAsBytes(r.bodyBytes, flush: true);
+      _covers[address] = f;
+      notifyListeners();
+    } catch (_) {} // offline now: keepMissingCovers tries again at the next start
+  }
+
+  /// Downloads made before covers were kept: each gets its cover once, while there is internet.
+  Future<void> keepMissingCovers() async {
+    for (final i in [...items]) {
+      await _keepCover(i);
+    }
+  }
+
+  /// The lyrics kept with a downloaded song, so they show offline.
+  Future<Lyrics?> keptLyrics(Track t) async {
+    final i = item(t);
+    if (i == null || folder == null) return null;
+    try {
+      return Lyrics.fromJson(jsonDecode(await _lyricsFile(i).readAsString()) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> keepLyrics(Track t, Lyrics lyrics) async {
+    final i = item(t);
+    if (i == null || folder == null || lyrics.lines.isEmpty) return;
+    await _lyricsFile(i).writeAsString(jsonEncode(lyrics.toJson()));
   }
 
   Future<void> _save() async {

@@ -30,6 +30,10 @@ class Settings extends ChangeNotifier {
   String preferredSource = '';
   /// Up Next › Autoplay: when two songs or fewer are left, songs like the last one are added. On by default.
   bool autoplay = true;
+  /// Settings › Check for updates: once per launch, GitHub is asked for the latest release (core/update_check.dart).
+  bool checkUpdates = true;
+  /// The release the user chose Skip This Version for: not offered again; a later one is.
+  String? skippedUpdate;
   /// Lyrics › Translate: whether lyrics in another language show with their translation. Off by default and kept.
   bool translateLyrics = false;
   /// The name this device shows in the user's list of signed-in devices.
@@ -57,6 +61,8 @@ class Settings extends ChangeNotifier {
     explicit = _p.getBool('explicit') ?? true;
     preferredSource = _p.getString('preferredSource') ?? '';
     autoplay = _p.getBool('autoplay') ?? true;
+    checkUpdates = _p.getBool('checkUpdates') ?? true;
+    skippedUpdate = _p.getString('skippedUpdate');
     translateLyrics = _p.getBool('lyricsTranslated') ?? false;
     deviceName = _p.getString('deviceName') ?? Auth.computerName;
     theme = ThemeMode.values.asNameMap()[_p.getString('theme')] ?? ThemeMode.system;
@@ -110,6 +116,8 @@ class Settings extends ChangeNotifier {
   Future<void> setGeniusNotes(bool on) => _set('geniusNotes', on, () => geniusNotes = on);
   Future<void> setPreferredSource(String source) => _set('preferredSource', source, () => preferredSource = source);
   Future<void> setAutoplay(bool on) => _set('autoplay', on, () => autoplay = on);
+  Future<void> setCheckUpdates(bool on) => _set('checkUpdates', on, () => checkUpdates = on);
+  Future<void> skipUpdate(String version) => _set('skippedUpdate', version, () => skippedUpdate = version);
   Future<void> setTranslateLyrics(bool on) => _set('lyricsTranslated', on, () => translateLyrics = on);
 
   /// Point the app at [s] and persist it; a blank [s] falls back to the SERVER compile-time define.

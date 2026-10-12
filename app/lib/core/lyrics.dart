@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'api.dart';
+import 'download_store.dart';
 import 'models.dart';
 import 'player.dart';
 import 'translation.dart';
@@ -59,6 +60,20 @@ class LyricsStore extends ChangeNotifier {
     });
   }
 
+  /// A song was just downloaded: keep its lyrics beside the file (asking the server if this session has not).
+  Future<void> keep(Track t) async {
+    var found = _found[t.id];
+    if (found == null) {
+      try {
+        found = await Api.lyrics(t);
+        _found[t.id] = found;
+      } catch (_) {
+        return; // no lyrics offline for this one; nothing else changes
+      }
+    }
+    await DownloadStore.shared.keepLyrics(t, found);
+  }
+
   /// Fetch [t]'s lyrics once and cache them, adding the id to [unreachable] when the server fails.
   Future<void> fetch(Track t) async {
     fetchNotes(t);
@@ -66,6 +81,13 @@ class LyricsStore extends ChangeNotifier {
     _asking.add(t.id);
     unreachable.remove(t.id);
     notifyListeners();
+    final kept = await DownloadStore.shared.keptLyrics(t); // a downloaded song answers from its file, also offline
+    if (kept != null) {
+      _found[t.id] = kept;
+      _asking.remove(t.id);
+      notifyListeners();
+      return;
+    }
     try {
       _found[t.id] = await Api.lyrics(t);
     } catch (_) {
