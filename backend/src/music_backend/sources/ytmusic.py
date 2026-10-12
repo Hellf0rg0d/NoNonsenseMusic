@@ -198,17 +198,20 @@ async def import_track(video_id: str) -> Listing | None:
 
 
 def import_track_blocking(video_id: str) -> Listing | None:
+    # the watch page's first row, as radio reads it. get_song answers a data-centre address "Sign in to confirm you're
+    # not a bot" (LOGIN_REQUIRED, no details): on the hosted server 92 of a 112-video playlist were lost that way (12 Oct)
     try:
-        d = client().get_song(video_id).get("videoDetails") or {}
+        rows = client().get_watch_playlist(videoId=video_id, limit=1).get("tracks") or []
     except Exception as e:
         raise SourceUnavailable(f"YouTube Music: {e}") from e
-    duration = int_or_none(d.get("lengthSeconds")) or 0
-    if not d.get("title") or duration <= 0:
+    row = next((r for r in rows if r.get("videoId") == video_id), None)
+    duration = to_seconds(row["length"]) if row and row.get("length") else 0
+    if row is None or not row.get("title") or duration <= 0:
+        logger.info("import: no details for a video")
         return None
-    author = (d.get("author") or "").removesuffix(" - Topic")       # an artist's auto-made channel: "Name - Topic"
-    return Listing(source="ytmusic", id=video_id, title=d["title"], artists=[author] if author else [], album=None,
-                   duration=duration, popularity=int_or_none(d.get("viewCount")),
-                   image=thumb_url((d.get("thumbnail") or {}).get("thumbnails")), explicit=None)
+    return Listing(source="ytmusic", id=video_id, title=row["title"],
+                   artists=[a["name"] for a in row.get("artists") or [] if a.get("name")], album=None,
+                   duration=duration, popularity=None, image=thumb_url(row.get("thumbnail")), explicit=None)
 
 
 async def import_playlist(playlist_id: str) -> tuple[str, list[SpotifyImportSong]] | None:

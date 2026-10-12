@@ -209,7 +209,9 @@ async def run(job: ImportJob, pool, search: Search, youtube: YouTube) -> None:
                         song_id = await library.resolve_song(conn, found.listings)
                         if playlist_id is None:
                             await library.like(conn, job.user_id, song_id)
-                        else:
+                        elif not await (await conn.execute(      # an import run again adds nothing twice
+                                "SELECT 1 FROM playlist_items WHERE playlist_id = %s AND song_id = %s",
+                                [playlist_id, song_id])).fetchone():
                             await library.add_to_playlist(conn, job.user_id, playlist_id, song_id)
                     job.added += 1
                 job.done += 1
