@@ -192,8 +192,7 @@ async def _with_listings(conn: AsyncConnection, rows: list[dict]) -> list[Librar
     """Attach each song's stored listings and show it through its best listing; display is not identity."""
     if not rows:
         return []
-    # each listing with its song's cover. Only s.image, renamed: listings and songs share column names (title,
-    # artists, duration, image), and with SELECT * the song's would overwrite the listing's in each row's dict
+    # s.image renamed: SELECT * would let the song's columns overwrite the listing's (title, artists, image)
     listing_rows = await (await conn.execute(
         """SELECT l.*, s.image AS song_image FROM listings l JOIN songs s ON s.id = l.song_id
             WHERE l.song_id = ANY(%s) ORDER BY l.created_at""", [[r["id"] for r in rows]],

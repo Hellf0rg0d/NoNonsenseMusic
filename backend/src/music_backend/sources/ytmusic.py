@@ -209,6 +209,7 @@ def get_album_blocking(album_id: str) -> AlbumDetail | None:
         return None
     album_artists = [a["name"] for a in d.get("artists") or []]
     songs = []
+    album_cover = thumb_url(d.get("thumbnails"))   # album tracks carry no pictures of their own (measured 12 Oct)
     for row in d.get("tracks") or []:
         try:
             duration = row.get("duration_seconds")
@@ -223,7 +224,7 @@ def get_album_blocking(album_id: str) -> AlbumDetail | None:
                 album = d["title"],
                 duration = duration,
                 popularity = to_count(row["views"]) if row.get("views") else None,
-                image = thumb_url(row.get("thumbnails")),
+                image = thumb_url(row.get("thumbnails")) or album_cover,
                 explicit = row.get("isExplicit"),
             )]))
         except (KeyError, TypeError, ValueError) as e:
