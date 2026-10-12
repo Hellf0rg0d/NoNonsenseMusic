@@ -191,7 +191,9 @@ class SpotifyImporter extends ChangeNotifier {
 
   ImportStatus? status;
   String? problem;
-  bool get running => status != null && !status!.finished;
+  /// Between pressing Import and the server's first answer: running already (a second press would only get 409).
+  bool _starting = false;
+  bool get running => _starting || (status != null && !status!.finished);
 
   /// Starts an import of these files ((name, text) pairs), into [playlistId] when given, then asks every 2 s until
   /// the server has finished. [done] runs once at the end (the library shows what was added).
@@ -220,6 +222,7 @@ class SpotifyImporter extends ChangeNotifier {
   Future<void> _run(List<ImportGroup> groups, Future<void> Function()? done) async {
     // the last import's result goes at once: shown until the server answered, it read as this import's (12 Oct)
     status = null;
+    _starting = true;
     notifyListeners();
     try {
       status = ImportStatus.fromJson(
@@ -227,10 +230,15 @@ class SpotifyImporter extends ChangeNotifier {
       );
     } catch (e) {
       problem = e.toString();
-      notifyListeners();
       return;
+    } finally {
+      _starting = false;
+      notifyListeners();
     }
-    notifyListeners();
+    // songs are added one by one: what is being filled shows them as they come, not only at the end (a playlist said
+    // "0 songs" for minutes while the server had added dozens, 12 Oct). At most one reload every 5 s
+    var shown = 0;
+    var reloaded = DateTime.fromMillisecondsSinceEpoch(0);
     while (status != null && !status!.finished) {
       await Future<void>.delayed(const Duration(seconds: 2));
       try {
@@ -239,6 +247,12 @@ class SpotifyImporter extends ChangeNotifier {
         );
         notifyListeners();
       } catch (_) {} // asked again in 2 s
+      final added = status?.added ?? 0;
+      if (added > shown && DateTime.now().difference(reloaded) >= const Duration(seconds: 5)) {
+        shown = added;
+        reloaded = DateTime.now();
+        await done?.call();
+      }
     }
     await done?.call();
   }

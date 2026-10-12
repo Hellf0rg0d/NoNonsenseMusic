@@ -475,12 +475,19 @@ private struct ImportIntoPlaylistButton: View {
     @State private var link = ""
     private var importer: SpotifyImporter { .shared }
 
+    /// "Import", or how far the import has got: "Importing 20 of 112…" ("Importing…" until the server first answers)
+    private var progress: String {
+        guard importer.running else { return "Import" }
+        guard let s = importer.status, s.total > 0 else { return "Importing…" }
+        return "Importing \(s.done) of \(s.total)…"
+    }
+
     var body: some View {
         Menu {
             Button("Songs from Files…") { choosingFiles = true }
             Button("Songs from a YouTube Playlist…") { askingLink = true }
         } label: {
-            Label(importer.running ? "Importing…" : "Import", systemImage: "square.and.arrow.down")
+            Label(progress, systemImage: "square.and.arrow.down")
         }
         .menuIndicator(.hidden)
         .compatGlassButton()

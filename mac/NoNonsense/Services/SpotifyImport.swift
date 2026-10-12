@@ -156,7 +156,9 @@ final class SpotifyImporter {
     /// The running or last import, as the server last reported it.
     private(set) var status: SpotifyImportStatus?
     private(set) var problem: String?
-    var running: Bool { status.map { !$0.finished } ?? false }
+    /// Between pressing Import and the server's first answer: running already (a second press would only get 409)
+    private var starting = false
+    var running: Bool { starting || status.map { !$0.finished } ?? false }
 
     /// Imports these files: to Liked Songs and new playlists, or all of them into `playlist`.
     func start(_ urls: [URL], into playlist: UUID? = nil, library: LibraryStore) {
@@ -183,11 +185,14 @@ final class SpotifyImporter {
     private func run(_ groups: [SpotifyImportGroup], library: LibraryStore) {
         // the last import's result goes at once: shown until the server answered, it read as this import's (12 Oct)
         status = nil
+        starting = true
         library.notify("Importing…", symbol: "square.and.arrow.down")
         Task {
             do {
                 status = try await API.startSpotifyImport(groups)
+                starting = false
             } catch {
+                starting = false
                 problem = error.localizedDescription
                 library.notify("Couldn't import: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
                 return
@@ -198,9 +203,17 @@ final class SpotifyImporter {
 
     /// Asks every 2 s until the server says it has finished, then shows the library as it now is.
     private func follow(library: LibraryStore, into playlist: UUID?) async {
+        // songs are added one by one: the playlist being filled shows them as they come, not only at the end (it said
+        // "0 songs" for minutes while the server had added dozens, 12 Oct). At most one reload every 5 s
+        var shown = 0, reloaded = Date.distantPast
         while let current = status, !current.finished {
             try? await Task.sleep(for: .seconds(2))
             if let next = try? await API.spotifyImportStatus(current.id) { status = next }
+            if let playlist, let added = status?.added, added > shown, Date().timeIntervalSince(reloaded) >= 5 {
+                shown = added
+                reloaded = .now
+                _ = await library.loadPlaylist(playlist)
+            }
         }
         await library.refresh()
         if let playlist { _ = await library.loadPlaylist(playlist) }   // the open playlist shows its new songs

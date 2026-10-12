@@ -139,6 +139,13 @@ class ImportIntoPlaylistButton extends StatelessWidget {
   const ImportIntoPlaylistButton({super.key, required this.playlistId});
   final String playlistId;
 
+  /// "Import", or how far the import has got: "Importing 20 of 112…" ("Importing…" until the server first answers).
+  static String _progress(SpotifyImporter i) {
+    if (!i.running) return 'Import';
+    final s = i.status;
+    return s == null || s.total == 0 ? 'Importing…' : 'Importing ${s.done} of ${s.total}…';
+  }
+
   Future<void> _files(BuildContext context) async {
     final library = Scope.of(context).library;
     final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['csv', 'json']);
@@ -187,7 +194,7 @@ class ImportIntoPlaylistButton extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.download_outlined, size: 18),
             const SizedBox(width: 6),
-            Text(SpotifyImporter.shared.running ? 'Importing…' : 'Import'),
+            Text(_progress(SpotifyImporter.shared)),
           ]),
         ),
       ),
