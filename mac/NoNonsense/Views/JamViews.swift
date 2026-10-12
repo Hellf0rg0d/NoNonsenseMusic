@@ -100,8 +100,14 @@ private struct RoomView: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "hifispeaker.fill").foregroundStyle(.secondary)
-                Text(jam.isHost ? "Playing on this Mac" : "Playing on \(host)'s Mac").textStyle(.callout).foregroundStyle(.secondary)
+                Text(jam.isHost || !jam.playHere ? (jam.isHost ? "Playing on this Mac" : "Playing on \(host)'s Mac")
+                     : "Playing here and on \(host)'s Mac").textStyle(.callout).foregroundStyle(.secondary)
                 Spacer()
+                if !jam.isHost {
+                    Toggle("Play here", isOn: Binding(get: { jam.playHere }, set: { jam.playHere = $0 }))
+                        .toggleStyle(.switch).controlSize(.mini).textStyle(.callout)
+                        .help("Off: this Mac follows the jam without sound, for friends in the same room")
+                }
                 if jam.isHost, room.members.count > 1 {
                     Menu("Speakers") {
                         ForEach(room.members.filter { $0.userID != room.hostID }) { member in

@@ -88,7 +88,7 @@ final class JamSession {
     @ObservationIgnored var me: UUID?
     @ObservationIgnored private var loop: Task<Void, Never>?
     @ObservationIgnored private var socket: URLSessionWebSocketTask?
-    /// The entry the host's player last loaded: a new state with another entry loads that one.
+    /// The entry this player last loaded: a new state with another entry loads that one.
     @ObservationIgnored private var loadedEntry: UUID?
     /// A new room is taking over the song that was playing: until its first state with a song, the player is left alone.
     @ObservationIgnored private var carrying = false
@@ -99,6 +99,9 @@ final class JamSession {
     @ObservationIgnored var onNotice: ((String) -> Void)?
 
     var isHost: Bool { state != nil && state?.hostID == me }
+    /// A member's device plays the room's song in step with the host. Off: it follows silently (friends in one room
+    /// would hear an echo). The host always plays.
+    var playHere = true { didSet { player?.jamSetSilent(!isHost && !playHere) } }
     var inJam: Bool { state != nil }
 
     // MARK: joining and leaving
@@ -158,6 +161,8 @@ final class JamSession {
         radioSeed = nil
         outbox = []
         connected = false
+        playHere = true
+        player?.jamSetSilent(false)
         player?.jam = nil
     }
 
@@ -244,18 +249,15 @@ final class JamSession {
 
     // MARK: the room's state
 
-    /// A new state: kept, and the host's player made to match it.
+    /// A new state: kept, and this Mac's player made to match it. Every member plays the room's song in step (a member
+    /// that only controlled the room showed its own last song, paused, while the room played another, 12 Oct); only the
+    /// host moves the room on, sends its position and asks for Autoplay.
     private func apply(_ room: JamState) {
         if room != state { state = room }
         refillIfNeeded(room)
         guard let player else { return }
         player.jam = self
-        guard room.hostID == me else {
-            // a remote: this Mac plays nothing for the room
-            if player.isPlaying { player.jamFollow(playing: false) }
-            loadedEntry = nil
-            return
-        }
+        player.jamSetSilent(room.hostID != me && !playHere)
         guard let entry = room.current else {
             if !carrying, player.isPlaying { player.jamFollow(playing: false) }
             loadedEntry = nil

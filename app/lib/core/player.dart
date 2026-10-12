@@ -287,8 +287,16 @@ class Player extends ChangeNotifier implements JamPlayer {
 
   void setVolume(double v) {
     volume = v.clamp(0, 1);
-    _audio.setVolume(volume);
+    _audio.setVolume(_jamSilent ? 0 : volume);
     notifyListeners();
+  }
+
+  bool _jamSilent = false;
+  @override
+  void jamSetSilent(bool silent) {
+    if (silent == _jamSilent) return;
+    _jamSilent = silent;
+    _audio.setVolume(silent ? 0 : volume);
   }
 
   void setPanel(String p) => _set(() => panel = panel == p ? 'none' : p);

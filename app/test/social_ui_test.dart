@@ -194,7 +194,8 @@ void main() {
       expect(jam.inJam, isTrue);
       await tester.pumpWidget(app(JamPanel(jam: jam, social: Social())));
       await tester.pumpAndSettle();
-      expect(find.text("Playing on $longName's device"), findsOneWidget);
+      expect(find.text("Playing here and on $longName's device"), findsOneWidget);
+      expect(find.text('Play here'), findsOneWidget, reason: 'a member can turn this device\'s sound off');
       expect(find.text('Invite'), findsNothing);
       expect(find.text('Speakers'), findsNothing);
       expect(find.text('Nothing playing. Play any song to start the jam.'), findsOneWidget);

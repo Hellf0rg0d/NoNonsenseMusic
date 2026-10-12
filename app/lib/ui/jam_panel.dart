@@ -171,7 +171,22 @@ class _RoomViewState extends State<_RoomView> {
       Row(children: [
         Icon(FluentIcons.speaker_2_24_regular, size: 16, color: muted),
         const SizedBox(width: 6),
-        Expanded(child: Text(host ? 'Playing on this device' : "Playing on ${room.hostName}'s device", style: TextStyle(fontSize: 13.5, color: muted))),
+        Expanded(
+            child: Text(
+                host
+                    ? 'Playing on this device'
+                    : jam.playHere
+                        ? "Playing here and on ${room.hostName}'s device"
+                        : "Playing on ${room.hostName}'s device",
+                style: TextStyle(fontSize: 13.5, color: muted))),
+        if (!host)
+          Tooltip(
+            message: 'Off: this device follows the jam without sound, for friends in the same room',
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('Play here', style: TextStyle(fontSize: 13.5, color: muted)),
+              Transform.scale(scale: 0.75, child: Switch(value: jam.playHere, onChanged: (on) => setState(() => jam.playHere = on))),
+            ]),
+          ),
         if (host && room.members.length > 1)
           PopupMenuButton<JamMember>(
             tooltip: 'Choose which member’s device plays the jam',

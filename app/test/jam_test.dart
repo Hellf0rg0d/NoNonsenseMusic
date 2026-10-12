@@ -63,6 +63,9 @@ class FakePlayer implements JamPlayer {
   void jamFollowSeek(double seconds) => calls.add('seek $seconds');
   @override
   void jamSay(String text) => calls.add('say $text');
+  bool silent = false;
+  @override
+  void jamSetSilent(bool s) => silent = s;
 }
 
 JamState state(Map<String, dynamic> json) => JamState.fromJson(json);
@@ -116,11 +119,10 @@ void main() {
           reason: 'a song still loading has no place yet');
     });
 
-    test('not the host: nothing plays here, and a song that was playing is paused', () {
+    test("not the host: the room's song plays here too, in step", () {
       final room = roomJson(host: 'u2', current: current);
-      final p = plan(room, loaded: 'e1', playing: true);
-      expect((p.load, p.playing, p.seek, p.loadedEntry), (null, false, null, null));
-      expect(plan(room, playing: false).playing, isNull);
+      final p = plan(room);
+      expect((p.load?.entryId, p.loadedEntry), ('e1', 'e1'));
     });
 
     test('no current song: the player pauses and forgets the entry', () {
@@ -192,17 +194,17 @@ void main() {
       expect(server.count('POST /jam/room1/leave'), 1);
     });
 
-    test('a member who is not the host loads nothing; the room error shows to the user', () async {
+    test('a member who is not the host plays the room\'s song; the room error shows to the user', () async {
       roomAnswer = roomJson(host: 'u2');
       expect(await jam.join('ABC-12'), isNull);
       expect(server.asked, contains('POST /jam/join'));
       await pumpEventQueue(times: 60);
       await push(stateMessage(roomJson(host: 'u2', current: entry('e1', listing('a')))));
-      expect(player.calls, isEmpty);
+      expect(player.calls.single, startsWith('load a'), reason: 'a member plays the room\'s song too');
       expect(jam.isHost, isFalse);
       await push(jsonEncode({'type': 'error', 'detail': 'Queue is full (200).'}));
       expect(jam.problem, 'Queue is full (200).');
-      expect(player.calls, ['say Queue is full (200).']);
+      expect(player.calls.last, 'say Queue is full (200).');
     });
 
     test('starting a jam while a song plays carries it in and keeps it playing, without a reload or a jump back', () async {

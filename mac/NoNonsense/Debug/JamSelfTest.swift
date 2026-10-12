@@ -77,7 +77,14 @@ extension SelfTest {
                 let handover = try? JSONEncoder().encode(["member_id": other.user.id.uuidString.lowercased()])
                 let took = await raw("POST", "jam/\(room.roomID.uuidString.lowercased())/host", token: API.token ?? "", body: handover).status
                 check("(and the host hands over the speakers)", took == 204, "\(took)")
-                check("this Mac is a remote now: it stops playing", await until(5) { !jam.isHost && !player.isPlaying })
+                check("this Mac is a member now: it keeps playing the room's song", await until(5) {
+                    !jam.isHost && player.isPlaying == (jam.state?.isPlaying ?? false)
+                        && player.playingListing?.key == jam.state?.current?.listing.key })
+                jam.playHere = false
+                check("Play here off: it follows the room without sound", await until(2) {
+                    player.jamSilent && player.playingListing?.key == jam.state?.current?.listing.key })
+                jam.playHere = true
+                check("…and on again: the sound is back", await until(2) { !player.jamSilent })
                 check("…and the room lists both people", jam.state?.members.count == 2, "\(jam.state?.members.count ?? 0)")
             } else {
                 check("sign up a second account", false)

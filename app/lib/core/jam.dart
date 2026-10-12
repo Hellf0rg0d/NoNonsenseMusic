@@ -169,6 +169,9 @@ abstract interface class JamPlayer {
 
   /// Moves to the room's playhead, without telling the room.
   void jamFollowSeek(double seconds);
+
+  /// A member with Play here off: the room's song follows along without sound, apart from the user's own volume.
+  void jamSetSilent(bool silent);
 }
 
 /// What the host's player does when a new room state arrives. All fields are empty when nothing needs doing.
@@ -189,8 +192,9 @@ class JamPlan {
   final String? loadedEntry;
 }
 
-/// Decides what a player does for a room state. Only the host's player plays for the room; everyone else's plays
-/// nothing, and a player that was playing something else is paused.
+/// Decides what a player does for a room state. Every member's player plays the room's song in step (a member that only
+/// controlled the room showed its own last song while the room played another, 12 Oct); only the host moves the room
+/// on, sends its position and asks for Autoplay.
 ///
 /// [adoptKey] is the key of a song the player already plays because the jam started with it: when the room's current
 /// song is that one, the player keeps playing it instead of loading it again.
@@ -204,7 +208,7 @@ JamPlan planJamFollow(
   required double playerPosition,
 }) {
   final entry = room.current;
-  if (room.hostId != me || entry == null) {
+  if (entry == null) {
     return JamPlan(playing: playerPlaying ? false : null);
   }
   if (entry.entryId != loadedEntry && entry.listing.key != adoptKey) return JamPlan(load: entry, loadedEntry: entry.entryId);
@@ -322,6 +326,8 @@ class JamSession extends ChangeNotifier {
     problem = null;
     _loadedEntry = null;
     _carry = _adoptKey = _holdAt = null;
+    _playHere = true;
+    player?.jamSetSilent(false);
     player?.jam = null;
     if (was != null) notifyListeners();
   }
@@ -402,7 +408,16 @@ class JamSession extends ChangeNotifier {
 
   // MARK: the room's state
 
-  /// A new state: kept, and the host's player made to match it.
+  /// Off: this device follows the room without sound (friends in one room would hear an echo). The host always plays.
+  bool get playHere => _playHere;
+  bool _playHere = true;
+  set playHere(bool on) {
+    _playHere = on;
+    player?.jamSetSilent(!isHost && !on);
+    notifyListeners();
+  }
+
+  /// A new state: kept, and this device's player made to match it.
   void _apply(JamState room) {
     if (room != state) {
       state = room;
@@ -411,6 +426,7 @@ class JamSession extends ChangeNotifier {
     final p = player;
     if (p == null) return;
     p.jam = this;
+    p.jamSetSilent(room.hostId != me && !_playHere);
     if (room.current == null && _adoptKey != null) {
       // the room is still empty while the song that started it joins: the song plays on, it is not paused
       _sendCarry(room);

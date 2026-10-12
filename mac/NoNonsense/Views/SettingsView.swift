@@ -137,6 +137,7 @@ private struct AppearanceSettings: View {
     @AppStorage("sidebarBlur") private var sidebarBlur = Look.sidebarBlur
     @AppStorage("sidebarSolid") private var sidebarSolid = Look.sidebarSolid
     @AppStorage("barStyle") private var barStyle = BarStyle.glass
+    @AppStorage(GlassSetting.key) private var liquidGlass = true
     @AppStorage("barBlur") private var barBlur = Look.barBlur
     @AppStorage("barSolid") private var barSolid = Look.barSolid
     @AppStorage("nowPlayingBlur") private var nowPlayingBlur = Look.nowPlayingBlur
@@ -151,6 +152,13 @@ private struct AppearanceSettings: View {
                     ForEach(Appearance.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                if #available(macOS 26, *) {
+                    Toggle(isOn: $liquidGlass) {
+                        Text("Liquid Glass")
+                        Text("Off: the frosted materials of earlier macOS versions.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Toggle(isOn: $buttonFeedback) {
                     Text("Button feedback")
                     Text("A soft highlight and a small press on buttons.")

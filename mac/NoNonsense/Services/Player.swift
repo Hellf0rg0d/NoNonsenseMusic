@@ -59,6 +59,8 @@ final class Player {
     private(set) var playingListing: Listing?                         // the copy AVPlayer is playing right now
     private(set) var volume: Float = UserDefaults.standard.object(forKey: "volume") as? Float ?? 1   // 0...1, remembered
     private(set) var isMuted = false
+    /// A jam member with Play here off: the room's song follows along without sound. Apart from your own mute.
+    private(set) var jamSilent = false
     @ObservationIgnored private var freshRetried: Set<String> = []   // listing keys already retried with serve_fresh
     @ObservationIgnored private var messageTimer: Task<Void, Never>?
     @ObservationIgnored private var artwork: [String: MPMediaItemArtwork] = [:]
@@ -279,7 +281,7 @@ final class Player {
     func setVolume(_ level: Float) {
         volume = min(1, max(0, level))
         player.volume = volume
-        if isMuted { isMuted = false; player.isMuted = false }
+        if isMuted { isMuted = false; player.isMuted = jamSilent }
         // saved once the slider settles, not on every pointer move of a drag
         volumeSave?.cancel()
         volumeSave = Task { [volume] in
@@ -291,7 +293,13 @@ final class Player {
 
     func toggleMute() {
         isMuted.toggle()
-        player.isMuted = isMuted
+        player.isMuted = isMuted || jamSilent
+    }
+
+    func jamSetSilent(_ silent: Bool) {
+        guard silent != jamSilent else { return }
+        jamSilent = silent
+        player.isMuted = isMuted || silent
     }
 
     /// Where the song is right now, read from the audio player itself: `position` changes only on events (play,
