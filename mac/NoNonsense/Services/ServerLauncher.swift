@@ -80,10 +80,17 @@ final class ServerLauncher {
     static var reloads: Bool { UserDefaults.standard.bool(forKey: "serverReload") }
 
     private func startIfNeeded() async -> Bool {
+        // the address first: a server on another machine needs none here, and one this app started for this Mac is
+        // stopped. Checked after the health check, a remote server's answer counted as ours "started", and the local
+        // one ran on, unused, until the app quit (12 Oct)
+        guard let host = API.baseURL.host(), ["127.0.0.1", "localhost", "::1"].contains(host) else {
+            if process != nil { await stopWithoutBlocking() }
+            state = .notLocal
+            return await API.health()
+        }
         if process?.isRunning == true, await API.health() { state = .started; return true }
         state = .checking
         if await API.health() { state = .alreadyRunning; return true }
-        guard let host = API.baseURL.host(), ["127.0.0.1", "localhost", "::1"].contains(host) else { state = .notLocal; return false }
         if process?.isRunning == true { stop() }          // ours, but not answering: replace it rather than leave it running
         do { try await start(port: API.baseURL.port ?? 8000) } catch { state = .failed(error.localizedDescription); return false }
         state = .starting
