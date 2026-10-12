@@ -27,26 +27,10 @@ def make_pool(url: str) -> AsyncConnectionPool:
                                min_size = 1, max_size = 8, max_idle = 60, check = AsyncConnectionPool.check_connection)
 
 
-async def needs_auth3(conn: AsyncConnection) -> bool:
-    """Report whether the database predates the accounts migration.
-
-    A database from before accounts has a likes table with no owner column. schema.sql only creates what is missing,
-    so it cannot change those tables: scripts/migrate_auth3.py does, once.
-    """
-    row = await (await conn.execute(
-        """SELECT to_regclass('likes') IS NOT NULL
-                  AND NOT EXISTS (SELECT 1 FROM information_schema.columns
-                                   WHERE table_name = 'likes' AND column_name = 'user_id') AS needs""")).fetchone()
-    return row["needs"]
-
-
 async def apply_schema(pool: AsyncConnectionPool) -> None:
-    """Create any missing tables and reject a database that predates accounts.
+    """Create any missing tables.
 
     Every statement in schema.sql uses IF NOT EXISTS, so applying it on each start is safe.
     """
     async with pool.connection() as conn:
-        if await needs_auth3(conn):
-            raise RuntimeError("This database is from before accounts. Run once, then start again:  "
-                               "cd ~/projects/music/backend && uv run python scripts/migrate_auth3.py --username <you>")
         await conn.execute(SCHEMA.read_text())
