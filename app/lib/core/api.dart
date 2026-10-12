@@ -47,6 +47,12 @@ class Api {
   /// A POST, PUT, PATCH or DELETE from another file's API calls; `null` for an empty answer (204).
   static Future<dynamic> sendJson(String method, String path, [Object body = const {}]) => _send(method, path, body);
 
+  /// Spotify import (core/spotify_import.dart): start one, then ask how far it has got.
+  static Future<Map<String, dynamic>> startSpotifyImport(List<Map<String, dynamic>> groups) async =>
+      await _send('POST', 'import/spotify', {'groups': groups}) as Map<String, dynamic>;
+  static Future<Map<String, dynamic>> spotifyImportStatus(String id) async =>
+      await _get('import/spotify/$id') as Map<String, dynamic>;
+
   /// Throw the server's answer as an ApiError. A 401 means the session ended only when the request carried the token
   /// still in use; Auth is told then. An older request answering 401 after the user signed in again must not end the
   /// new session.

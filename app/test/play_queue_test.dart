@@ -146,5 +146,16 @@ void main() {
       q.clearUpcoming();
       expect(names(q), 'a');
     });
+
+    test('Up Next is one queue: dragged across the Autoplay heading, a song becomes yours or Autoplay\'s', () {
+      final q = PlayQueue()..load(abcde.take(2).toList(), 0, shuffled: false);
+      q..appendAutoplay(abcde[2])..appendAutoplay(abcde[3]);
+      q.moveUpcoming(2, 0, autoplay: false);
+      expect(names(q), 'adbc');
+      expect([for (final e in q.upcoming) e.autoplay], [false, false, true]);
+      q.moveUpcoming(0, 2, autoplay: true);
+      expect(names(q), 'abcd');
+      expect([for (final e in q.upcoming) e.autoplay], [false, true, true]);
+    });
   });
 }

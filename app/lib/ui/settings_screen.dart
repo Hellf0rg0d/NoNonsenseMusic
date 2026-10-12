@@ -63,6 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         const RecoveryCodesSettings(),
+        const SpotifyImportSettings(),
         const SizedBox(height: 16),
         // Sign-out is per device: the other devices stay signed in
         Align(alignment: Alignment.centerLeft, child: OutlinedButton(onPressed: s.auth.signOut, child: const Text('Sign Out'))),

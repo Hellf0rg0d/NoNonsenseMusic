@@ -179,8 +179,8 @@ class Player extends ChangeNotifier implements JamPlayer {
     _go(i);
   }
 
-  void moveUpNext(int from, int to) {
-    queue.moveUpcoming(from, to);
+  void moveUpNext(int from, int to, {bool? autoplay}) {
+    queue.moveUpcoming(from, to, autoplay: autoplay);
     _announce();
     notifyListeners();
   }

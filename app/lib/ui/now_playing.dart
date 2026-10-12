@@ -191,7 +191,7 @@ class UpNext extends StatelessWidget {
     // Built as a const child, it listens to the player itself; otherwise it would keep the queue from its first build.
     return ListenableBuilder(listenable: Listenable.merge([p, s.settings]), builder: (context, _) {
     final entries = p.queue.upcoming;
-    final mine = entries.where((e) => !e.autoplay).toList(), auto = entries.where((e) => e.autoplay).toList();
+    final heading = entries.indexWhere((e) => e.autoplay); // where Autoplay's part begins; -1: none
     Widget row(Track t, int offset) => GestureDetector(
           onDoubleTap: () => p.jump(p.queue.index + 1 + offset),
           child: ListTile(
@@ -217,24 +217,34 @@ class UpNext extends StatelessWidget {
         Expanded(
           child: entries.isEmpty
               ? Padding(padding: const EdgeInsets.all(6), child: Text('Nothing queued. Play a list, or right-click a song → Play Next or Add to Queue.', style: TextStyle(color: muted)))
+              // One queue: your songs, then Autoplay's under its heading, as on the Mac. Any song can be dragged anywhere;
+              // which side of the heading it lands on makes it yours or Autoplay's (12 Oct). The heading row stays put.
               : ReorderableListView.builder(
                   buildDefaultDragHandles: false,
-                  itemCount: mine.length,
-                  onReorderItem: (from, to) => p.moveUpNext(from, to), // `to` is the row's index after the move
-                  itemBuilder: (context, i) => ReorderableDragStartListener(
-                    key: ValueKey(mine[i].key),
-                    index: i,
-                    child: row(mine[i].track, i),
-                  ),
-                  footer: auto.isEmpty
-                      ? null
-                      : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(6, 14, 6, 4),
-                            child: Text('Autoplay', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: muted)),
-                          ),
-                          for (final (j, e) in auto.indexed) KeyedSubtree(key: ValueKey(e.key), child: row(e.track, mine.length + j)),
-                        ]),
+                  itemCount: entries.length + (heading < 0 ? 0 : 1),
+                  onReorderItem: (from, to) { // `to` is the row's index after the move
+                    if (from == heading) return;
+                    if (heading < 0) return p.moveUpNext(from, to);
+                    final rows = [for (var i = 0; i <= entries.length; i++) i]; // the heading's own row included
+                    rows.insert(to, rows.removeAt(from));
+                    final below = to > rows.indexOf(heading);
+                    p.moveUpNext(from > heading ? from - 1 : from, below ? to - 1 : to, autoplay: below);
+                  },
+                  itemBuilder: (context, i) {
+                    if (i == heading) {
+                      return Padding(
+                        key: const ValueKey('upnext-autoplay-heading'),
+                        padding: const EdgeInsets.fromLTRB(6, 14, 6, 4),
+                        child: Text('Autoplay', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: muted)),
+                      );
+                    }
+                    final offset = heading >= 0 && i > heading ? i - 1 : i;
+                    return ReorderableDragStartListener(
+                      key: ValueKey(entries[offset].key),
+                      index: i,
+                      child: row(entries[offset].track, offset),
+                    );
+                  },
                 ),
         ),
       ]);

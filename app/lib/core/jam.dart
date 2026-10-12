@@ -100,7 +100,7 @@ class JamState {
 /// One control message for the room (`JamCommand` on the server). Only the fields a command uses are sent.
 @immutable
 class JamCommand {
-  const JamCommand._(this.type, {this.seconds, this.listings, this.entryId, this.placement});
+  const JamCommand._(this.type, {this.seconds, this.listings, this.entryId, this.placement, this.toIndex});
 
   const JamCommand.play() : this._('play');
   const JamCommand.pause() : this._('pause');
@@ -113,12 +113,14 @@ class JamCommand {
   const JamCommand.add(List<Listing> listings, {String placement = 'end'}) : this._('add', listings: listings, placement: placement);
   const JamCommand.remove(String entryId) : this._('remove', entryId: entryId);
   const JamCommand.jump(String entryId) : this._('jump', entryId: entryId);
+  const JamCommand.move(String entryId, int toIndex) : this._('move', entryId: entryId, toIndex: toIndex);
 
   final String type;
   final double? seconds;
   final List<Listing>? listings;
   final String? entryId;
   final String? placement;
+  final int? toIndex;
 
   Map<String, dynamic> toJson() => {
         'type': type,
@@ -126,6 +128,7 @@ class JamCommand {
         if (listings != null) 'listings': [for (final l in listings!) l.toJson()],
         'entry_id': ?entryId,
         'placement': ?placement,
+        'to_index': ?toIndex,
       };
 
   String encode() => jsonEncode(toJson());
@@ -391,6 +394,9 @@ class JamSession extends ChangeNotifier {
 
   void remove(JamEntry entry) => _send(JamCommand.remove(entry.entryId));
   void jump(JamEntry entry) => _send(JamCommand.jump(entry.entryId));
+
+  /// A drag in the room's Up Next: the move goes to the room, so everyone sees it.
+  void move(JamEntry entry, int toIndex) => _send(JamCommand.move(entry.entryId, toIndex));
 
   /// The host's song ended: the room moves on. Only the host's player plays, so only the host says so.
   void songEnded() {

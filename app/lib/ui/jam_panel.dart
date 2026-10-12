@@ -422,11 +422,17 @@ class JamUpNext extends StatelessWidget {
                       child: Text('Nothing queued. Play any song to add it to the jam.',
                           style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.55))),
                     )
-                  : ListView.builder(
+                  // the room's queue drags as yours does; the move goes to the room, so everyone sees it
+                  : ReorderableListView.builder(
+                      buildDefaultDragHandles: false,
                       itemCount: room.queue.length,
+                      onReorderItem: (from, to) => jam.move(room.queue[from], to),
                       itemBuilder: (_, i) {
                         final entry = room.queue[i];
-                        return GestureDetector(
+                        return ReorderableDragStartListener(
+                          key: ValueKey(entry.entryId),
+                          index: i,
+                          child: GestureDetector(
                           onDoubleTap: () => jam.jump(entry),
                           child: ListTile(
                             dense: true,
@@ -441,7 +447,7 @@ class JamUpNext extends StatelessWidget {
                               icon: const Icon(FluentIcons.dismiss_circle_24_filled),
                             ),
                           ),
-                        );
+                        ));
                       },
                     ),
             ),

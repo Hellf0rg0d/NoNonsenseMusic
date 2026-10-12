@@ -32,7 +32,8 @@ class Entry {
   final bool autoplay;
 
   Entry(this.track, this.n, this.key, {this.queued = false, this.atEnd = false, this.autoplay = false});
-  Entry copyWith({double? n}) => Entry(track, n ?? this.n, key, queued: queued, atEnd: atEnd, autoplay: autoplay);
+  Entry copyWith({double? n, bool? autoplay}) =>
+      Entry(track, n ?? this.n, key, queued: queued, atEnd: atEnd, autoplay: autoplay ?? this.autoplay);
 }
 
 int _keys = 0;
@@ -150,11 +151,14 @@ class PlayQueue {
   }
 
   /// Up Next rearranged by hand. `from` and `to` count from the first song after the current one; `to` is the
-  /// moved row's place once moved. The current song never moves.
-  void moveUpcoming(int from, int to) {
+  /// moved row's place once moved. The current song never moves. [autoplay]: which side of the Autoplay heading the
+  /// song landed on, when Up Next shows one: an Autoplay song dragged up among yours becomes yours, and one of yours
+  /// dragged down becomes Autoplay's (Up Next is one queue; the heading only marks where Autoplay's part begins).
+  void moveUpcoming(int from, int to, {bool? autoplay}) {
     final list = upcoming;
     if (from < 0 || from >= list.length) return;
-    final moving = list.removeAt(from);
+    var moving = list.removeAt(from);
+    if (autoplay != null) moving = moving.copyWith(autoplay: autoplay);
     list.insert(to.clamp(0, list.length), moving);
     entries = [...entries.sublist(0, index + 1), ...list];
     _handEdited();

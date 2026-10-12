@@ -85,6 +85,7 @@ void main() {
     expect(m(const JamCommand.position(7)), {'type': 'position', 'seconds': 7});
     expect(m(const JamCommand.remove('e1')), {'type': 'remove', 'entry_id': 'e1'});
     expect(m(const JamCommand.jump('e2')), {'type': 'jump', 'entry_id': 'e2'});
+    expect(m(const JamCommand.move('e3', 0)), {'type': 'move', 'entry_id': 'e3', 'to_index': 0});
     final add = m(JamCommand.add([listing('a')]));
     expect(add.keys, ['type', 'listings', 'placement']);
     expect(add['placement'], 'end');
