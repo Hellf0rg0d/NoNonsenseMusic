@@ -46,7 +46,8 @@ LIMITS: dict[str, tuple[int, int]] = {
     "jam": (20, 60),                    # POST /jam and /jam/join: opening rooms, not the controls inside them
     "recovery_codes": (5, 900),         # replacing codes is sensitive even after a password check
     "playlist_create": (30, 3600),      # POST /playlists: each one adds a row for good
-    "share": (30, 3600),                # PUT /playlists/{id}/members: each new member sends an invite notification
+    "share": (30, 3600),
+    "import": (10, 3600),               # POST /import/spotify: each one searches every song of a library                # PUT /playlists/{id}/members: each new member sends an invite notification
 }
 # headers a proxy sets; a request from this machine that carries one went through a proxy on this machine
 PROXY_HEADERS = ("x-forwarded-for", "forwarded", "x-real-ip")

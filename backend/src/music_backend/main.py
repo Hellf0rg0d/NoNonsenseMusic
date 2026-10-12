@@ -10,9 +10,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from psycopg import errors
 
 from music_backend.core import db, ratelimit
-from music_backend.services import auth, library, cache, genius, lyrics, friends, notifications, jam, served
+from music_backend.services import auth, library, cache, genius, lyrics, friends, notifications, jam, served, spotify_import
 from music_backend.services.matching import rank_songs, merge_youtube, rank_albums, rank_artists
-from music_backend.models import (EventRequest, LibrarySong, ListingsRequest, Listing, SearchResponse,
+from music_backend.models import (SpotifyImportRequest, SpotifyImportStatus, Song, EventRequest, LibrarySong, ListingsRequest, Listing, SearchResponse,
                                   SearchSourceInfo, SongRef, SourceName, PlaylistRequest, PlaylistMetadata,
                                   PlaylistsResponse, PlaylistItemRef, PlaylistItems, MoveRequest, PrefetchRequest,
                                   RadioRequest, RadioResponse,
@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
     app.state.genius_cache = cache.GeniusCache(pool)
     app.state.hub = notifications.NotificationHub()               # WebSocket connections + one-time WS tickets
     app.state.jams = jam.JamHub()                                 # jam rooms: in memory, lost on restart by design
+    app.state.imports = spotify_import.ImportHub()                # Spotify imports: in memory, as jam rooms
     # the prefetch workers: N separate tasks, running by themselves; the list keeps them alive
     # (a list comprehension: `[create_task(...)] * N` would be ONE task listed N times)
     app.state.prefetch_workers = [asyncio.create_task(app.state.url_cache.prefetch_worker())
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI):
 
     # shutdown, in this order: the workers, then lookups still running, then the pool they write to
     stopping = ([app.state.session_cleanup, app.state.notification_cleanup] + app.state.prefetch_workers
+                + list(app.state.imports.tasks)
                 + list(app.state.url_cache.running.values())
                 + list(app.state.lyrics_cache.running.values()) + list(app.state.genius_cache.running.values()))
     for task in stopping:
@@ -279,6 +281,37 @@ async def search(q: str, request: Request, user: Annotated[User, Depends(per_acc
         song.image = next((covers[(l.source, l.id)] for l in song.listings if (l.source, l.id) in covers), song.image)
     return SearchResponse(query = q, sources = sources, songs = songs,
                           albums = rank_albums(albums_by_source), artists = rank_artists(artists_by_source))
+
+# ---------- Spotify import ----------
+# The app reads Spotify's file on the device and sends only titles, artists and lengths; the server searches each one
+# in the background (services/spotify_import.py) and the app asks how far it has got.
+
+async def songs_for_import(q: str) -> list[Song]:
+    """The music sources' songs for one query, ranked as search ranks them (no plain YouTube: no stray uploads)."""
+    results = await asyncio.gather(*(search_one(name, source, q, albums=False, artists=False)
+                                     for name, source in SOURCES.items() if name != "youtube"))
+    return rank_songs([song_listings for song_listings, _, _, _ in results])
+
+
+@app.post("/import/spotify", status_code=202)
+async def import_spotify(body: SpotifyImportRequest, request: Request,
+                         user: Annotated[User, Depends(per_account("import"))]) -> SpotifyImportStatus:
+    """Start an import: 202 at once, with the job to ask about. 409 while this account has one running."""
+    hub = request.app.state.imports
+    if hub.running_for(user.id):
+        raise HTTPException(status_code=409, detail="An import is already running")
+    if not any(group.songs for group in body.groups):
+        raise HTTPException(status_code=422, detail="The file has no songs")
+    return hub.start(request.app.state.pool, songs_for_import, user.id, body.groups).status()
+
+
+@app.get("/import/spotify/{job_id}")
+async def import_spotify_status(job_id: UUID, request: Request, user: Signed) -> SpotifyImportStatus:
+    job = request.app.state.imports.jobs.get(job_id)
+    if job is None or job.user_id != user.id:          # someone else's job is as unknown as none
+        raise HTTPException(status_code=404, detail="No such import")
+    return job.status()
+
 
 # ---------- one album, one artist (MUS-20) ----------
 # Read-only pages: tracks come back as ordinary songs (score 0, one listing each) in the source's

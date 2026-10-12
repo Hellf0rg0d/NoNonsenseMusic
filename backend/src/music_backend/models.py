@@ -531,3 +531,30 @@ class JamCommand(BaseModel):
         if v is not None and not math.isfinite(v):
             raise ValueError("seconds must be a finite number")
         return v
+
+
+# ---------- Spotify import ----------
+# The app reads Spotify's file on the device and sends only these fields; the server finds each song on its sources.
+IMPORT_MAX_SONGS = 10_000
+
+class SpotifyImportSong(BaseModel):
+    title : str = Field(min_length=1, max_length=300)
+    artists : list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=20)
+    duration_ms : int | None = Field(default=None, ge=0, le=6 * 3600 * 1000)
+
+class SpotifyImportGroup(BaseModel):
+    """One list from the file: name None = Liked Songs, else a new playlist of that name."""
+    name : str | None = Field(default=None, min_length=1, max_length=NAME_MAX)
+    songs : list[SpotifyImportSong] = Field(max_length=IMPORT_MAX_SONGS)
+
+class SpotifyImportRequest(BaseModel):
+    groups : list[SpotifyImportGroup] = Field(min_length=1, max_length=500)
+
+class SpotifyImportStatus(BaseModel):
+    id : UUID
+    total : int
+    done : int
+    added : int
+    missing : list[str]          # the first 200 songs not found, "Title — Artist"
+    finished : bool
+    failed : str | None = None

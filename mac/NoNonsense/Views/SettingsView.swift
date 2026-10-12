@@ -606,6 +606,9 @@ private struct ServerSettings: View {
 /// Settings › Account: who is signed in, this Mac's name in the device list, the recovery codes, and Sign Out.
 private struct AccountSettings: View {
     @Environment(Account.self) private var account
+    @Environment(LibraryStore.self) private var library
+    @State private var choosingFiles = false
+    private var importer: SpotifyImporter { .shared }
     @State private var signingOut = false
     @State private var deviceDraft = Account.deviceName      // saved on Return
     @State private var deviceProblem: String?
@@ -643,6 +646,34 @@ private struct AccountSettings: View {
                 Text("Recovery Codes")
             }
             Section {
+                Button(importer.running ? "Importing…" : "Choose Files…") { choosingFiles = true }
+                    .disabled(!signedIn || importer.running)
+                if let status = importer.status {
+                    if status.finished {
+                        LabeledContent("Last Import") {
+                            Text("\(status.added) of \(status.total) added").foregroundStyle(.secondary)
+                        }
+                        if !status.missing.isEmpty {
+                            DisclosureGroup("Not Found (\(status.total - status.added))") {
+                                ForEach(status.missing, id: \.self) { Text($0).foregroundStyle(.secondary) }
+                            }
+                        }
+                    } else {
+                        ProgressView(value: Double(status.done), total: Double(max(status.total, 1))) {
+                            Text("\(status.done) of \(status.total) songs")
+                        }
+                    }
+                }
+                if let problem = importer.problem {
+                    Text(problem).foregroundStyle(.red)
+                }
+            } header: {
+                Text("Import from Spotify")
+            } footer: {
+                Text("Liked songs and playlists. Get the files from exportify.net, or from Spotify's Privacy settings (Download your data). Only song names leave this Mac.")
+                    .foregroundStyle(.secondary)
+            }
+            Section {
                 Button(signingOut ? "Signing Out…" : "Sign Out") {
                     signingOut = true
                     Task { await account.signOut(); signingOut = false }
@@ -651,6 +682,13 @@ private struct AccountSettings: View {
             }
         }
         .settingsPage()
+        .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.commaSeparatedText, .json], allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result {
+                let opened = urls.filter { $0.startAccessingSecurityScopedResource() }
+                importer.start(urls, library: library)
+                opened.forEach { $0.stopAccessingSecurityScopedResource() }
+            }
+        }
         .task(id: account.user?.id) { codesLeft = try? await API.recoveryCodesLeft() }
         .sheet(isPresented: $askingPassword) {
             NewRecoveryCodesSheet(cancel: { askingPassword = false }) { codes in

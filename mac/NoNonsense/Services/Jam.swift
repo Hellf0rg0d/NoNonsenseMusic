@@ -41,7 +41,9 @@ private nonisolated struct JamCommand: Encodable, Sendable {
     var entryID: UUID? = nil
     /// add: "end", "next" or "now" (Play: at once, the song playing dropped)
     var placement: String? = nil
-    enum CodingKeys: String, CodingKey { case type, seconds, listings, placement; case entryID = "entry_id" }
+    /// move: the entry's new place in the room's queue
+    var toIndex: Int? = nil
+    enum CodingKeys: String, CodingKey { case type, seconds, listings, placement; case entryID = "entry_id"; case toIndex = "to_index" }
 }
 
 extension API {
@@ -216,6 +218,7 @@ final class JamSession {
     }
     func remove(_ entry: JamEntry) { send(JamCommand(type: "remove", entryID: entry.entryID)) }
     func jump(to entry: JamEntry) { send(JamCommand(type: "jump", entryID: entry.entryID)) }
+    func move(_ entry: JamEntry, to index: Int) { send(JamCommand(type: "move", entryID: entry.entryID, toIndex: index)) }
 
     /// The host's song ended: the room moves on (only the host's player plays it, so only the host says so).
     func songEnded() { if isHost { skip() } }

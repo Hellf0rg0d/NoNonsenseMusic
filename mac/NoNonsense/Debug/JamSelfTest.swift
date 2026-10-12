@@ -1,9 +1,9 @@
 #if DEBUG
 import AppKit
 
-/// With `NN_SELFTEST_JAM=1` (own test server, needs the internet): start a jam; Play on a song adds it and the host's
+/// With `NN_SELFTEST_JAM=1` (own test server, needs the internet): start a jam; Play on a song plays it for the room and the host's
 /// player (this app) plays it; ⏯ pauses the room and the player with it; a second account (plain HTTP) joins, then
-/// the host deliberately hands it the speakers; this Mac stops playing. Leave ends the jam here and gives the player back.
+/// the host deliberately hands it the speakers; this Mac plays on in step (silent with Play here off). Leave gives the player back.
 extension SelfTest {
     private static var startedJam = false
 
@@ -49,6 +49,10 @@ extension SelfTest {
             check("Autoplay fills the room's queue when it runs low", await until(15) { (jam.state?.queue.count ?? 0) >= 3 },
                   "\(jam.state?.queue.count ?? 0) queued")
             check("…and Up Next shows the room's queue", await until(3) { frames["upNext.jam"] != nil } || !player.showNowPlaying)
+            if let third = jam.state?.queue.dropFirst(2).first {
+                jam.move(third, to: 0)
+                check("a drag in the room's Up Next moves the song for everyone", await until(5) { jam.state?.queue.first?.entryID == third.entryID })
+            }
             player.togglePlayPause()
             check("⏯ pauses the room", await until(5) { jam.state?.isPlaying == false })
             check("…and the player", await until(3) { !player.isPlaying })

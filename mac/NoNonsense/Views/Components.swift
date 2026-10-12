@@ -989,9 +989,8 @@ struct ReorderableStack<Item: Identifiable, Row: View>: View {
     /// The row at `from` goes to `to`: both are places in `items`, `to` the row's place once moved.
     let move: (_ from: Int, _ to: Int) -> Void
     @ViewBuilder let row: (Item, Int) -> Row
-    /// Rows after the reorderable ones, in the same lazy stack (Up Next's Autoplay section). Two lazy stacks one after
-    /// the other in a scroll view placed the second by the first's estimated height: it overlapped the last row.
-    var footer: AnyView? = nil
+    /// Rows that stay where they are (Up Next's Autoplay heading); the others can still be dropped past them.
+    var canDrag: (Item) -> Bool = { _ in true }
     @AppStorage("haptics") private var haptics = true
     @State private var dragged: Item.ID?
     @State private var from = 0
@@ -1015,11 +1014,10 @@ struct ReorderableStack<Item: Identifiable, Row: View>: View {
                     // the lifted row follows the pointer at once; the others glide aside
                     .animation(lifted ? nil : Animation.snappy(duration: 0.22), value: shift(i))
                     .zIndex(lifted ? 1 : 0)
-                    .gesture(drag(item.id, at: i))
+                    .gesture(drag(item.id, at: i), including: canDrag(item) ? .all : .subviews)
                     .accessibilityAction(named: "Move Up") { if i > 0 { move(i, i - 1) } }
                     .accessibilityAction(named: "Move Down") { if i < items.count - 1 { move(i, i + 1) } }
             }
-            if let footer { footer }
         }
         // a light tick for each place the row passes (Force Touch trackpads; Settings › Trackpad › Haptic ticks)
         .sensoryFeedback(.levelChange, trigger: target) { _, _ in haptics && dragged != nil }

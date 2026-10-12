@@ -438,6 +438,17 @@ enum SelfTest {
         q.setShuffle(true); q.setShuffle(false)
         check("play next: still next once shuffle is off again", names(q) == "aXcbde", names(q))
 
+        // Up Next is one queue: an Autoplay song dragged above the heading becomes yours, one of yours dragged below it
+        // becomes Autoplay's (from/to count from the next song)
+        q = PlayQueue(); q.load(Array(abcde.prefix(2)), startAt: 0, shuffled: false)
+        q.appendAutoplay([song("P"), song("Q")])
+        q.moveUpcoming(from: 2, to: 0, autoplay: false)
+        check("drag: an Autoplay song dragged to the top is yours", names(q) == "aQbP"
+              && q.upcoming.map(\.autoplay) == [false, false, true], names(q))
+        q.moveUpcoming(from: 0, to: 2, autoplay: true)
+        check("drag: a song of yours dragged under the heading is Autoplay's", names(q) == "abPQ"
+              && q.upcoming.map(\.autoplay) == [false, true, true], names(q))
+
         // Add to Queue: the end of Up Next, kept by a playlist sync, still last once shuffle is off again
         q = PlayQueue(); q.load(abcde, startAt: 1, keys: keys, source: "playlist:5", shuffled: false)
         q.append(song("Y"))

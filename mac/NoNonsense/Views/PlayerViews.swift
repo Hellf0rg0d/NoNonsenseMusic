@@ -1009,25 +1009,15 @@ private extension View {
     }
 }
 
-extension UpNextView {
-    /// Autoplay's songs under their heading; `after` is how many of your own come first (their place in Up Next).
-    func autoplaySection(_ entries: [PlayQueue.Entry], after: Int) -> some View {
-        Group {
-            Label("Autoplay", systemImage: "infinity")
-                .textStyle(.subheadline, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16).padding(.top, after == 0 ? 2 : 12).padding(.bottom, 4)
-                .selfTestFrame("upNext.autoplay")
-            ForEach(Array(entries.enumerated()), id: \.element.id) { i, entry in
-                UpNextRow(track: entry.track) {
-                    player.jump(to: player.index + 1 + after + i)
-                } remove: {
-                    withAnimation(.snappy) { player.removeFromUpNext(at: after + i) }
-                }
-                .frame(height: 46)
-                .padding(.horizontal, 6)
-            }
+/// A row of Up Next: a song (with its place among the songs), or the heading where Autoplay's part begins.
+enum UpNextItem: Identifiable {
+    case song(PlayQueue.Entry, Int)
+    case autoplayHeading
+
+    var id: String {
+        switch self {
+        case .song(let entry, _): entry.id
+        case .autoplayHeading: "upnext.autoplay-heading"
         }
     }
 }
@@ -1050,18 +1040,18 @@ private struct JamUpNext: View {
                     .textStyle(.callout).foregroundStyle(.secondary)
                     .padding(.horizontal, 16).padding(.bottom, 16)
             } else {
+                // the room's queue drags as yours does; the move goes to the room, so everyone sees it
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(room.queue) { entry in
-                            UpNextRow(track: Track(best: entry.listing, listings: [entry.listing], choosingVersion: false)) {
-                                JamSession.shared.jump(to: entry)
-                            } remove: {
-                                JamSession.shared.remove(entry)
-                            }
-                            .frame(height: 46)
-                            .padding(.horizontal, 6)
+                    ReorderableStack(items: room.queue, rowHeight: 46, move: { from, to in
+                        JamSession.shared.move(room.queue[from], to: to)
+                    }, row: { entry, _ in
+                        UpNextRow(track: Track(best: entry.listing, listings: [entry.listing], choosingVersion: false)) {
+                            JamSession.shared.jump(to: entry)
+                        } remove: {
+                            JamSession.shared.remove(entry)
                         }
-                    }
+                        .padding(.horizontal, 6)
+                    })
                     .padding(.bottom, 8)
                 }
                 .selfTestFrame("upNext.jam")
@@ -1116,24 +1106,40 @@ struct UpNextView: View {
                     .padding(.horizontal, 16).padding(.bottom, 16)
             } else {
                 // drag a row to move it: it follows the pointer and the others make room (ReorderableStack; List's own
-                // drag and drop never delivered the drop in here, 7 Oct). Each row is an entry: a song queued twice is two
-                // your own songs, which you can drag, then Autoplay's under its own heading (as in Apple Music)
+                // drag and drop never delivered the drop in here, 7 Oct). Each row is an entry: a song queued twice is two.
+                // One queue: your songs, then Autoplay's under its heading (as in Apple Music); any song can be dragged
+                // anywhere, and which side of the heading it lands on makes it yours or Autoplay's (12 Oct)
                 let entries = player.upNextEntries
-                let mine = entries.prefix { !$0.autoplay }
-                let autoplay = entries.dropFirst(mine.count)
+                let mine = entries.prefix { !$0.autoplay }.count
+                let rows: [UpNextItem] = entries.enumerated().map { .song($1, $0) }
+                let items = mine < entries.count ? Array(rows[..<mine]) + [.autoplayHeading] + Array(rows[mine...]) : rows
                 ScrollView {
-                    ReorderableStack(items: Array(mine), rowHeight: 46, move: { from, to in
-                        // moveUpNext counts as List's onMove does: the destination before the row is taken out
-                        player.moveUpNext(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-                    }, row: { entry, offset in
-                        UpNextRow(track: entry.track) {
-                            player.jump(to: player.index + 1 + offset)
-                        } remove: {
-                            withAnimation(.snappy) { player.removeFromUpNext(at: offset) }
+                    ReorderableStack(items: items, rowHeight: 46, move: { from, to in
+                        guard case .song(_, let start) = items[from] else { return }
+                        var arranged = items
+                        let moved = arranged.remove(at: from)
+                        arranged.insert(moved, at: to)
+                        let heading = arranged.firstIndex { $0.id == UpNextItem.autoplayHeading.id } ?? arranged.count
+                        player.moveUpNext(from: start, to: to > heading ? to - 1 : to, autoplay: to > heading)
+                    }, row: { item, _ in
+                        switch item {
+                        case .autoplayHeading:
+                            Label("Autoplay", systemImage: "infinity")
+                                .textStyle(.subheadline, weight: .semibold)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                                .padding(.horizontal, 16).padding(.bottom, 6)
+                                .selfTestFrame("upNext.autoplay")
+                        case .song(let entry, let offset):
+                            UpNextRow(track: entry.track) {
+                                player.jump(to: player.index + 1 + offset)
+                            } remove: {
+                                withAnimation(.snappy) { player.removeFromUpNext(at: offset) }
+                            }
+                            .padding(.horizontal, 6)
+                            .selfTestFrame("upNext.row:\(offset)")
                         }
-                        .padding(.horizontal, 6)
-                        .selfTestFrame("upNext.row:\(offset)")
-                    }, footer: autoplay.isEmpty ? nil : AnyView(autoplaySection(Array(autoplay), after: mine.count)))
+                    }, canDrag: { $0.id != UpNextItem.autoplayHeading.id })
                 }
                 .animation(.snappy(duration: 0.3), value: entries.map(\.id))
                 .padding(.bottom, 8)

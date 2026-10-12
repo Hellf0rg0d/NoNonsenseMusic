@@ -161,6 +161,19 @@ struct PlayQueue {
         handEdited()
     }
 
+    /// One song dragged to another place in Up Next (`from` and `to` count from the next song). `autoplay`: whether it
+    /// landed under the Autoplay heading. An Autoplay song dragged up among yours becomes yours, and one of yours dragged
+    /// down becomes Autoplay's: Up Next is one queue, the heading only marks where Autoplay's part begins.
+    mutating func moveUpcoming(from: Int, to: Int, autoplay: Bool) {
+        var list = upcoming
+        guard list.indices.contains(from), list.indices.contains(to) else { return }
+        var entry = list.remove(at: from)
+        entry.autoplay = autoplay
+        list.insert(entry, at: to)
+        entries = Array(entries[...index]) + list
+        handEdited()
+    }
+
     /// Takes one song out of Up Next (`offset` counts from the next song).
     mutating func removeUpcoming(at offset: Int) {
         guard upcoming.indices.contains(offset) else { return }

@@ -129,6 +129,9 @@ struct RootView: View {
             // Now Playing covers the window: the toolbar (the sidebar button, the title) went on showing over it, and
             // its buttons answered clicks that did nothing there. The traffic lights stay
             .toolbarVisibility(player.showNowPlaying && player.current != nil ? .hidden : .visible, for: .windowToolbar)
+            // in full screen the toolbar is a window of its own, above everything: hiding its buttons left its strip over
+            // Now Playing (a black band, 12 Oct). There it gets out of the way and slides in at the top edge, as in Apple's apps
+            .windowToolbarFullScreenVisibility(player.showNowPlaying && player.current != nil ? .onHover : .automatic)
             // the strip above is the only edge: the system's own soft edge drew a second one along it
             .compatTopEdgeEffectHidden()
             .animation(.spring(response: 0.45, dampingFraction: 0.86), value: player.current == nil)

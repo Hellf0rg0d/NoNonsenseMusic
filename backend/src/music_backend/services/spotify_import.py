@@ -1,0 +1,158 @@
+"""Bring a library in from Spotify.
+
+The app reads Spotify's file on the device (Exportify's CSV, or Spotify's own data export) and sends only each song's
+title, artists and length. Here each one is searched on the music sources, the result that agrees on title, artist and
+length is kept, and it is liked or added to a new playlist. A song with no such result is counted as not found rather
+than guessed: a wrong song in your library is worse than a missing one.
+
+One song at a time, with a pause between searches: a library of 1,000 songs is 1,000 searches, and asked all at once
+the sources would block this server for everyone. Progress lives in this process's memory, as jam rooms do: a restart
+ends a running import, and what it already added stays.
+"""
+import asyncio
+import logging
+import re
+import unicodedata
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from uuid import UUID, uuid4
+
+from psycopg import errors
+
+from music_backend.models import Song, SpotifyImportGroup, SpotifyImportSong, SpotifyImportStatus
+from music_backend.services import library
+
+logger = logging.getLogger(__name__)
+
+PAUSE_SECONDS = 0.8          # between two searches
+DURATION_SLACK = 8           # seconds a copy's length may differ from Spotify's (other masters, silence at the end)
+
+
+# ---------- matching ----------
+
+# "Song - Remastered 2011" is written "Song (Remastered 2011)" elsewhere: the dash form becomes the bracket form first
+_DASHED = re.compile(r"\s+-\s+(.*)$")
+_BRACKETS = re.compile(r"\s*[\(\[]([^)\]]*)[\)\]]")
+# labels that leave the recording as it is; "Remix", "Live", "Acoustic" name another recording and stay in the title
+# ("Despacito - Remix" matched the original before, 12 Oct)
+_SAME_RECORDING = re.compile(r"\b(feat|ft|with|from|remaster(ed)?|version|edit|mono|stereo|bonus|single|deluxe|explicit"
+                             r"|clean|original)\b", re.IGNORECASE)
+
+
+def _plain(text: str) -> str:
+    """Lower case, accents dropped, punctuation as spaces: "Despacito (feat. Justin Bieber)" and "despacito" meet."""
+    # only the accent marks go: an ASCII-only filter would empty a title in Devanagari, and any two would then match
+    text = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
+
+
+def core_title(title: str) -> str:
+    """The title without labels that leave the recording as it is ("(feat. X)", "- Remastered 2011", "(From "Film")").
+    Other labels stay as words: "Song - Remix" is "song remix", another song than "Song"."""
+    bracketed = _DASHED.sub(r" (\1)", title)
+    kept = _BRACKETS.sub(lambda m: "" if _SAME_RECORDING.search(m.group(1)) else f" {m.group(1)}", bracketed)
+    return _plain(kept) or _plain(title)
+
+
+def matches(song: Song, wanted: SpotifyImportSong) -> bool:
+    """Whether a search result is the song Spotify named: same core title, a shared artist, and a close length."""
+    if core_title(song.title) != core_title(wanted.title):
+        return False
+    theirs = {_plain(a) for a in song.artists}
+    if wanted.artists and not any(_plain(a) in theirs or any(_plain(a) in t or t in _plain(a) for t in theirs if t)
+                                  for a in wanted.artists):
+        return False
+    if wanted.duration_ms and song.duration and abs(song.duration - wanted.duration_ms / 1000) > DURATION_SLACK:
+        return False
+    return True
+
+
+def query_for(wanted: SpotifyImportSong) -> str:
+    return f"{core_title(wanted.title)} {wanted.artists[0] if wanted.artists else ''}".strip()
+
+
+# ---------- the job ----------
+
+Search = Callable[[str], Awaitable[list[Song]]]
+
+
+@dataclass
+class ImportJob:
+    id: UUID
+    user_id: UUID
+    groups: list[SpotifyImportGroup]
+    total: int
+    done: int = 0
+    added: int = 0
+    missing: list[str] = field(default_factory=list)      # "Title — Artist", for the summary
+    finished: bool = False
+    failed: str | None = None
+
+    def status(self) -> SpotifyImportStatus:
+        return SpotifyImportStatus(id=self.id, total=self.total, done=self.done, added=self.added,
+                                   missing=self.missing[:200], finished=self.finished, failed=self.failed)
+
+
+class ImportHub:
+    """Running and finished imports, one running per user (a second would only double the pace at the sources)."""
+
+    def __init__(self) -> None:
+        self.jobs: dict[UUID, ImportJob] = {}
+        self.tasks: set[asyncio.Task] = set()
+
+    def running_for(self, user_id: UUID) -> ImportJob | None:
+        return next((j for j in self.jobs.values() if j.user_id == user_id and not j.finished), None)
+
+    def start(self, pool, search: Search, user_id: UUID, groups: list[SpotifyImportGroup]) -> ImportJob:
+        # keep only this user's last few finished jobs: the map would otherwise grow with every import
+        for old in [j.id for j in self.jobs.values() if j.user_id == user_id and j.finished][:-4]:
+            del self.jobs[old]
+        job = ImportJob(id=uuid4(), user_id=user_id, groups=groups, total=sum(len(g.songs) for g in groups))
+        self.jobs[job.id] = job
+        task = asyncio.create_task(run(job, pool, search))
+        self.tasks.add(task)                                   # kept alive until it ends
+        task.add_done_callback(self.tasks.discard)
+        return job
+
+
+async def _new_playlist(conn, user_id: UUID, name: str) -> UUID:
+    """A playlist with this name, or "name (2)", "name (3)"… when the user already has one."""
+    for n in range(1, 50):
+        try:
+            async with conn.transaction():
+                return await library.create_playlist(conn, user_id, name if n == 1 else f"{name} ({n})")
+        except errors.UniqueViolation:
+            continue
+    raise RuntimeError("no free playlist name")
+
+
+async def run(job: ImportJob, pool, search: Search) -> None:
+    try:
+        for group in job.groups:
+            playlist_id = None
+            if group.name is not None:
+                async with pool.connection() as conn:
+                    playlist_id = await _new_playlist(conn, job.user_id, group.name)
+            for wanted in group.songs:
+                try:
+                    found = next((s for s in await search(query_for(wanted)) if matches(s, wanted)), None)
+                except Exception as e:                         # a source down for one song is that song not found
+                    logger.info("import: a search failed (%s)", type(e).__name__)
+                    found = None
+                if found is None:
+                    job.missing.append(f"{wanted.title} — {', '.join(wanted.artists)}")
+                else:
+                    async with pool.connection() as conn:
+                        song_id = await library.resolve_song(conn, found.listings)
+                        if playlist_id is None:
+                            await library.like(conn, job.user_id, song_id)
+                        else:
+                            await library.add_to_playlist(conn, job.user_id, playlist_id, song_id)
+                    job.added += 1
+                job.done += 1
+                await asyncio.sleep(PAUSE_SECONDS)
+    except Exception as e:
+        logger.warning("import: stopped (%s)", type(e).__name__)
+        job.failed = "The import stopped. What was found so far is in your library."
+    finally:
+        job.finished = True

@@ -159,6 +159,11 @@ final class Player {
         announceNext()
     }
 
+    func moveUpNext(from: Int, to: Int, autoplay: Bool) {
+        order.moveUpcoming(from: from, to: to, autoplay: autoplay)
+        announceNext()
+    }
+
     func removeFromUpNext(at offset: Int) {
         order.removeUpcoming(at: offset)
         announceNext()
