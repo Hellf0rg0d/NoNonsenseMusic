@@ -39,6 +39,9 @@ dependencies:
   fluentui_system_icons: ^1.1.273
   shared_preferences: ^2.5.6
   smtc_windows: ^1.1.0
+  # smtc_windows 1.1.0's Rust and generated Dart are from flutter_rust_bridge 2.11.1; any other runtime version
+  # throws at startup ("codegen version should be the same as runtime version"), before the first frame
+  flutter_rust_bridge: 2.11.1
   just_audio: ^0.10.6
   just_audio_windows: ^0.2.3
   flutter_secure_storage: ^11.2.0

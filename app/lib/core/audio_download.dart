@@ -35,6 +35,7 @@ class AudioDownload {
 
   bool get isComplete => _finished && _failure == null && !_cancelled && _renamed;
   bool get hasFailed => _failure != null;
+  Object? get failure => _failure;
   bool get isCancelled => _cancelled;
 
   /// Starts fetching, once.

@@ -88,8 +88,33 @@ class _ShellState extends State<Shell> {
     super.dispose();
   }
 
+  /// Whether a text field has the keyboard. Its focus node belongs to the Focus widget inside the EditableText, not to
+  /// the EditableText itself, so the field is looked for above the focused widget.
   bool _typing() =>
-      FocusManager.instance.primaryFocus?.context?.widget is EditableText;
+      FocusManager.instance.primaryFocus?.context?.findAncestorStateOfType<EditableTextState>() != null;
+
+  /// Space plays or pauses, → and ← move 5 s, unless a text field has the keyboard: then the key is the field's. The
+  /// key is left unhandled there (CallbackShortcuts would mark it handled even when it does nothing, and a handled key
+  /// never reaches the field: a space typed into Search paused the song instead).
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    final keys = HardwareKeyboard.instance;
+    if ((e is! KeyDownEvent && e is! KeyRepeatEvent) || _typing() || keys.isControlPressed || keys.isAltPressed ||
+        keys.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    final p = Scope.of(context).player;
+    switch (e.logicalKey) {
+      case LogicalKeyboardKey.space when e is KeyDownEvent:
+        p.togglePlayPause();
+      case LogicalKeyboardKey.arrowRight:
+        p.seekBy(5);
+      case LogicalKeyboardKey.arrowLeft:
+        p.seekBy(-5);
+      default:
+        return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,18 +138,10 @@ class _ShellState extends State<Shell> {
                         ),
                       ),
               );
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.space): () {
-          if (!_typing()) s.player.togglePlayPause();
-        },
-        const SingleActivator(LogicalKeyboardKey.arrowRight): () {
-          if (!_typing()) s.player.seekBy(5);
-        },
-        const SingleActivator(LogicalKeyboardKey.arrowLeft): () {
-          if (!_typing()) s.player.seekBy(-5);
-        },
-      },
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _onKey,
       child: Scaffold(
         // Transparent on Windows so Mica, drawn by the system at no cost to the app, shows behind everything
         backgroundColor: Platform.isWindows
