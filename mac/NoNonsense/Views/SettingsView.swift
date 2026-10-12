@@ -608,6 +608,7 @@ private struct AccountSettings: View {
     @Environment(Account.self) private var account
     @Environment(LibraryStore.self) private var library
     @State private var choosingFiles = false
+    @State private var importLink = ""
     @AppStorage("checkUpdates") private var checkUpdates = true      // UpdateCheck.enabled reads the same key
     private var importer: SpotifyImporter { .shared }
     @State private var signingOut = false
@@ -649,6 +650,13 @@ private struct AccountSettings: View {
             Section {
                 Button(importer.running ? "Importing…" : "Choose Files…") { choosingFiles = true }
                     .disabled(!signedIn || importer.running)
+                TextField("YouTube Playlist", text: $importLink, prompt: Text("music.youtube.com/playlist?list=…"))
+                    .onSubmit {
+                        guard !importLink.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        importer.start(link: importLink, library: library)
+                        importLink = ""
+                    }
+                    .disabled(!signedIn || importer.running)
                 if let status = importer.status {
                     if status.finished {
                         LabeledContent("Last Import") {
@@ -669,9 +677,9 @@ private struct AccountSettings: View {
                     Text(problem).foregroundStyle(.red)
                 }
             } header: {
-                Text("Import from Spotify")
+                Text("Import from Spotify or YouTube")
             } footer: {
-                Text("Liked songs and playlists. Get the files from exportify.net, or from Spotify's Privacy settings (Download your data). Only song names leave this Mac.")
+                Text("Spotify: files from exportify.net, or from Spotify's Privacy settings (Download your data). YouTube: a playlist link (press Return), or Google Takeout's playlist files. Only song names and video ids leave this Mac.")
                     .foregroundStyle(.secondary)
             }
             Section {

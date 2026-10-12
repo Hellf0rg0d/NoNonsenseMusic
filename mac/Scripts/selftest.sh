@@ -21,7 +21,7 @@ out=$(xcodebuild -project NoNonsense.xcodeproj -scheme NoNonsense -configuration
 if ! print -r -- "$out" | grep -q "BUILD SUCCEEDED"; then print -r -- "$out" | grep -E "error:" | head -8; echo "BUILD FAILED"; exit 1; fi
 echo "BUILD SUCCEEDED"
 env "$@" NN_SELFTEST_SNAP=$snaps DATABASE_URL=postgresql:///music_test \
-  perl -e 'alarm shift; exec @ARGV' 180 $dd/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
+  perl -e 'alarm shift; exec @ARGV' "${NN_TIMEOUT:-180}" $dd/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
   -serverURL http://127.0.0.1:$port -discordEnabled NO -ApplePersistenceIgnoreState YES $backend 2>/dev/null | grep "SELFTEST"
 rc=${pipestatus[1]}
 leftover=$(lsof -nP -iTCP:$port -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $2}' | sort -u; ps -axo pid,command | grep -E "[f]astapi (dev|run).*--port $port" | awk '{print $1}')
@@ -29,7 +29,7 @@ if [ -n "$leftover" ]; then
   echo "SELFTEST LEAK: a test server outlived the app on $port: $(echo $leftover | tr '\n' ' ')"
   for p in ${=leftover}; do kill $p 2>/dev/null; done; perl -e 'select(undef,undef,undef,1.5)'; for p in ${=leftover}; do kill -9 $p 2>/dev/null; done
 fi
-[ "$rc" = "142" ] && echo "SELFTEST TIMED OUT after 180 s"
+[ "$rc" = "142" ] && echo "SELFTEST TIMED OUT after ${NN_TIMEOUT:-180} s"
 # the test build is not an app to keep: off Launch Services, so Spotlight and Launchpad list only the installed one
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u \
   $dd/Build/Products/Debug/NoNonsenseMusic.app 2>/dev/null

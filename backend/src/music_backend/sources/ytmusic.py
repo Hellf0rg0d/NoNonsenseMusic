@@ -10,7 +10,7 @@ from yt_dlp.utils import DownloadError, ExtractorError
 from ytmusicapi import YTMusic
 from ytmusicapi.exceptions import YTMusicServerError
 from music_backend.core.settings import settings
-from music_backend.models import AlbumDetail, AlbumRef, ArtistDetail, ArtistRef, Listing
+from music_backend.models import AlbumDetail, AlbumRef, ArtistDetail, ArtistRef, Listing, SpotifyImportSong
 from music_backend.services.matching import normalise, to_song
 from music_backend.core.http_client import SharedClient
 from music_backend.sources import SongNotFound, SourceBlocked, SourceUnavailable
@@ -188,6 +188,45 @@ def radio_blocking(source_id: str, limit: int) -> list[Listing]:
         except (KeyError, TypeError, ValueError) as e:
             logger.warning("YouTube Music: skipped a bad radio track: %r", e)
     return listings
+
+
+# ---------- for imports (services/spotify_import.py) ----------
+
+async def import_track(video_id: str) -> Listing | None:
+    """One video as a listing (ytmusicapi get_song, in a thread): what a YouTube export names only by its id."""
+    return await asyncio.to_thread(import_track_blocking, video_id)
+
+
+def import_track_blocking(video_id: str) -> Listing | None:
+    try:
+        d = client().get_song(video_id).get("videoDetails") or {}
+    except Exception as e:
+        raise SourceUnavailable(f"YouTube Music: {e}") from e
+    duration = int_or_none(d.get("lengthSeconds")) or 0
+    if not d.get("title") or duration <= 0:
+        return None
+    author = (d.get("author") or "").removesuffix(" - Topic")       # an artist's auto-made channel: "Name - Topic"
+    return Listing(source="ytmusic", id=video_id, title=d["title"], artists=[author] if author else [], album=None,
+                   duration=duration, popularity=int_or_none(d.get("viewCount")),
+                   image=thumb_url((d.get("thumbnail") or {}).get("thumbnails")), explicit=None)
+
+
+async def import_playlist(playlist_id: str) -> tuple[str, list[SpotifyImportSong]] | None:
+    """A public or unlisted playlist's title and songs, every one (ytmusicapi get_playlist, in a thread)."""
+    return await asyncio.to_thread(import_playlist_blocking, playlist_id)
+
+
+def import_playlist_blocking(playlist_id: str) -> tuple[str, list[SpotifyImportSong]] | None:
+    try:
+        p = client().get_playlist(playlist_id, limit=None)
+    except KeyError:
+        return None
+    except Exception as e:
+        raise SourceUnavailable(f"YouTube Music: {e}") from e
+    songs = [SpotifyImportSong(title=t.get("title") or "", artists=[a["name"] for a in t.get("artists") or [] if a.get("name")],
+                               duration_ms=(t.get("duration_seconds") or 0) * 1000 or None, youtube_id=t["videoId"])
+             for t in p.get("tracks") or [] if t.get("videoId")]
+    return (p.get("title") or "YouTube playlist", songs)
 
 
 async def get_album(album_id: str) -> AlbumDetail | None:

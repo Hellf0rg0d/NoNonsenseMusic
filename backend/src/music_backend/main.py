@@ -293,18 +293,31 @@ async def songs_for_import(q: str) -> list[Song]:
     return rank_songs([song_listings for song_listings, _, _, _ in results])
 
 
-@app.post("/import/spotify", status_code=202)
-async def import_spotify(body: SpotifyImportRequest, request: Request,
+YOUTUBE_FOR_IMPORT = spotify_import.YouTube(track=ytmusic.import_track, playlist=ytmusic.import_playlist)
+
+
+@app.post("/import", status_code=202)
+@app.post("/import/spotify", status_code=202)          # the path 0.2.0 and 0.2.1 apps call
+async def import_library(body: SpotifyImportRequest, request: Request,
                          user: Annotated[User, Depends(per_account("import"))]) -> SpotifyImportStatus:
-    """Start an import: 202 at once, with the job to ask about. 409 while this account has one running."""
+    """Start an import: 202 at once, with the job to ask about. 409 while this account has one running; 404/403 for a
+    playlist to import into that you cannot see or edit."""
     hub = request.app.state.imports
     if hub.running_for(user.id):
         raise HTTPException(status_code=409, detail="An import is already running")
-    if not any(group.songs for group in body.groups):
-        raise HTTPException(status_code=422, detail="The file has no songs")
-    return hub.start(request.app.state.pool, songs_for_import, user.id, body.groups).status()
+    async with request.app.state.pool.connection() as conn:
+        for group in body.groups:
+            if group.playlist_id is not None:
+                try:
+                    await library._require(conn, user.id, group.playlist_id, "editor")
+                except library.NoSuchPlaylist:
+                    raise HTTPException(status_code=404, detail="No such playlist")
+                except library.NotAllowed:
+                    raise HTTPException(status_code=403, detail="Only the owner and editors can add to this playlist")
+    return hub.start(request.app.state.pool, songs_for_import, YOUTUBE_FOR_IMPORT, user.id, body.groups).status()
 
 
+@app.get("/import/{job_id}")
 @app.get("/import/spotify/{job_id}")
 async def import_spotify_status(job_id: UUID, request: Request, user: Signed) -> SpotifyImportStatus:
     job = request.app.state.imports.jobs.get(job_id)

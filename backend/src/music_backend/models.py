@@ -538,14 +538,32 @@ class JamCommand(BaseModel):
 IMPORT_MAX_SONGS = 10_000
 
 class SpotifyImportSong(BaseModel):
-    title : str = Field(min_length=1, max_length=300)
+    """A song from Spotify (title and artists) or from YouTube (its video id; the title, when the file has it)."""
+    title : str = Field(default="", max_length=300)
     artists : list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=20)
     duration_ms : int | None = Field(default=None, ge=0, le=6 * 3600 * 1000)
+    youtube_id : str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
+
+    @model_validator(mode="after")
+    def _named(self):
+        if not self.title and not self.youtube_id:
+            raise ValueError("a song needs a title or a YouTube video id")
+        return self
 
 class SpotifyImportGroup(BaseModel):
-    """One list from the file: name None = Liked Songs, else a new playlist of that name."""
+    """One list to import, and where it goes: playlist_id = an existing playlist you can edit; else name = a new
+    playlist; else Liked Songs. youtube_playlist (a link or an id) is read by the server, and a new playlist for it is
+    named after it unless name says otherwise."""
     name : str | None = Field(default=None, min_length=1, max_length=NAME_MAX)
-    songs : list[SpotifyImportSong] = Field(max_length=IMPORT_MAX_SONGS)
+    playlist_id : UUID | None = None
+    youtube_playlist : str | None = Field(default=None, min_length=2, max_length=300)
+    songs : list[SpotifyImportSong] = Field(default_factory=list, max_length=IMPORT_MAX_SONGS)
+
+    @model_validator(mode="after")
+    def _something(self):
+        if not self.songs and not self.youtube_playlist:
+            raise ValueError("a list needs songs or a YouTube playlist")
+        return self
 
 class SpotifyImportRequest(BaseModel):
     groups : list[SpotifyImportGroup] = Field(min_length=1, max_length=500)

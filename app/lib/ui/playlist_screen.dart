@@ -8,6 +8,7 @@ import '../core/catalog.dart';
 import 'browse_nav.dart';
 import 'friends.dart';
 import 'home.dart';
+import 'account_settings.dart';
 import 'scope.dart';
 import 'download_button.dart';
 import 'song_row.dart';
@@ -78,6 +79,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                       OutlinedButton.icon(onPressed: tracks.isEmpty ? null : () => s.player.play(tracks, keys: d.keys, source: d.queueSource, shuffled: true, wholeList: true),
                           icon: const Icon(FluentIcons.arrow_shuffle_24_regular, size: 18), label: const Text('Shuffle')),
                       DownloadAllButton(tracks: tracks),
+                      if (p.canEdit && !p.isAlbum) ImportIntoPlaylistButton(playlistId: widget.id),
                       PopupMenuButton<String>(
                         icon: const Icon(FluentIcons.more_horizontal_24_regular),
                         // Only what the role allows: the server refuses anything else with 403, so it is not offered.

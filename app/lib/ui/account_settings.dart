@@ -86,10 +86,11 @@ class SpotifyImportSettings extends StatelessWidget {
         final status = importer.status;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const SizedBox(height: 16),
-          Text('Import from Spotify', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+          Text('Import from Spotify or YouTube', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text('Liked songs and playlists. Get the files from exportify.net, or from Spotify\'s Privacy settings '
-              '(Download your data). Only song names leave this device.', style: TextStyle(color: muted)),
+          Text('Spotify: files from exportify.net, or from Spotify\'s Privacy settings (Download your data). YouTube: a '
+              'playlist link, or Google Takeout\'s playlist files. Only song names and video ids leave this device.',
+              style: TextStyle(color: muted)),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerLeft,
@@ -97,6 +98,15 @@ class SpotifyImportSettings extends StatelessWidget {
               onPressed: importer.running ? null : () => _choose(context),
               child: Text(importer.running ? 'Importing…' : 'Choose Files…'),
             ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            enabled: !importer.running,
+            decoration: const InputDecoration(labelText: 'YouTube playlist', hintText: 'music.youtube.com/playlist?list=…'),
+            onSubmitted: (link) {
+              if (link.trim().isEmpty) return;
+              SpotifyImporter.shared.startLink(link, done: Scope.of(context).library.refresh);
+            },
           ),
           if (status != null && !status.finished) ...[
             const SizedBox(height: 8),
@@ -120,6 +130,67 @@ class SpotifyImportSettings extends StatelessWidget {
           ],
         ]);
       },
+    );
+  }
+}
+
+/// A playlist's Import: songs from Spotify or YouTube files, or from a YouTube playlist link, added to this playlist.
+class ImportIntoPlaylistButton extends StatelessWidget {
+  const ImportIntoPlaylistButton({super.key, required this.playlistId});
+  final String playlistId;
+
+  Future<void> _files(BuildContext context) async {
+    final library = Scope.of(context).library;
+    final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['csv', 'json']);
+    if (picked.isEmpty) return;
+    final files = [for (final f in picked) (f.name, utf8.decode(await f.readAsBytes(), allowMalformed: true))];
+    await SpotifyImporter.shared.start(files, playlistId: playlistId, done: () => library.loadPlaylist(playlistId));
+  }
+
+  Future<void> _link(BuildContext context) async {
+    final library = Scope.of(context).library;
+    final controller = TextEditingController();
+    final link = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Import a YouTube Playlist'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'music.youtube.com/playlist?list=…'),
+          onSubmitted: (v) => Navigator.pop(c, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(c, controller.text), child: const Text('Import')),
+        ],
+      ),
+    );
+    if (link == null || link.trim().isEmpty) return;
+    await SpotifyImporter.shared.startLink(link, playlistId: playlistId, done: () => library.loadPlaylist(playlistId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: SpotifyImporter.shared,
+      builder: (context, _) => PopupMenuButton<String>(
+        enabled: !SpotifyImporter.shared.running,
+        tooltip: 'Add songs from Spotify or YouTube',
+        onSelected: (v) => v == 'files' ? _files(context) : _link(context),
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'files', child: Text('Songs from Files…')),
+          PopupMenuItem(value: 'link', child: Text('Songs from a YouTube Playlist…')),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.download_outlined, size: 18),
+            const SizedBox(width: 6),
+            Text(SpotifyImporter.shared.running ? 'Importing…' : 'Import'),
+          ]),
+        ),
+      ),
     );
   }
 }

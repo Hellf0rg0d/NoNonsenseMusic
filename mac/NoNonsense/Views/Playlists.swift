@@ -128,6 +128,7 @@ struct PlaylistView: View {
                     .compatGlassButton()
                     .disabled(tracks.isEmpty)
                     DownloadAllButton(tracks: tracks, name: detail.name)
+                    if detail.summary.canEdit { ImportIntoPlaylistButton(playlist: detail.id) }
                     Menu {
                         PlaylistRoleActions(playlist: detail.summary)
                     } label: {
@@ -460,6 +461,45 @@ struct SharePlaylistSheet: View {
             } catch {
                 problem = error.localizedDescription
             }
+        }
+    }
+}
+
+
+/// A playlist's Import: songs from Spotify or YouTube files, or from a YouTube playlist link, added to this playlist.
+private struct ImportIntoPlaylistButton: View {
+    let playlist: UUID
+    @Environment(LibraryStore.self) private var library
+    @State private var choosingFiles = false
+    @State private var askingLink = false
+    @State private var link = ""
+    private var importer: SpotifyImporter { .shared }
+
+    var body: some View {
+        Menu {
+            Button("Songs from Files…") { choosingFiles = true }
+            Button("Songs from a YouTube Playlist…") { askingLink = true }
+        } label: {
+            Label(importer.running ? "Importing…" : "Import", systemImage: "square.and.arrow.down")
+        }
+        .menuIndicator(.hidden)
+        .compatGlassButton()
+        .fixedSize()
+        .disabled(importer.running)
+        .help("Add songs from Spotify (Exportify, Spotify's data download) or YouTube (Google Takeout, a playlist link)")
+        .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.commaSeparatedText, .json], allowsMultipleSelection: true) { result in
+            guard case .success(let urls) = result else { return }
+            let opened = urls.filter { $0.startAccessingSecurityScopedResource() }
+            importer.start(urls, into: playlist, library: library)
+            opened.forEach { $0.stopAccessingSecurityScopedResource() }
+        }
+        .alert("Import a YouTube Playlist", isPresented: $askingLink) {
+            TextField("music.youtube.com/playlist?list=…", text: $link)
+            Button("Import") { importer.start(link: link, into: playlist, library: library); link = "" }
+                .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+            Button("Cancel", role: .cancel) { link = "" }
+        } message: {
+            Text("A public or unlisted playlist from YouTube or YouTube Music. Its songs are added to this playlist.")
         }
     }
 }
