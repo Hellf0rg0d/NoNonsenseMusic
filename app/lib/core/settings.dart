@@ -56,7 +56,7 @@ class Settings extends ChangeNotifier {
   /// Read the stored settings, using each default where a key is missing, then apply them.
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
-    server = _p.getString('server') ?? Api.base;
+    server = _address(_p.getString('server') ?? Api.base); // also mends an address saved with a trailing "/"
     material = WindowMaterial.values.asNameMap()[_p.getString('material')] ?? WindowMaterial.acrylic;
     explicit = _p.getBool('explicit') ?? true;
     preferredSource = _p.getString('preferredSource') ?? '';
@@ -120,9 +120,13 @@ class Settings extends ChangeNotifier {
   Future<void> skipUpdate(String version) => _set('skippedUpdate', version, () => skippedUpdate = version);
   Future<void> setTranslateLyrics(bool on) => _set('lyricsTranslated', on, () => translateLyrics = on);
 
+  /// [s] as the app joins paths to it: trimmed, without trailing slashes. Api joins `$base/$path`, so
+  /// "https://host/" asked for "https://host//search", which the server answers 404: every request failed.
+  static String _address(String s) => s.trim().replaceFirst(RegExp(r'/+$'), '');
+
   /// Point the app at [s] and persist it; a blank [s] falls back to the SERVER compile-time define.
   Future<void> setServer(String s) async {
-    server = s.trim().isEmpty ? const String.fromEnvironment('SERVER', defaultValue: 'http://127.0.0.1:8000') : s.trim();
+    server = _address(s.trim().isEmpty ? const String.fromEnvironment('SERVER', defaultValue: 'http://127.0.0.1:8000') : s);
     await _p.setString('server', server);
     _apply();
     notifyListeners();
