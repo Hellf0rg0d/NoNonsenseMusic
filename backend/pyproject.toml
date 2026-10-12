@@ -2,7 +2,6 @@
 name = "music-backend"
 version = "0.1.0"
 description = "Personal music streaming backend"
-readme = "README.md"
 authors = [
     { name = "ego004", email = "221738094+ego004@users.noreply.github.com" }
 ]
