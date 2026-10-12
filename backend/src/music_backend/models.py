@@ -519,6 +519,9 @@ class JamCommand(BaseModel):
     listings: list[ListingIn] | None = Field(default=None, max_length=MAX_LISTINGS)    # add
     entry_id: UUID | None = None                 # remove, move, jump
     to_index: int | None = None                  # move: 0-based index in the queue
+    # add: "end" queues the songs last; "next" puts them first in the queue; "now" plays the first at once (the song
+    # playing is dropped, as jump does) with the rest next. One command, so no other member's change lands in between
+    placement: Literal["end", "next", "now"] = "end"
 
     @field_validator("seconds")
     @classmethod

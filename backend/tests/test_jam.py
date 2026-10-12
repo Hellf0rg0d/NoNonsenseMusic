@@ -287,6 +287,18 @@ async def test_add_while_playing_appends():
 
 
 @pytest.mark.anyio
+async def test_add_now_plays_at_once_and_add_next_goes_first():
+    hub, room, sender = fresh_room()
+    await hub.handle_command(room, room.host_id, JamCommand(type="add", listings=[make_listing(1), make_listing(2)]), sender)
+    await hub.handle_command(room, room.host_id, JamCommand(type="add", listings=[make_listing(3)], placement="next"), sender)
+    assert [e.listing.title for e in room.queue] == ["Song 3", "Song 2"]
+    room.position_seconds = 50.0
+    await hub.handle_command(room, room.host_id, JamCommand(type="add", listings=[make_listing(4), make_listing(5)], placement="now"), sender)
+    assert room.current.listing.title == "Song 4" and room.is_playing and room.position_seconds == 0.0
+    assert [e.listing.title for e in room.queue] == ["Song 5", "Song 3", "Song 2"]
+
+
+@pytest.mark.anyio
 async def test_pause_freezes_playhead_and_play_resumes():
     hub, room, sender = fresh_room()
     await hub.handle_command(room, room.host_id, JamCommand(type="add", listings=[make_listing(1, duration=300)]), sender)

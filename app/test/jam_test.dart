@@ -86,7 +86,9 @@ void main() {
     expect(m(const JamCommand.remove('e1')), {'type': 'remove', 'entry_id': 'e1'});
     expect(m(const JamCommand.jump('e2')), {'type': 'jump', 'entry_id': 'e2'});
     final add = m(JamCommand.add([listing('a')]));
-    expect(add.keys, ['type', 'listings']);
+    expect(add.keys, ['type', 'listings', 'placement']);
+    expect(add['placement'], 'end');
+    expect(m(JamCommand.add([listing('a')], placement: 'now'))['placement'], 'now', reason: 'Play in a jam plays at once');
     expect(add['listings'][0], containsPair('album', null), reason: 'the server answers 422 when album or popularity is absent');
     expect(add['listings'][0], containsPair('popularity', null));
   });

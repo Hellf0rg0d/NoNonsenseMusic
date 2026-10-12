@@ -39,7 +39,9 @@ private nonisolated struct JamCommand: Encodable, Sendable {
     var seconds: Double? = nil
     var listings: [Listing]? = nil
     var entryID: UUID? = nil
-    enum CodingKeys: String, CodingKey { case type, seconds, listings; case entryID = "entry_id" }
+    /// add: "end", "next" or "now" (Play: at once, the song playing dropped)
+    var placement: String? = nil
+    enum CodingKeys: String, CodingKey { case type, seconds, listings, placement; case entryID = "entry_id" }
 }
 
 extension API {
@@ -198,10 +200,19 @@ final class JamSession {
     func togglePlay() { send(JamCommand(type: state?.isPlaying == true ? "pause" : "play")) }
     func skip() { send(JamCommand(type: "skip")) }
     func seek(to seconds: Double) { send(JamCommand(type: "seek", seconds: max(0, seconds))) }
-    func add(_ tracks: [Track]) {
+    enum Placement: String { case end, next, now }
+
+    /// Play (`.now`), Play Next (`.next`) and Add to Queue (`.end`) in a jam: one command each, placed by the server.
+    func add(_ tracks: [Track], _ placement: Placement = .end) {
         guard !tracks.isEmpty else { return }
-        send(JamCommand(type: "add", listings: tracks.map(\.best)))
-        onNotice?(tracks.count == 1 ? "Added “\(tracks[0].title)” to the jam" : "Added \(tracks.count) songs to the jam")
+        send(JamCommand(type: "add", listings: tracks.map(\.best), placement: placement.rawValue))
+        let what = tracks.count == 1 ? "“\(tracks[0].title)”" : "\(tracks.count) songs"
+        let notice = switch placement {
+            case .now: "Playing \(what) in the jam"
+            case .next: "\(what) plays next in the jam"
+            case .end: "Added \(what) to the jam"
+        }
+        onNotice?(notice)
     }
     func remove(_ entry: JamEntry) { send(JamCommand(type: "remove", entryID: entry.entryID)) }
     func jump(to entry: JamEntry) { send(JamCommand(type: "jump", entryID: entry.entryID)) }

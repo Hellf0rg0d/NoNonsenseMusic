@@ -311,6 +311,14 @@ class JamHub:
                 room.position_seconds = 0.0
                 room.position_at = time.time()
                 room.is_playing = True               # adding to an idle room starts it
+            elif cmd.placement == "now":
+                room.current = entries[0]            # Play: this song at once; the one playing is dropped, as jump does
+                room.queue[0:0] = entries[1:]
+                room.position_seconds = 0.0
+                room.position_at = time.time()
+                room.is_playing = True
+            elif cmd.placement == "next":
+                room.queue[0:0] = entries            # Play Next: first in the queue, in the order given
             else:
                 room.queue.extend(entries)
         elif cmd.type == "remove":

@@ -122,14 +122,15 @@ class Player extends ChangeNotifier implements JamPlayer {
 
   // MARK: queue
 
-  /// [wholeList]: a list's own Play or Shuffle button. In a jam it adds the list (up to 50 songs) to the room; every
-  /// other call is a tap on one song and adds just that one.
+  /// [wholeList]: a list's own Play or Shuffle button. In a jam it plays the list (up to 50 songs) for the room; every
+  /// other call is a tap on one song and plays just that one.
   Future<void> play(List<Track> tracks,
       {int startAt = 0, List<String>? keys, String? source, bool shuffled = false, bool wholeList = false}) async {
     if (jam != null) {
       if (startAt >= tracks.length) return;
-      jam!.add(wholeList ? (shuffled ? ([...tracks]..shuffle()) : tracks.sublist(startAt)).take(50).toList() : [tracks[startAt]]);
-      _show('Added to the jam');
+      jam!.add(wholeList ? (shuffled ? ([...tracks]..shuffle()) : tracks.sublist(startAt)).take(50).toList() : [tracks[startAt]],
+          placement: 'now');
+      _show('Playing in the jam');
       return;
     }
     await _skipIfPlaying();
@@ -140,8 +141,8 @@ class Player extends ChangeNotifier implements JamPlayer {
 
   void playNext(Track t) {
     if (jam != null) {
-      jam!.add([t]);
-      return _show('Added to the jam');
+      jam!.add([t], placement: 'next');
+      return _show('Plays next in the jam');
     }
     if (current == null) { play([t]); return; }
     queue.insertNext(t);

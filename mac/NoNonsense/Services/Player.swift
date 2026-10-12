@@ -100,7 +100,7 @@ final class Player {
     /// so later edits to that playlist reach this queue (`syncQueue`).
     func play(_ tracks: [Track], startAt i: Int = 0, keys: [String]? = nil, source: String? = nil) {
         guard tracks.indices.contains(i) else { return }
-        if let jam { jam.add([tracks[i]]); return }       // in a jam: the song joins the room's queue, not the whole list
+        if let jam { jam.add([tracks[i]], .now); return }   // in a jam: this song plays for the room at once, not the list
         reportSkipIfNeeded()
         radioSeed = nil                                   // a new queue: Autoplay may seed from it, whatever came before
         order.load(tracks, startAt: i, keys: keys, source: source, shuffled: shufflePreferred)
@@ -109,7 +109,7 @@ final class Player {
 
     /// The Play button on a list: in your order (shuffle off), from the first song.
     func playInOrder(_ tracks: [Track], keys: [String]? = nil, source: String? = nil) {
-        if let jam { jam.add(Array(tracks.prefix(50))); return }      // a list's Play in a jam: the list joins the room
+        if let jam { jam.add(Array(tracks.prefix(50)), .now); return }   // a list's Play in a jam: the list plays for the room
         setShufflePreference(false)
         play(tracks, startAt: 0, keys: keys, source: source)
     }
@@ -117,13 +117,13 @@ final class Player {
     /// The Shuffle button on a list: shuffle on, then a random song first and the rest spread out.
     func shufflePlay(_ tracks: [Track], keys: [String]? = nil, source: String? = nil) {
         guard !tracks.isEmpty else { return }
-        if let jam { jam.add(Array(tracks.shuffled().prefix(50))); return }
+        if let jam { jam.add(Array(tracks.shuffled().prefix(50)), .now); return }
         setShufflePreference(true)
         play(tracks, startAt: Int.random(in: tracks.indices), keys: keys, source: source)
     }
 
     func playNext(_ track: Track) {
-        if let jam { jam.add([track]); return }
+        if let jam { jam.add([track], .next); return }
         guard current != nil else { play([track]); return }
         order.insertNext(track)
         announceNext()

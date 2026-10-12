@@ -100,7 +100,7 @@ class JamState {
 /// One control message for the room (`JamCommand` on the server). Only the fields a command uses are sent.
 @immutable
 class JamCommand {
-  const JamCommand._(this.type, {this.seconds, this.listings, this.entryId});
+  const JamCommand._(this.type, {this.seconds, this.listings, this.entryId, this.placement});
 
   const JamCommand.play() : this._('play');
   const JamCommand.pause() : this._('pause');
@@ -109,7 +109,8 @@ class JamCommand {
 
   /// The host's playhead, sent every 15 s while its song plays.
   const JamCommand.position(double seconds) : this._('position', seconds: seconds);
-  const JamCommand.add(List<Listing> listings) : this._('add', listings: listings);
+  /// [placement]: 'end' (Add to Queue), 'next' (Play Next) or 'now' (Play: at once, the song playing dropped).
+  const JamCommand.add(List<Listing> listings, {String placement = 'end'}) : this._('add', listings: listings, placement: placement);
   const JamCommand.remove(String entryId) : this._('remove', entryId: entryId);
   const JamCommand.jump(String entryId) : this._('jump', entryId: entryId);
 
@@ -117,12 +118,14 @@ class JamCommand {
   final double? seconds;
   final List<Listing>? listings;
   final String? entryId;
+  final String? placement;
 
   Map<String, dynamic> toJson() => {
         'type': type,
         'seconds': ?seconds,
         if (listings != null) 'listings': [for (final l in listings!) l.toJson()],
         'entry_id': ?entryId,
+        'placement': ?placement,
       };
 
   String encode() => jsonEncode(toJson());
@@ -381,8 +384,9 @@ class JamSession extends ChangeNotifier {
   }
   void skip() => _send(const JamCommand.skip());
   void seek(double seconds) => _send(JamCommand.seek(seconds < 0 ? 0 : seconds));
-  void add(List<Track> tracks) {
-    if (tracks.isNotEmpty) _send(JamCommand.add([for (final t in tracks) t.best]));
+  /// Play ('now'), Play Next ('next') and Add to Queue ('end') in a jam: one command each, placed by the server.
+  void add(List<Track> tracks, {String placement = 'end'}) {
+    if (tracks.isNotEmpty) _send(JamCommand.add([for (final t in tracks) t.best], placement: placement));
   }
 
   void remove(JamEntry entry) => _send(JamCommand.remove(entry.entryId));

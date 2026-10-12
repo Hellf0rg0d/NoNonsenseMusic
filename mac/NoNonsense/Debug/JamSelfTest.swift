@@ -40,7 +40,12 @@ extension SelfTest {
             check("…and plays on from where it was", player.isPlaying && player.livePosition >= before - 0.5,
                   String(format: "%.1f s, was %.1f s", player.livePosition, before))
             player.play([songs[1]])
-            check("Play on another song adds it to the room's Up Next", await until(5) { jam.state?.queue.contains { $0.listing.key == songs[1].best.key } == true })
+            check("Play on another song plays it for the room at once", await until(5) { jam.state?.current?.listing.key == songs[1].best.key })
+            check("…and this Mac plays it", await until(8) { player.playingListing?.key == songs[1].best.key && player.isPlaying })
+            if songs.count > 2 {
+                player.playNext(songs[2])
+                check("Play Next puts a song first in the room's queue", await until(5) { jam.state?.queue.first?.listing.key == songs[2].best.key })
+            }
             check("Autoplay fills the room's queue when it runs low", await until(15) { (jam.state?.queue.count ?? 0) >= 3 },
                   "\(jam.state?.queue.count ?? 0) queued")
             check("…and Up Next shows the room's queue", await until(3) { frames["upNext.jam"] != nil } || !player.showNowPlaying)
