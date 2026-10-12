@@ -332,15 +332,15 @@ struct SongListView: View {
             }
             Spacer()
             Button { player.playInOrder(tracks) } label: { Label("Play", systemImage: "play.fill") }
-                .buttonStyle(.glassProminent)
+                .compatGlassButton(prominent: true)
                 .disabled(tracks.isEmpty)
             Button { player.shufflePlay(tracks) } label: { Label("Shuffle", systemImage: "shuffle") }
-                .buttonStyle(.glass)
+                .compatGlassButton()
                 .disabled(tracks.isEmpty)
             if item != .downloads { DownloadAllButton(tracks: tracks, name: item.title) }
             if item == .downloads {
                 Button("Remove All", role: .destructive) { confirmingRemoveAll = true }
-                    .buttonStyle(.glass)
+                    .compatGlassButton()
                     .disabled(tracks.isEmpty)
             }
         }
@@ -369,7 +369,7 @@ struct DownloadAllButton: View {
                 .monospacedDigit()
                 .contentTransition(.numericText())
         }
-        .buttonStyle(.glass)
+        .compatGlassButton()
         .disabled(all || working || tracks.isEmpty)
         .help(all ? "Every song here plays without the internet" : "Download every song, to play without the internet")
     }
@@ -402,7 +402,7 @@ struct SearchBar: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 13)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .compatGlass(in: .capsule, interactive: true)
         .frame(maxWidth: 580)
     }
 }
@@ -447,7 +447,7 @@ struct RecentSearchChips: View {
                         .buttonStyle(.quiet)
                         .foregroundStyle(.secondary)
                 }
-                GlassEffectContainer(spacing: 8) {
+                CompatGlassGroup(spacing: 8) {
                     FlowLayout(spacing: 8) {
                         ForEach(recent, id: \.self) { query in
                             RecentChip(query: query) { search(query) } remove: {
@@ -482,7 +482,7 @@ private struct RecentChip: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
         .contentShape(.capsule)
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .compatGlass(in: .capsule, interactive: true)
         .onTapGesture(perform: search)
         .onHover { hovering = $0 }                         // instant: a fade per hover redrew the window ~15 times
         .contextMenu { Button("Remove", action: remove) }
@@ -587,7 +587,7 @@ struct TiltCard<Art: View>: View {
                         Image(systemName: "play.fill")
                             .font(.callout)
                             .frame(width: 36, height: 36)
-                            .glassEffect(.regular.interactive(), in: .circle)
+                            .compatGlass(in: .circle, interactive: true)
                     }
                     .buttonStyle(.quiet)
                     .padding(10)

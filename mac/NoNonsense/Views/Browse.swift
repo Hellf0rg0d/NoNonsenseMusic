@@ -190,7 +190,7 @@ struct AlbumView: View {
                             Label(pinned == nil ? "Pin to Home" : "Pinned", systemImage: pinned == nil ? "pin" : "pin.fill")
                                 .contentTransition(.symbolEffect(.replace))
                         }
-                        .buttonStyle(.glass)
+                        .compatGlassButton()
                         .controlSize(.large)
                         .disabled(pinning)
                         .help(pinned == nil ? "Keep this album on Home" : "Remove this album from Home")
@@ -245,9 +245,9 @@ struct PlayShuffleButtons: View {
     var body: some View {
         HStack(spacing: 10) {
             Button { player.playInOrder(tracks) } label: { Label("Play", systemImage: "play.fill") }
-                .buttonStyle(.glassProminent)
+                .compatGlassButton(prominent: true)
             Button { player.shufflePlay(tracks) } label: { Label("Shuffle", systemImage: "shuffle") }
-                .buttonStyle(.glass)
+                .compatGlassButton()
         }
         .controlSize(.large)
         .disabled(tracks.isEmpty)

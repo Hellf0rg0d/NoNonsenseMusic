@@ -76,7 +76,7 @@ struct RootView: View {
 
                 // One glass container: shapes closer than `spacing` blend like liquid, so the message
                 // grows out of the player bar and sinks back into it.
-                GlassEffectContainer(spacing: 24) {
+                CompatGlassGroup(spacing: 24) {
                     VStack(spacing: 10) {
                         if let message = player.errorMessage ?? library.message {
                             // the player's problems always warn; the library's messages bring their own symbol (✓ for "Added to …")
@@ -84,9 +84,9 @@ struct RootView: View {
                                 .textStyle(.callout)
                                 .symbolEffect(.bounce, value: message)          // the icon hops when a new message arrives
                                 .padding(.horizontal, 14).padding(.vertical, 8)
-                                .glassEffect(.regular, in: .capsule)
-                                .glassEffectID("message", in: glass)
-                                .glassEffectTransition(.materialize)
+                                .compatGlass(in: .capsule)
+                                .compatGlassID("message", in: glass)
+                                .compatGlassMaterialize()
                         }
                         PlayerBar(glass: glass)
                             // a song that would not play: one short sideways shake, like a wrong password (not with Reduce Motion)
@@ -130,7 +130,7 @@ struct RootView: View {
             // its buttons answered clicks that did nothing there. The traffic lights stay
             .toolbarVisibility(player.showNowPlaying && player.current != nil ? .hidden : .visible, for: .windowToolbar)
             // the strip above is the only edge: the system's own soft edge drew a second one along it
-            .scrollEdgeEffectHidden(true, for: .top)
+            .compatTopEdgeEffectHidden()
             .animation(.spring(response: 0.45, dampingFraction: 0.86), value: player.current == nil)
         }
         // Now Playing in its own host, faded in and out by Core Animation: see NowPlayingLayer
@@ -146,7 +146,7 @@ struct RootView: View {
                         .textStyle(.callout)
                         .symbolEffect(.bounce, value: message)
                         .padding(.horizontal, 14).padding(.vertical, 8)
-                        .glassEffect(.regular, in: .capsule)
+                        .compatGlass(in: .capsule)
                         .transition(.opacity)
                 }
             }
@@ -406,7 +406,7 @@ private struct ConnectionBanner: View {
             action()
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
+        .compatGlass(in: .capsule)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

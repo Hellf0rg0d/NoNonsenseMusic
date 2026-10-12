@@ -144,7 +144,7 @@ struct SignInView: View {
                 // no spinner: text, nothing animating
                 Text(actionLabel).frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
+            .compatGlassButton(prominent: true)
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
             .disabled(!ready)

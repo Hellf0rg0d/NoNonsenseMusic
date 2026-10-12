@@ -13,7 +13,7 @@ struct FriendsView: View {
                 Text("Friends").textStyle(.largeTitle, weight: .bold)
                 Spacer()
                 Button { adding = true } label: { Label("Add Friend", systemImage: "person.badge.plus") }
-                    .buttonStyle(.glassProminent)
+                    .compatGlassButton(prominent: true)
                     .controlSize(.large)
             }
             .browseRow(top: 20, bottom: 12)
@@ -23,9 +23,9 @@ struct FriendsView: View {
                 ForEach(social.incoming) { person in
                     PersonRow(name: person.username, detail: "Wants to be friends") {
                         Button("Decline") { Task { await social.respond(to: person.username, accept: false) } }
-                            .buttonStyle(.glass)
+                            .compatGlassButton()
                         Button("Accept") { Task { await social.respond(to: person.username, accept: true) } }
-                            .buttonStyle(.glassProminent)
+                            .compatGlassButton(prominent: true)
                     }
                     .browseRow(top: 2, bottom: 2, inset: 16)
                 }

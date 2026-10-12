@@ -120,12 +120,12 @@ struct PlaylistView: View {
                     Button { player.playInOrder(tracks, keys: detail.keys, source: detail.queueSource) } label: {
                         Label("Play", systemImage: "play.fill")
                     }
-                    .buttonStyle(.glassProminent)
+                    .compatGlassButton(prominent: true)
                     .disabled(tracks.isEmpty)
                     Button { player.shufflePlay(tracks, keys: detail.keys, source: detail.queueSource) } label: {
                         Label("Shuffle", systemImage: "shuffle")
                     }
-                    .buttonStyle(.glass)
+                    .compatGlassButton()
                     .disabled(tracks.isEmpty)
                     DownloadAllButton(tracks: tracks, name: detail.name)
                     Menu {
@@ -134,7 +134,7 @@ struct PlaylistView: View {
                         Image(systemName: "ellipsis")
                     }
                     .menuIndicator(.hidden)
-                    .buttonStyle(.glass)
+                    .compatGlassButton()
                     .fixedSize()
                     .help("More")
                 }

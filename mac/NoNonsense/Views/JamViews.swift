@@ -40,7 +40,7 @@ private struct StartView: View {
             Button { go { await JamSession.shared.start(named: nil) } } label: {
                 Text("Start a Jam").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
+            .compatGlassButton(prominent: true)
             .controlSize(.large)
             .disabled(working)
             HStack(spacing: 8) {

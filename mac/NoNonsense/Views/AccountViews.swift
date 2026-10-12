@@ -49,7 +49,7 @@ struct RecoveryCodesSheet: View {
                 }
                 Spacer()
                 Button("Done", action: done)
-                    .buttonStyle(.glassProminent)
+                    .compatGlassButton(prominent: true)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!copied && !saved)
                     .help(copied || saved ? "" : "Copy or save the codes first")

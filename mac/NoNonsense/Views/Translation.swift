@@ -117,8 +117,14 @@ struct TranslatedLyricsView: View {
         let target = Locale.current.language
         switch await LanguageAvailability().status(from: language, to: target) {
         case .installed:
-            let session = TranslationSession(installedSource: language, target: target)
-            await finish(try? await Self.translate(texts, in: SessionBox(session: session)), credit: Self.onDevice)
+            if #available(macOS 26, *) {
+                let session = TranslationSession(installedSource: language, target: target)
+                await finish(try? await Self.translate(texts, in: SessionBox(session: session)), credit: Self.onDevice)
+            } else {
+                // macOS 15 can reach an installed language only through .translationTask, which hung inside Now
+                // Playing (10 Oct): the online translation instead, credited
+                await finish(try? await OnlineTranslation.translate(texts, to: target), credit: "Translated by Google")
+            }
         case .supported:
             configuration = TranslationSession.Configuration(source: language, target: target)
         default:

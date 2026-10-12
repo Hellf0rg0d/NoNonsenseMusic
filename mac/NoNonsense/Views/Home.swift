@@ -145,7 +145,7 @@ struct HomeView: View {
             Text("Search for a song you love, then play it, like it, or add it to a playlist.")
                 .foregroundStyle(.secondary)
             Button { open(.section(.search)) } label: { Label("Search", systemImage: "magnifyingglass") }
-                .buttonStyle(.glassProminent)
+                .compatGlassButton(prominent: true)
                 .controlSize(.large)
                 .padding(.top, 4)
         }

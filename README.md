@@ -38,7 +38,7 @@ You need two things: the app, and a server for it to connect to. You can run the
 
 Download the Mac, Windows or Android app from the [latest release](../../releases/latest). The release notes explain how to connect it to a server.
 
-To build the Mac app yourself, you need macOS 26 and Xcode 26:
+The Mac app runs on macOS 15 or later. On macOS 26 it uses Liquid Glass and translates on the device; on macOS 15 it uses the older materials and translates online. To build it yourself, you need Xcode 26:
 
 ```bash
 brew install xcodegen

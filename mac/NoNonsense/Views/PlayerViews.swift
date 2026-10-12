@@ -29,12 +29,6 @@ struct PlayerBar: View {
     }
 
     /// Settings › Colours › Player bar: the glass itself, tinted; System leaves it clear.
-    private var barGlass: Glass {
-        // not .interactive(): the bar is not a button, and the glass reacting to the pointer redrew it on every move.
-        // Its buttons keep their own feedback (QuietButtonStyle)
-        if let tint = theme.color(.playerBar) { .regular.tint(tint.opacity(0.35)) } else { .regular }
-    }
-
     var body: some View {
         if let track = player.current {
             PlayerBarLayout {
@@ -86,9 +80,9 @@ struct PlayerBar: View {
             // pointer, so a pinch opened Now Playing only over the progress line (the one part with a hit area), and
             // a click between the controls fell through to the song under the bar (7 Oct)
             .contentShape(shape)
-            .glassEffect(barStyle == .glass ? barGlass : .identity, in: shape)
-            .glassEffectID("bar", in: glass)
-            .glassEffectTransition(.materialize)
+            .compatGlass(in: shape, tint: theme.color(.playerBar)?.opacity(0.35), enabled: barStyle == .glass)
+            .compatGlassID("bar", in: glass)
+            .compatGlassMaterialize()
             .frame(maxWidth: 900)
             .selfTestFrame("bar")
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { player.barFrame = $0 }
@@ -369,7 +363,7 @@ struct NowPlayingView: View {
                 .accessibilityHidden(panel != .lyrics)
                 .zIndex(panel == .lyrics ? 1 : 0)
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .compatGlass(in: .rect(cornerRadius: 22))
     }
 
     /// Close on the left; on the right, the panel buttons and full screen. All glass, all with tooltips.
@@ -379,11 +373,11 @@ struct NowPlayingView: View {
                 Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 36, height: 36)
             }
             .buttonStyle(.quiet)
-            .glassEffect(.regular.interactive(), in: .circle)
+            .compatGlass(in: .circle, interactive: true)
             .keyboardShortcut(.cancelAction)                      // Esc closes, and so does a pinch in
             .help("Close (Esc)")
             Spacer()
-            GlassEffectContainer(spacing: 10) {
+            CompatGlassGroup(spacing: 10) {
                 HStack(spacing: 10) {
                     panelButton(.lyrics, symbol: "quote.bubble", title: "Lyrics")
                     panelButton(.upNext, symbol: "list.bullet", title: "Up Next")
@@ -394,7 +388,7 @@ struct NowPlayingView: View {
                             .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.quiet)
-                    .glassEffect(.regular.interactive(), in: .circle)
+                    .compatGlass(in: .circle, interactive: true)
                     .help(isFullScreen ? "Exit Full Screen (⌃⌘F)" : "Full Screen (⌃⌘F)")
                 }
             }
@@ -413,7 +407,7 @@ struct NowPlayingView: View {
                 .frame(width: 36, height: 36)
         }
         .buttonStyle(.quiet)
-        .glassEffect(on ? .regular.tint(accent.opacity(0.25)).interactive() : .regular.interactive(), in: .circle)
+        .compatGlass(in: .circle, interactive: true, tint: on ? accent.opacity(0.25) : nil)
         .help(on ? "Hide \(title)" : "Show \(title)")
         .accessibilityLabel(title)
         .accessibilityValue(on ? "Showing" : "Hidden")
