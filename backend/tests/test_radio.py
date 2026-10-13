@@ -186,3 +186,30 @@ def test_radio_rate_limit(client, monkeypatch):
     r = client.post("/radio", json=radio())
     assert r.status_code == 429
     assert "Retry-After" in r.headers
+
+
+def by(artist, id):
+    return Listing(source="youtube", id=id, title=f"Song {id}", artists=[artist], album=None, duration=180, popularity=None)
+
+
+def test_radio_plays_a_few_songs_by_one_artist_then_another_stations(client, monkeypatch):
+    # YouTube's Mix for an upload on a one-artist channel: 22 of 26 by Lee (13 Oct). Three of them, then YouTube
+    # Music's station fills the rest
+    set_radio(monkeypatch, youtube, [by("Lee", f"lee-{i:02}") for i in range(22)] + [by("Khaim", "khaim")])
+    set_radio(monkeypatch, ytmusic, [by(f"Artist {i}", f"ytm-{i:02}") for i in range(10)])
+    r = client.post("/radio", json=radio(seed_source="youtube", seed_id="J7p4bzqLvCw", limit=10))
+    artists = [s["best"]["artists"][0] for s in r.json()["songs"]]
+    assert artists.count("Lee") == 3 and "Khaim" in artists and len(artists) == 10
+
+
+def test_radio_with_a_varied_mix_asks_no_other_station(client, monkeypatch):
+    asked = []
+
+    async def ytmusic_radio(source_id, limit=25):
+        asked.append(source_id)
+        return []
+
+    set_radio(monkeypatch, youtube, [by(f"Artist {i}", f"mix-{i:02}") for i in range(12)])
+    monkeypatch.setattr(ytmusic, "radio", ytmusic_radio)
+    r = client.post("/radio", json=radio(seed_source="youtube", seed_id="J7p4bzqLvCw", limit=10))
+    assert len(r.json()["songs"]) == 10 and asked == []
