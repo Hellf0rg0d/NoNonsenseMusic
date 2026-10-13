@@ -442,19 +442,36 @@ async def prefetch_urls(body: PrefetchRequest, request: Request, user: Annotated
 
 # ---------- radio (MUS-3) ----------
 
+async def station_video(copies: list[dict]) -> str | None:
+    """A video to start YouTube's Mix from: the song's own YouTube or YouTube Music copy, else (a song only JioSaavn
+    has) the first YouTube Music result for its title and artist. Not necessarily the same recording: the Mix only
+    needs the song to start from, and JioSaavn's own station was the weakest of the three (13 Oct)."""
+    own = next((c["source_id"] for c in copies if c["source"] in ("youtube", "ytmusic")), None)
+    if own is not None or not copies:
+        return own
+    try:
+        found = await ytmusic.search(f"{copies[0]['title']} {(copies[0]['artists'] or [''])[0]}")
+    except SourceUnavailable:
+        return None
+    return found[0].id if found else None
+
+
 @app.post("/radio")
 async def radio(body: RadioRequest, request: Request,
                 user: Annotated[User, Depends(per_account("radio"))]) -> RadioResponse:
     """More songs to keep playing, seeded from the last song in the queue (MUS-3).
 
-    The stations are asked best first (library.stations: YouTube's Mix, YouTube Music's, the seed's own source) until
-    one answers with songs. The reply is ranked with the same machinery as search (group duplicates, keep the station's
-    order), then the seeds, the app's exclude list and the account's last 50 played songs are dropped. 200 with fewer
-    songs (possibly none: the app stops asking) is a normal answer; 502 only when every station was unreachable.
+    The stations are asked best first until one answers with songs: YouTube's Mix, then YouTube Music's station, for a
+    video of the song (station_video), then the seed's own source. The reply is ranked with the same machinery as
+    search (group duplicates, keep the station's order), then the seeds, the app's exclude list and the account's last
+    50 played songs are dropped. 200 with fewer songs (possibly none: the app stops asking) is a normal answer; 502 only
+    when every station was unreachable.
     """
     async with request.app.state.pool.connection() as conn:
-        candidates = await library.stations(conn, body.seed.source, body.seed.source_id)
+        copies = await library.copies_of(conn, body.seed.source, body.seed.source_id)
         exclude = await library.recent_listing_refs(conn, user.id)
+    video = await station_video(copies)
+    candidates = ([("youtube", video), ("ytmusic", video)] if video else []) + [(body.seed.source, body.seed.source_id)]
     listings, unreachable = [], []
     for source, seed_id in candidates:
         try:

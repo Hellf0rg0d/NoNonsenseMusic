@@ -83,18 +83,42 @@ def test_radio_also_drops_your_last_plays_from_the_database(client, monkeypatch)
     assert [s["best"]["id"] for s in r.json()["songs"]] == ["fresh"]
 
 
-@pytest.mark.anyio
-async def test_radio_prefers_youtube_then_youtube_music_then_the_copys_own(pool):
-    # a song stored with a JioSaavn and a YouTube Music copy: playing the JioSaavn one still gets YouTube's Mix first
-    from music_backend.services import library
-    async with pool.connection() as conn:
-        await library.resolve_song(conn, [Listing(source="jiosaavn", id="st-jio", title="Station Song", artists=["Band"],
-                                                  album=None, duration=200, popularity=None),
-                                          Listing(source="ytmusic", id="st-ytm-0001", title="Station Song", artists=["Band"],
-                                                  album=None, duration=200, popularity=None)])
-        assert await library.stations(conn, "jiosaavn", "st-jio") == [
-            ("youtube", "st-ytm-0001"), ("ytmusic", "st-ytm-0001"), ("jiosaavn", "st-jio")]
-        assert await library.stations(conn, "jiosaavn", "never-stored") == [("jiosaavn", "never-stored")]
+def store(client, *listings):
+    """Store a song with these copies, as a like does (the station uses a stored song's copies)."""
+    client.post("/liked", json={"listings": [l.model_dump() for l in listings]})
+
+
+def test_radio_asks_youtubes_mix_from_the_songs_own_video_first(client, monkeypatch):
+    asked = []
+
+    async def mix(source_id, limit=25):
+        asked.append(source_id)
+        return [listing("from-mix")]
+
+    monkeypatch.setattr(youtube, "radio", mix)
+    store(client, listing("jio-own"), Listing(source="ytmusic", id="ytmOwn00001", title="Song jio-own",
+                                             artists=["The Weeknd"], album="After Hours", duration=207, popularity=None))
+    r = client.post("/radio", json=radio(seed_source="jiosaavn", seed_id="jio-own"))
+    assert asked == ["ytmOwn00001"] and [s["best"]["id"] for s in r.json()["songs"]] == ["from-mix"]
+
+
+def test_radio_finds_a_video_for_a_song_only_jiosaavn_has(client, monkeypatch):
+    searched, asked = [], []
+
+    async def search(query):
+        searched.append(query)
+        return [Listing(source="ytmusic", id="namesake001", title="Song jio-only", artists=["The Weeknd"], album=None,
+                        duration=208, popularity=None)]
+
+    async def mix(source_id, limit=25):
+        asked.append(source_id)
+        return [listing("from-mix")]
+
+    monkeypatch.setattr(ytmusic, "search", search)
+    monkeypatch.setattr(youtube, "radio", mix)
+    store(client, listing("jio-only"))
+    client.post("/radio", json=radio(seed_source="jiosaavn", seed_id="jio-only"))
+    assert searched == ["Song jio-only The Weeknd"] and asked == ["namesake001"]
 
 
 def test_radio_falls_back_when_youtubes_mix_is_empty(client, monkeypatch):
