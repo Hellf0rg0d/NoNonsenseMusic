@@ -106,8 +106,9 @@ struct HomeView: View {
     }
 
     private func playlistGrid(_ playlists: [PlaylistSummary]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: cardSize + 10), spacing: 22, alignment: .topLeading)],
-                  alignment: .leading, spacing: 26) {
+        // the shelf's gap between cards. An adaptive grid stretched each column to share the width left over, and that
+        // became gap: two playlists stood ~115 pt apart while songs stood 20 (13 Oct)
+        FlowLayout(spacing: 20, lineSpacing: 26) {
             ForEach(playlists) { playlist in
                 PlaylistCard(playlist: playlist, side: cardSize) { open(.playlist(playlist.id)) }
             }

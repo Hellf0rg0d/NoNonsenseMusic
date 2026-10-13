@@ -281,8 +281,7 @@ struct AlbumGrid: View {
     @AppStorage("cardSize") private var cardSize = Double(Look.cardSize)
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: cardSize + 10), spacing: 22, alignment: .topLeading)],
-                  alignment: .leading, spacing: 26) {
+        FlowLayout(spacing: 20, lineSpacing: 26) {           // as Home's playlists: the shelf's gap, not a stretched column
             ForEach(albums, id: \.self) { AlbumCard(album: $0, side: cardSize) }
         }
     }

@@ -534,6 +534,7 @@ private struct RecentChip: View {
 /// Lays its views out left to right, starting a new line when one does not fit (like words in a paragraph).
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
+    var lineSpacing: CGFloat?                               // between lines; nil: spacing
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         rows(for: subviews, width: proposal.width ?? .infinity).size
@@ -552,7 +553,7 @@ struct FlowLayout: Layout {
             let size = view.sizeThatFits(.unspecified)
             if x > 0, x + size.width > width {              // does not fit: a new line
                 x = 0
-                y += lineHeight + spacing
+                y += lineHeight + (lineSpacing ?? spacing)
                 lineHeight = 0
             }
             points.append(CGPoint(x: x, y: y))
