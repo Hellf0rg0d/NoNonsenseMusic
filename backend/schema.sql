@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS songs_normalised_title_idx ON songs (normalised_title
 
 CREATE TABLE IF NOT EXISTS listings (
     -- the same id string could exist on two sources, so a listing is identified by BOTH columns
-    source     text        NOT NULL CHECK (source IN ('jiosaavn', 'ytmusic')),
+    source     text        NOT NULL CHECK (source IN ('jiosaavn', 'ytmusic', 'youtube')),
     source_id  text        NOT NULL,
     -- deleting a song deletes its listings too: a listing means nothing without its song
     song_id    uuid        NOT NULL REFERENCES songs (id) ON DELETE CASCADE,
@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS listings (
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (source, source_id)
 );
+-- plain YouTube became a source after this table was made: liking or adding a YouTube result failed the old check
+-- (500, 13 Oct). A table that exists keeps its old check whatever CREATE says, so it is replaced here, on every start
+ALTER TABLE listings DROP CONSTRAINT IF EXISTS listings_source_check;
+ALTER TABLE listings ADD CONSTRAINT listings_source_check CHECK (source IN ('jiosaavn', 'ytmusic', 'youtube'));
+
 
 -- explicit version or not (MUS-19): NULL = not known yet (rows from before 7 Oct, filled in as they are seen again)
 ALTER TABLE listings ADD COLUMN IF NOT EXISTS explicit boolean;

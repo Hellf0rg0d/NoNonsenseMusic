@@ -167,3 +167,13 @@ async def test_an_unknown_flag_is_filled_in_and_a_known_one_is_kept(pool):
         # Seen again with flags. The known listing arrives (wrongly) as clean and must not be overwritten.
         await library.resolve_song(conn, [unknown.model_copy(update={"explicit": True}), known.model_copy(update={"explicit": False})])
     assert await stored_flags(pool) == {"K1": True, "U1": True}
+
+
+@pytest.mark.anyio
+async def test_a_plain_youtube_result_can_be_liked(pool, user_id):
+    # liking a plain-YouTube search result failed the listings check (500, 13 Oct): the source must be storable
+    async with pool.connection() as conn:
+        song_id = await library.resolve_song(conn, [listing("youtube", "2SM_A6Wmx2I", duration=198)])
+        await library.like(conn, user_id, song_id)
+        songs = await library.liked_songs(conn, user_id)
+    assert [l.source for s in songs if s.id == song_id for l in s.listings] == ["youtube"]
