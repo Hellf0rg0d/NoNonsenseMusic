@@ -95,6 +95,7 @@ struct PlayerBar: View {
         HStack(spacing: 14) {
             VolumeControl(width: 76, slider: volumeSlider)
             LikeButton(track: track, font: .title3)
+            SongActionsButton(track: track, font: .title3)
             open(.lyrics, symbol: "quote.bubble", help: "Lyrics")
             open(.upNext, symbol: "list.bullet", help: "Up Next")
             open(.none, symbol: "arrow.up.left.and.arrow.down.right", help: "Now Playing (⇧⌘F)")
@@ -301,6 +302,7 @@ struct NowPlayingView: View {
                     if track.isExplicit { ExplicitBadge().font(.body) }
                     Spacer()
                     LikeButton(track: track, font: .title2)
+                    SongActionsButton(track: track, font: .title2)
                 }
                 // the artist and the album open their pages (Now Playing closes first)
                 ArtistLinks(artists: track.artists) { player.showNowPlaying = false }
@@ -1184,6 +1186,9 @@ private struct UpNextRow: View {
         .onHover { hovering = $0 }                         // instant: a fade per hover redrew the window ~15 times
         .contextMenu {
             Button("Play Now", action: play)
+            Divider()
+            SongLibraryActions(track: track)
+            Divider()
             Button("Remove from Up Next", role: .destructive, action: remove)
         }
         .accessibilityElement(children: .combine)

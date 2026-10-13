@@ -280,7 +280,7 @@ struct SongListView: View {
         // LazyVStack: that rebuilt the whole window's drawing on every step of a scroll, 17 ms a frame where a 120 Hz
         // screen gives 8: the scroll ran at about 60 frames a second and stuttered (114 late frames in 14 s of flicks,
         // against 11 for the same songs in a List; measured with real trackpad input and Instruments, 8 Oct)
-        // Filter narrows the rows; playing one plays what is shown, in that order
+        // Search narrows the rows; playing one plays what is shown, in that order
         let shown = filter.isEmpty ? tracks : tracks.filter { songMatches($0, filter) }
         List {
             header(tracks)
@@ -357,7 +357,7 @@ struct SongListView: View {
 
 // MARK: - filtering a list
 
-/// Whether a song matches what was typed in a list's Filter: every word in its title, artists or album, ignoring case
+/// Whether a song matches what was typed in a list's Search: every word in its title, artists or album, ignoring case
 /// and accents ("beyonce" finds "Beyoncé").
 func songMatches(_ track: Track, _ query: String) -> Bool {
     let words = query.split(whereSeparator: \.isWhitespace)
@@ -366,14 +366,15 @@ func songMatches(_ track: Track, _ query: String) -> Bool {
     return words.allSatisfy { text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
 }
 
-/// A list's Filter: narrows the songs shown (Liked Songs, Recently Played, Downloads, a playlist). Escape clears it.
+/// A list's Search: narrows the songs shown to those matching what is typed (Liked Songs, Recently Played, Downloads,
+/// a playlist). Escape clears it. Called Search, not Filter: it finds by words (13 Oct)
 struct FilterField: View {
     @Binding var text: String
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
-            TextField("Filter", text: $text)
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search", text: $text)
                 .textFieldStyle(.plain)
                 .onKeyPress(.escape) { text = ""; return .handled }
             if !text.isEmpty {

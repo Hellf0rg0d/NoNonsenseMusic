@@ -226,8 +226,6 @@ struct CompactSongTile: View {
     let width: CGFloat
     let play: () -> Void
     @Environment(Player.self) private var player
-    @Environment(LibraryStore.self) private var library
-    @Environment(DownloadStore.self) private var downloads
 
     var body: some View {
         CompactSongFace(track: track, width: width)
@@ -238,15 +236,7 @@ struct CompactSongTile: View {
                 Button("Play Next") { player.playNext(track) }
                 Button("Add to Queue") { player.addToQueue(track) }
                 Divider()
-                Button(library.isLiked(track) ? "Remove from Liked" : "Like") { Task { await library.toggleLike(track) } }
-                AddToPlaylistMenu(track: track)
-                if downloads.isDownloading(track) {
-                    Button("Downloading…") {}.disabled(true)
-                } else if downloads.isDownloaded(track) {
-                    Button("Remove Download") { downloads.remove(track) }
-                } else {
-                    Button("Download") { Task { await downloads.download(track) } }
-                }
+                SongLibraryActions(track: track)
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)

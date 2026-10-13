@@ -15,8 +15,6 @@ struct SongRow: View {
     /// False where the list handles the double-click (a list you can reorder: see `row`).
     var doubleClickPlays = true
     @Environment(Player.self) private var player
-    @Environment(LibraryStore.self) private var library
-    @Environment(DownloadStore.self) private var downloads
     @State private var expanded = false
 
     /// True for any copy of this song: playing a chosen listing changes `best`, not the song.
@@ -55,22 +53,13 @@ struct SongRow: View {
                 Button("Play Next") { player.playNext(track) }
                 Button("Add to Queue") { player.addToQueue(track) }
                 Divider()
-                Button(library.isLiked(track) ? "Remove from Liked" : "Like") { Task { await library.toggleLike(track) } }
-                AddToPlaylistMenu(track: track)
+                SongLibraryActions(track: track)
                 Divider()
                 if let artist = track.artists.first {
                     Button("Go to Artist") { Navigator.shared.open(.artistNamed(artist)) }
                 }
                 if let album = track.albumTitle {
                     Button("Go to Album") { Navigator.shared.open(.albumNamed(title: album, artist: track.artists.first ?? "")) }
-                }
-                Divider()
-                if downloads.isDownloading(track) {
-                    Button("Downloading…") {}.disabled(true)
-                } else if downloads.isDownloaded(track) {
-                    Button("Remove Download") { downloads.remove(track) }
-                } else {
-                    Button("Download") { Task { await downloads.download(track) } }
                 }
                 if let remove {
                     Divider()

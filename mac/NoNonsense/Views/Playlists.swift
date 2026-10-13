@@ -63,7 +63,7 @@ struct PlaylistView: View {
 
             // a viewer's rows: no Remove, no drag (the server would refuse both, 403)
             let canEdit = detail.summary.canEdit
-            // Filter narrows the rows: playing one plays what is shown (as its own queue, not kept in step with the
+            // Search narrows the rows: playing one plays what is shown (as its own queue, not kept in step with the
             // playlist, which would bring the hidden songs back); no dragging while some songs are hidden
             let shown = Array(detail.items.indices).filter { filter.isEmpty || songMatches(tracks[$0], filter) }
             let shownTracks = shown.map { tracks[$0] }
@@ -307,6 +307,43 @@ struct AddToPlaylistMenu: View {
                 Button(playlist.name) { Task { await library.add(track, to: playlist) } }
             }
         }
+    }
+}
+
+/// A song's library actions, the same wherever a song is offered (a row, a cover, Up Next, the playing song's "…"):
+/// like, add to a playlist, download.
+struct SongLibraryActions: View {
+    let track: Track
+    @Environment(LibraryStore.self) private var library
+    @Environment(DownloadStore.self) private var downloads
+
+    var body: some View {
+        Button(library.isLiked(track) ? "Remove from Liked" : "Like") { Task { await library.toggleLike(track) } }
+        AddToPlaylistMenu(track: track)
+        if downloads.isDownloading(track) {
+            Button("Downloading…") {}.disabled(true)
+        } else if downloads.isDownloaded(track) {
+            Button("Remove Download") { downloads.remove(track) }
+        } else {
+            Button("Download") { Task { await downloads.download(track) } }
+        }
+    }
+}
+
+/// "…" beside the playing song's heart (the player bar, Now Playing): its library actions, as a row's right-click has.
+struct SongActionsButton: View {
+    let track: Track
+    var font: Font = .body
+
+    var body: some View {
+        Menu { SongLibraryActions(track: track) } label: { Image(systemName: "ellipsis.circle").font(font) }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(.quiet)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .help("More: Add to Playlist, Download")
+            .accessibilityLabel("More")
     }
 }
 
