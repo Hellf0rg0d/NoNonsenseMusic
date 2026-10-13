@@ -43,10 +43,8 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('audio storage unavailable, songs play from the network: $e'); // the cache and downloads stay off
   }
-  if (Platform.isWindows) {
-    await Window.initialize();
-    await MediaControls.initialize();
-  }
+  if (Platform.isWindows) await Window.initialize();
+  await MediaControls.initialize(); // Windows' media keys, Android's media session: each platform's own, nothing elsewhere
   final player = Player();
   player.currentId.addListener(() => accent.follow(player.current?.image));
   final library = Library()..playlistChanged = player.playlistChanged;

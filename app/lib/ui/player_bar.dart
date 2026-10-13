@@ -51,10 +51,12 @@ class PlayerBar extends StatelessWidget {
           ),
           child: phone
               // the phone's bar: swipe sideways for the next or previous song, swipe down to close it (the song stops;
-              // not in a jam, where it would leave the room's playback without leaving the room), tap to open
+              // not in a jam, where it would leave the room's playback without leaving the room), tap to open,
+              // long-press for the song's menu (Add to Playlist…)
               ? GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () => p.setShowNowPlaying(true),
+                  onLongPressStart: (d) => showSongMenu(context, d.globalPosition, t),
                   onHorizontalDragEnd: (d) {
                     final v = d.primaryVelocity ?? 0;
                     if (v < -250) p.next();
@@ -196,6 +198,8 @@ class PlayerBar extends StatelessWidget {
                         builder: (context, box) => Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
+                            LikeButton(track: t),
+                            SongMoreButton(track: t),
                             _Toggle(
                               icon: FluentIcons.comment_quote_24_regular,
                               tip: 'Lyrics',
@@ -212,11 +216,11 @@ class PlayerBar extends StatelessWidget {
                                 p.setShowNowPlaying(true);
                               },
                             ),
-                            // Space beyond the two buttons (80), the gap (6) and the speaker (40): below 64 px more the slider is dropped.
-                            if (box.maxWidth >= 126 + 64) ...[
+                            // Space beyond the four buttons (160), the gap (6) and the speaker (40): below 64 px more the slider is dropped.
+                            if (box.maxWidth >= 206 + 64) ...[
                               const SizedBox(width: 6),
                               Volume(
-                                width: (box.maxWidth - 126)
+                                width: (box.maxWidth - 206)
                                     .clamp(64, 110)
                                     .toDouble(),
                               ),

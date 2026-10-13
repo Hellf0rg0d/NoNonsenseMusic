@@ -1,0 +1,11 @@
+# The app icon for Android and Windows, made from the Mac's (mac/Icon/make_icon.swift draws all three images):
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"                       # the whole icon: Windows, and Android before version 8
+  android: true
+  adaptive_icon_background: "assets/icon/background.png"   # Android 8+: the paper, cut to the launcher's shape
+  adaptive_icon_foreground: "assets/icon/foreground.png"   # the N, inside the safe zone
+  ios: false
+  windows:
+    generate: true
+    icon_size: 256

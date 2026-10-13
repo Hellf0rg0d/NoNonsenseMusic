@@ -11,7 +11,7 @@ const _plain = {
 
 String _fold(String s) => s.toLowerCase().split('').map((c) => _plain[c] ?? c).join();
 
-/// Whether a song matches what was typed in a list's Filter: every word in its title, artists or album, ignoring case
+/// Whether a song matches what was typed in a list's Search: every word in its title, artists or album, ignoring case
 /// and accents ("beyonce" finds "Beyoncé"), as the Mac app does.
 bool songMatches(Track t, String query) {
   final words = _fold(query).split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
@@ -20,7 +20,8 @@ bool songMatches(Track t, String query) {
   return words.every(text.contains);
 }
 
-/// A list's Filter: narrows the songs shown (Liked Songs, Recently Played, a playlist).
+/// A list's Search: narrows the songs shown to those matching what is typed (Liked Songs, Recently Played, a playlist).
+/// Called Search, not Filter: it finds by words (13 Oct)
 class FilterField extends StatelessWidget {
   const FilterField({super.key, required this.controller});
   final TextEditingController controller;
@@ -36,8 +37,8 @@ class FilterField extends StatelessWidget {
           controller: controller,
           decoration: InputDecoration(
             isDense: true,
-            hintText: 'Filter',
-            prefixIcon: const Icon(FluentIcons.filter_24_regular, size: 18),
+            hintText: 'Search',
+            prefixIcon: const Icon(FluentIcons.search_24_regular, size: 18),
             suffixIcon: controller.text.isEmpty
                 ? null
                 : IconButton(icon: const Icon(FluentIcons.dismiss_24_regular, size: 16), tooltip: 'Clear', onPressed: controller.clear),

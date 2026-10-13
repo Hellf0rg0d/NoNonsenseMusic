@@ -41,7 +41,8 @@ class _SongRowState extends State<SongRow> {
       onEnter: (_) => setState(() => hovering = true),
       onExit: (_) => setState(() => hovering = false),
       child: GestureDetector(
-        onDoubleTap: play,
+        onTap: isTouchDevice ? play : null,
+        onDoubleTap: isTouchDevice ? null : play,
         onSecondaryTapUp: (d) => _menu(context, d.globalPosition, track, play),
         onLongPressStart: (d) => _menu(context, d.globalPosition, track, play), // a phone has no right button
         child: Container(
@@ -82,18 +83,10 @@ class _SongRowState extends State<SongRow> {
             if (!isPhone(context)) _Listings(track: track, queue: widget.queue, index: widget.index, keys: widget.keys, source: widget.source),
             ListenableBuilder(
               listenable: s.library,
-              builder: (context, _) {
-                final liked = s.library.isLiked(track);
-                return Opacity(
-                  opacity: liked || hovering ? 1 : 0,
-                  child: IconButton(
-                    icon: Icon(liked ? FluentIcons.heart_24_filled : FluentIcons.heart_24_regular, size: 18),
-                    color: liked ? theme.colorScheme.primary : muted,
-                    tooltip: liked ? 'Remove from Liked' : 'Like',
-                    onPressed: () => s.library.toggleLike(track),
-                  ),
-                );
-              },
+              builder: (context, _) => Opacity(
+                opacity: s.library.isLiked(track) || hovering ? 1 : 0,
+                child: LikeButton(track: track, size: 18),
+              ),
             ),
             const SizedBox(width: 8),
             SizedBox(width: 44, child: Text(formatTime(track.duration.toDouble()), textAlign: TextAlign.right,
@@ -104,71 +97,125 @@ class _SongRowState extends State<SongRow> {
     );
   }
 
-  void _menu(BuildContext context, Offset at, Track track, VoidCallback play) async {
-    final s = Scope.of(context);
-    final liked = s.library.isLiked(track);
-    final chosen = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
-      items: [
+  void _menu(BuildContext context, Offset at, Track track, VoidCallback play) => showSongMenu(context, at, track,
+      play: play, queueable: true,
+      remove: widget.removeFrom == null ? null : (label: 'Remove from “${widget.removeFrom!.name}”', run: widget.removeFrom!.remove));
+}
+
+/// A song's menu, the same wherever a song is offered: a row (right-click, long-press), an Up Next row, the playing
+/// song's "…". [play] comes first, with Play Next and Add to Queue when [queueable]; [remove] comes last.
+Future<void> showSongMenu(BuildContext context, Offset at, Track track,
+    {VoidCallback? play, bool queueable = false, ({String label, VoidCallback run})? remove}) async {
+  final s = Scope.of(context);
+  final liked = s.library.isLiked(track);
+  final chosen = await showMenu<String>(
+    context: context,
+    position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+    items: [
+      if (play != null) ...[
         const PopupMenuItem(value: 'play', child: Text('Play')),
-        const PopupMenuItem(value: 'next', child: Text('Play Next')),
-        const PopupMenuItem(value: 'queue', child: Text('Add to Queue')),
-        const PopupMenuDivider(),
-        PopupMenuItem(value: 'like', child: Text(liked ? 'Remove from Liked' : 'Like')),
-        const PopupMenuItem(value: 'playlist', child: Text('Add to Playlist…')),
-        const PopupMenuDivider(),
-        if (DownloadStore.shared.folder != null)
-          if (DownloadStore.shared.isDownloading(track))
-            const PopupMenuItem(enabled: false, child: Text('Downloading…'))
-          else
-            PopupMenuItem(value: 'download', child: Text(DownloadStore.shared.isDownloaded(track) ? 'Remove Download' : 'Download')),
-        if (track.artists.isNotEmpty) const PopupMenuItem(value: 'artist', child: Text('Go to Artist')),
-        if (track.albumTitle != null) const PopupMenuItem(value: 'album', child: Text('Go to Album')),
-        if (widget.removeFrom != null) ...[
-          const PopupMenuDivider(),
-          PopupMenuItem(value: 'remove', child: Text('Remove from “${widget.removeFrom!.name}”')),
+        if (queueable) ...[
+          const PopupMenuItem(value: 'next', child: Text('Play Next')),
+          const PopupMenuItem(value: 'queue', child: Text('Add to Queue')),
         ],
+        const PopupMenuDivider(),
       ],
-    );
-    if (!context.mounted) return;
-    switch (chosen) {
-      case 'play':
-        play();
-      case 'next':
-        s.player.playNext(track);
-      case 'queue':
-        s.player.addToQueue(track);
-      case 'like':
-        s.library.toggleLike(track);
-      case 'download':
-        DownloadStore.shared.isDownloaded(track) ? DownloadStore.shared.remove(track) : DownloadStore.shared.download(track);
-      case 'artist':
-        openBrowse(context, ArtistNamed(track.artists.first));
-      case 'album':
-        openBrowse(context, AlbumNamed(track.albumTitle!, track.artists.firstOrNull ?? ''));
-      case 'remove':
-        widget.removeFrom?.remove();
-      case 'playlist':
-        final to = await showMenu<String>(
-          context: context,
-          position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
-          items: [
-            const PopupMenuItem(value: '+', child: Text('New Playlist…')),
-            const PopupMenuDivider(),
-            // Only playlists the user can edit: a viewer cannot add songs, and the server answers 403.
-            for (final p in s.library.playlists.where((p) => p.canEdit)) PopupMenuItem(value: p.id, child: Text(p.name)),
-          ],
-        );
-        if (to == null || !context.mounted) return;
-        if (to == '+') {
-          final name = await askName(context, title: 'New Playlist with “${track.title}”');
-          if (name != null) await s.library.createPlaylist(name, adding: track);
-        } else {
-          await s.library.add(track, to);
-        }
-    }
+      PopupMenuItem(value: 'like', child: Text(liked ? 'Remove from Liked' : 'Like')),
+      const PopupMenuItem(value: 'playlist', child: Text('Add to Playlist…')),
+      const PopupMenuDivider(),
+      if (DownloadStore.shared.folder != null)
+        if (DownloadStore.shared.isDownloading(track))
+          const PopupMenuItem(enabled: false, child: Text('Downloading…'))
+        else
+          PopupMenuItem(value: 'download', child: Text(DownloadStore.shared.isDownloaded(track) ? 'Remove Download' : 'Download')),
+      if (track.artists.isNotEmpty) const PopupMenuItem(value: 'artist', child: Text('Go to Artist')),
+      if (track.albumTitle != null) const PopupMenuItem(value: 'album', child: Text('Go to Album')),
+      if (remove != null) ...[
+        const PopupMenuDivider(),
+        PopupMenuItem(value: 'remove', child: Text(remove.label)),
+      ],
+    ],
+  );
+  if (!context.mounted) return;
+  switch (chosen) {
+    case 'play':
+      play?.call();
+    case 'next':
+      s.player.playNext(track);
+    case 'queue':
+      s.player.addToQueue(track);
+    case 'like':
+      s.library.toggleLike(track);
+    case 'download':
+      DownloadStore.shared.isDownloaded(track) ? DownloadStore.shared.remove(track) : DownloadStore.shared.download(track);
+    case 'artist':
+      openBrowse(context, ArtistNamed(track.artists.first));
+    case 'album':
+      openBrowse(context, AlbumNamed(track.albumTitle!, track.artists.firstOrNull ?? ''));
+    case 'remove':
+      remove?.run();
+    case 'playlist':
+      final to = await showMenu<String>(
+        context: context,
+        position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+        items: [
+          const PopupMenuItem(value: '+', child: Text('New Playlist…')),
+          const PopupMenuDivider(),
+          // Only playlists the user can edit: a viewer cannot add songs, and the server answers 403.
+          for (final p in s.library.playlists.where((p) => p.canEdit)) PopupMenuItem(value: p.id, child: Text(p.name)),
+        ],
+      );
+      if (to == null || !context.mounted) return;
+      if (to == '+') {
+        final name = await askName(context, title: 'New Playlist with “${track.title}”');
+        if (name != null) await s.library.createPlaylist(name, adding: track);
+      } else {
+        await s.library.add(track, to);
+      }
   }
+}
+
+/// The heart: liked or not, a click switches it.
+class LikeButton extends StatelessWidget {
+  const LikeButton({super.key, required this.track, this.size = 20});
+  final Track track;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final library = Scope.of(context).library;
+    final theme = Theme.of(context);
+    return ListenableBuilder(
+      listenable: library,
+      builder: (context, _) {
+        final liked = library.isLiked(track);
+        return IconButton(
+          icon: Icon(liked ? FluentIcons.heart_24_filled : FluentIcons.heart_24_regular, size: size),
+          color: liked ? theme.colorScheme.primary : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          tooltip: liked ? 'Remove from Liked' : 'Like',
+          onPressed: () => library.toggleLike(track),
+        );
+      },
+    );
+  }
+}
+
+/// "…" beside the playing song's heart (Now Playing, the player bar): its menu, as a row's right-click has.
+class SongMoreButton extends StatelessWidget {
+  const SongMoreButton({super.key, required this.track, this.size = 20});
+  final Track track;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        icon: Icon(FluentIcons.more_horizontal_24_regular, size: size),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        tooltip: 'More: Add to Playlist, Download',
+        onPressed: () {
+          final box = context.findRenderObject() as RenderBox;
+          showSongMenu(context, box.localToGlobal(box.size.bottomLeft(Offset.zero)), track);
+        },
+      );
 }
 
 /// A small arrow before the artists on a downloaded song, a spinner while it downloads.

@@ -17,6 +17,8 @@ import 'package:nononsense/core/models.dart';
 import 'package:nononsense/core/settings.dart';
 import 'package:nononsense/core/player.dart';
 import 'package:nononsense/main.dart';
+import 'package:nononsense/ui/layout.dart';
+import 'package:nononsense/ui/now_playing.dart';
 import 'package:nononsense/ui/settings_screen.dart';
 import 'package:nononsense/ui/song_row.dart';
 
@@ -96,11 +98,13 @@ void main() {
     expect(find.byType(SongRow), findsWidgets);
     await snap(tester, 'search');
 
-    // a double-click on the first row plays it, with the results as the queue
+    // the first row plays, with the results as the queue: one tap on a phone, a double-click with a mouse
     final first = find.byType(SongRow).first;
     await tester.tap(first);
-    await tester.pump(const Duration(milliseconds: 60));
-    await tester.tap(first);
+    if (!isTouchDevice) {
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(first);
+    }
     await until(tester, () => player.isPlaying && player.duration > 10, seconds: 25);
     expect(player.isPlaying, isTrue, reason: 'the first result plays');
     // a search result plays alone; Autoplay then fills Up Next with songs like it
@@ -149,8 +153,19 @@ void main() {
 
     player.setShowNowPlaying(true);
     await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 400));      // the slide up (280 ms) runs from the frame above
     expect(find.text('Up Next'), findsWidgets);
+    expect(find.byTooltip('More: Add to Playlist, Download').hitTestable(), findsWidgets, reason: 'the playing song has its menu');
     await snap(tester, 'now-playing');
+    if (isTouchDevice) {
+      // one tap on an Up Next song plays it (it took several: a double tap was needed, 13 Oct)
+      if (player.panel != 'upNext') player.setPanel('upNext');   // setPanel on the panel shown hides it
+      await tester.pump(const Duration(milliseconds: 400));
+      final target = player.queue.upNext.first;
+      await tester.tap(find.descendant(of: find.byType(UpNext), matching: find.text(target.title)).first);
+      await until(tester, () => player.current?.id == target.id, seconds: 5);
+      expect(player.current?.id, target.id, reason: 'a tap on an Up Next song plays it');
+    }
 
     // lyrics are requested when the song starts, not when the panel opens
     await until(tester, () => lyrics.of(player.current!) != null, seconds: 15);
@@ -166,8 +181,10 @@ void main() {
     debugPrint('LYRICS ${found!.lines.length} lines, synced ${found.synced}, from ${found.sourceName}');
     await snap(tester, 'lyrics');
     player.setPanel('upNext');
-    player.setShowNowPlaying(false);
+    // the system's Back closes Now Playing, not the app (it closed the app, 13 Oct)
+    await tester.binding.handlePopRoute();
     await tester.pump(const Duration(milliseconds: 400));
+    expect(player.showNowPlaying, isFalse, reason: 'Back closes Now Playing');
 
     // a playlist: made, filled with 3 songs, opened, its rows in order; then deleted
     final name = 'Flutter test ${DateTime.now().millisecondsSinceEpoch % 10000}';
