@@ -693,3 +693,16 @@ async def test_youtube_radio_failures_become_our_errors(monkeypatch):
     monkeypatch.setattr(youtube, "YoutubeDL", fake_ytdlp_raising(TransportError("connection reset")))
     with pytest.raises(SourceUnavailable):
         await youtube.radio("seed", 25)
+
+
+# YouTube Music watch-page and playlist rows as they came back on 13 Oct (titles and channels real, ids made up)
+@pytest.mark.parametrize("row,expected", [
+    ({"title": "slipfunc - until dawn", "artists": [{"name": "Ikigai"}], "videoType": "MUSIC_VIDEO_TYPE_UGC"},
+     ("until dawn", ["slipfunc"])),                                       # an upload: read like plain YouTube
+    ({"title": "Blinding Lights (Official Video)", "artists": [{"name": "The Weeknd"}], "videoType": "MUSIC_VIDEO_TYPE_OMV"},
+     ("Blinding Lights", ["The Weeknd"])),                                # a music video: its labels go
+    ({"title": "Blinding Lights", "artists": [{"name": "The Weeknd"}], "videoType": "MUSIC_VIDEO_TYPE_ATV"},
+     ("Blinding Lights", ["The Weeknd"])),                                # a song: as YouTube Music names it
+])
+def test_youtube_music_names_a_video_by_its_kind(row, expected):
+    assert ytmusic.named(row) == expected

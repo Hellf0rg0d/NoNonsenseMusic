@@ -12,6 +12,7 @@ from ytmusicapi.exceptions import YTMusicServerError
 from music_backend.core.settings import settings
 from music_backend.models import AlbumDetail, AlbumRef, ArtistDetail, ArtistRef, Listing, SpotifyImportSong
 from music_backend.services.matching import normalise, to_song
+from music_backend.services.video_titles import parse_video_title, without_video_labels
 from music_backend.core.http_client import SharedClient
 from music_backend.sources import SongNotFound, SourceBlocked, SourceUnavailable
 from music_backend.sources.youtube import VIDEO_ID
@@ -173,11 +174,12 @@ def radio_blocking(source_id: str, limit: int) -> list[Listing]:
         try:
             if not row.get("videoId") or not row.get("length"):
                 continue
+            title, artists = named(row)
             listings.append(Listing(
                 source = "ytmusic",
                 id = row["videoId"],
-                title = row["title"],
-                artists = [a["name"] for a in row.get("artists") or []],
+                title = title,
+                artists = artists,
                 album = (row.get("album") or {}).get("name"),
                 duration = to_seconds(row["length"]),
                 popularity = None,
@@ -188,6 +190,21 @@ def radio_blocking(source_id: str, limit: int) -> list[Listing]:
         except (KeyError, TypeError, ValueError) as e:
             logger.warning("YouTube Music: skipped a bad radio track: %r", e)
     return listings
+
+
+def named(row: dict) -> tuple[str, list[str]]:
+    """A watch-page or playlist row's song title and artists. YouTube Music names a song (ATV) itself. A music video (OMV)
+    has its artist, and its video's labels in the title ("Blinding Lights (Official Video)"). An upload (UGC) shows the
+    video's own title and channel, as plain YouTube does ("slipfunc - until dawn" by Ikigai, 13 Oct): read the same way.
+    A music video's title is never split on a dash: "Kesariya - Brahmāstra" is a song from a film."""
+    title = row["title"]
+    artists = [a["name"] for a in row.get("artists") or [] if a.get("name")]
+    match row.get("videoType"):
+        case "MUSIC_VIDEO_TYPE_UGC":
+            return parse_video_title(title, artists[0] if artists else "")
+        case "MUSIC_VIDEO_TYPE_OMV":
+            return without_video_labels(title), artists
+    return title, artists
 
 
 # ---------- for imports (services/spotify_import.py) ----------
@@ -209,8 +226,8 @@ def import_track_blocking(video_id: str) -> Listing | None:
     if row is None or not row.get("title") or duration <= 0:
         logger.info("import: no details for a video")
         return None
-    return Listing(source="ytmusic", id=video_id, title=row["title"],
-                   artists=[a["name"] for a in row.get("artists") or [] if a.get("name")], album=None,
+    title, artists = named(row)
+    return Listing(source="ytmusic", id=video_id, title=title, artists=artists, album=None,
                    duration=duration, popularity=None, image=thumb_url(row.get("thumbnail")), explicit=None)
 
 
@@ -226,9 +243,13 @@ def import_playlist_blocking(playlist_id: str) -> tuple[str, list[SpotifyImportS
         return None
     except Exception as e:
         raise SourceUnavailable(f"YouTube Music: {e}") from e
-    songs = [SpotifyImportSong(title=t.get("title") or "", artists=[a["name"] for a in t.get("artists") or [] if a.get("name")],
-                               duration_ms=(t.get("duration_seconds") or 0) * 1000 or None, youtube_id=t["videoId"])
-             for t in p.get("tracks") or [] if t.get("videoId")]
+    songs = []
+    for t in p.get("tracks") or []:
+        if not t.get("videoId"):
+            continue
+        title, artists = named(t) if t.get("title") else ("", [])
+        songs.append(SpotifyImportSong(title=title, artists=artists, youtube_id=t["videoId"],
+                                       duration_ms=(t.get("duration_seconds") or 0) * 1000 or None))
     return (p.get("title") or "YouTube playlist", songs)
 
 

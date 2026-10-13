@@ -71,13 +71,19 @@ def _artist(name: str) -> str:
     return _HANGUL_ASIDE.sub("", name).strip(" -:'\"“”‘’")
 
 
+def without_video_labels(title: str) -> str:
+    """The title without what describes the video ("Blinding Lights (Official Video)" → "Blinding Lights"), for a title
+    that names the song alone: a Topic channel's, a YouTube Music music video's."""
+    return _clean(_before_labels(title.translate(_FULLWIDTH))) or title
+
+
 def parse_video_title(title: str, channel: str) -> tuple[str, list[str]]:
     """The song's title and artists for a video, best effort. Without a better reading: the title, by the channel."""
     owner = channel_name(channel)
     fallback = [owner] if owner else []
     text = title.translate(_FULLWIDTH)
     if channel.endswith(" - Topic"):                  # an auto-made artist channel: its titles are the song's own
-        return _clean(_before_labels(text)) or title, fallback
+        return without_video_labels(title), fallback
 
     quoted_by = _QUOTED_BY.search(text)
     if quoted_by:

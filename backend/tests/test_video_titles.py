@@ -1,7 +1,7 @@
 """Reading a song out of a YouTube video's title: real titles (searched 13 Oct), each with its expected reading."""
 import pytest
 
-from music_backend.services.video_titles import parse_video_title
+from music_backend.services.video_titles import parse_video_title, without_video_labels
 
 REAL = [
     # Artist - Title, with labels about the video
@@ -49,3 +49,9 @@ REAL = [
 @pytest.mark.parametrize("channel,title,song,artist", REAL)
 def test_a_real_video_title_reads_as_its_song(channel, title, song, artist):
     assert parse_video_title(title, channel) == (song, [artist])
+
+
+def test_a_music_videos_title_loses_only_its_labels():
+    # YouTube Music's music videos name the artist themselves: only the labels go, and a dash is not split
+    assert without_video_labels("Blinding Lights (Official Video)") == "Blinding Lights"
+    assert without_video_labels("Kesariya - Brahmāstra") == "Kesariya - Brahmāstra"
