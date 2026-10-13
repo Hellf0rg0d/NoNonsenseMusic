@@ -13,9 +13,8 @@ from music_backend.core import db
 from music_backend.services.cache import ListingURLCache
 from music_backend.core.settings import settings
 from music_backend.sources import SongNotFound, ytmusic
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 HOUR = 3600
 
 

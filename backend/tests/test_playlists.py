@@ -9,11 +9,10 @@ from fastapi.testclient import TestClient
 from music_backend.core import db
 from music_backend.services import library
 from music_backend.models import Listing
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
 pytestmark = pytest.mark.usefixtures("trust_client_listings")
 
-TEST_URL = "postgresql:///music_test"
 
 
 @pytest.fixture

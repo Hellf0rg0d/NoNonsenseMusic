@@ -10,9 +10,8 @@ from music_backend.core import db
 from music_backend.models import AlbumDetail, AlbumRef, ArtistDetail, Listing
 from music_backend.services.matching import to_song
 from music_backend.sources import SourceBlocked, SourceUnavailable, jiosaavn, ytmusic, youtube
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 
 
 @pytest.fixture

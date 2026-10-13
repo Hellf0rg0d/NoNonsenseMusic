@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 from music_backend.core import db
 from music_backend.core.http_client import SharedClient
 from music_backend.sources import jiosaavn, ytmusic
+from conftest import TEST_URL
 
-TEST_URL = "postgresql:///music_test"
 
 
 class CountingServer:

@@ -168,6 +168,23 @@ async def recent_songs(conn: AsyncConnection, user_id: UUID, limit: int = 50) ->
     return await _with_listings(conn, rows)
 
 
+async def stations(conn: AsyncConnection, source: str, source_id: str) -> list[tuple[str, str]]:
+    """The stations Autoplay may ask, best first, for the song whose copy this is.
+
+    YouTube's own Mix, then YouTube Music's station, for any copy with a video id (the two share them); then the
+    copy's own source. A song playing from JioSaavn got JioSaavn's station, and YouTube's Mix plays what people really
+    play next (13 Oct). Only a stored song's other copies are known: a song never stored has the copy given.
+    """
+    rows = await (await conn.execute(
+        """SELECT l.source, l.source_id FROM listings l
+             JOIN listings seed ON seed.song_id = l.song_id
+            WHERE seed.source = %s AND seed.source_id = %s""", [source, source_id])).fetchall()
+    copies = {(row["source"], row["source_id"]) for row in rows} | {(source, source_id)}
+    videos = sorted(copy_id for copy_source, copy_id in copies if copy_source in ("youtube", "ytmusic"))
+    picked = [("youtube", videos[0]), ("ytmusic", videos[0])] if videos else []
+    return picked + ([(source, source_id)] if (source, source_id) not in picked else [])
+
+
 async def recent_listing_refs(conn: AsyncConnection, user_id: UUID, songs: int = 50) -> set[tuple[str, str]]:
     """Return the (source, source_id) of every listing of the user's last `songs` played songs.
 

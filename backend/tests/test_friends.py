@@ -10,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from music_backend.core import db
+from conftest import TEST_URL
 
-TEST_URL = "postgresql:///music_test"
 
 
 def new_username():

@@ -19,9 +19,8 @@ from fastapi.testclient import TestClient
 from music_backend.core import db
 from music_backend.services.cache import ListingURLCache
 from music_backend.sources import SourceBlocked, SourceUnavailable, jiosaavn, ytmusic
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 HOUR = 3600
 
 

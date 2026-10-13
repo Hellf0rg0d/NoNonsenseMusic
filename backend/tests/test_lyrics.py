@@ -18,9 +18,8 @@ from music_backend.core.http_client import SharedClient
 from music_backend.sources import ytmusic
 from music_backend.services.lyrics import LyricsNotFound, parse_lrc, plain_lines
 from music_backend.models import LyricsRequest, LyricsResponse
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 
 TIMED = {"instrumental": False, "plainLyrics": "first words\nsecond words", "syncedLyrics": "[00:01.50] first words\n[00:03.00] second words"}
 PLAIN = {"instrumental": False, "plainLyrics": "first words\n\nsecond words", "syncedLyrics": None}

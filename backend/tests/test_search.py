@@ -9,9 +9,8 @@ from fastapi.testclient import TestClient
 from music_backend.core import db
 from music_backend.models import AlbumRef, ArtistRef, Listing
 from music_backend.sources import jiosaavn, ytmusic, youtube
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 
 
 @pytest.fixture

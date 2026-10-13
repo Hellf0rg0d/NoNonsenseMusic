@@ -447,22 +447,29 @@ async def radio(body: RadioRequest, request: Request,
                 user: Annotated[User, Depends(per_account("radio"))]) -> RadioResponse:
     """More songs to keep playing, seeded from the last song in the queue (MUS-3).
 
-    Only the seed's own source is asked: a JioSaavn id means nothing to YouTube Music, and vice
-    versa. The station's reply is ranked with the same machinery as search (group duplicates, keep
-    the source's order), then the seed itself, the app's exclude list and the account's last 50
-    played songs are dropped. 200 with fewer songs (possibly none: the app stops asking) is a
-    normal answer; only the source being unreachable is 502, same as /play.
+    The stations are asked best first (library.stations: YouTube's Mix, YouTube Music's, the seed's own source) until
+    one answers with songs. The reply is ranked with the same machinery as search (group duplicates, keep the station's
+    order), then the seeds, the app's exclude list and the account's last 50 played songs are dropped. 200 with fewer
+    songs (possibly none: the app stops asking) is a normal answer; 502 only when every station was unreachable.
     """
-    try:
-        # one extra listing: every station leads with its own seed
-        listings = await SOURCES[body.seed.source].radio(body.seed.source_id, body.limit + 1)
-    except SourceUnavailable as e:
-        logger.warning("%s unavailable while seeding radio from %r: %s", body.seed.source, body.seed.source_id, e)
-        raise HTTPException(status_code=502, detail=f"{body.seed.source} is unavailable right now")
-    exclude = {(ref.source, ref.source_id) for ref in body.exclude}
-    exclude.add((body.seed.source, body.seed.source_id))
     async with request.app.state.pool.connection() as conn:
-        exclude |= await library.recent_listing_refs(conn, user.id)
+        candidates = await library.stations(conn, body.seed.source, body.seed.source_id)
+        exclude = await library.recent_listing_refs(conn, user.id)
+    listings, unreachable = [], []
+    for source, seed_id in candidates:
+        try:
+            # one extra listing: every station leads with its own seed
+            listings = await SOURCES[source].radio(seed_id, body.limit + 1)
+        except SourceUnavailable as e:
+            logger.warning("%s unavailable while seeding radio from %r: %s", source, seed_id, e)
+            unreachable.append(source)
+            continue
+        if listings:
+            break
+    if not listings and len(unreachable) == len(candidates):
+        raise HTTPException(status_code=502, detail=f"{unreachable[0]} is unavailable right now")
+    exclude |= {(ref.source, ref.source_id) for ref in body.exclude}
+    exclude |= {(body.seed.source, body.seed.source_id)} | set(candidates)
     kept = [listing for listing in listings if (listing.source, listing.id) not in exclude][: body.limit]
     songs = rank_songs([kept])
     remember_served(request, songs)
