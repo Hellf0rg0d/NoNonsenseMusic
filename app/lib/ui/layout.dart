@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -7,6 +8,13 @@ const phoneWidth = 700.0;
 
 bool isPhone(BuildContext context) =>
     MediaQuery.sizeOf(context).width < phoneWidth;
+
+/// "1 song", "12 songs".
+String songCount(int n) => n == 1 ? '1 song' : '$n songs';
+
+/// A touch screen: one tap plays and a long-press opens a song's menu, where a mouse double-clicks and right-clicks.
+/// By platform, not width: a narrow window on a computer still has a mouse (a phone needed two taps to play, 13 Oct).
+bool get isTouchDevice => defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
 
 /// How tall the floating bottom area is (a phone's messages, player bar and bottom bar), so lists can end above it.
 /// The shell measures it and puts it here; nothing above the shell has one.

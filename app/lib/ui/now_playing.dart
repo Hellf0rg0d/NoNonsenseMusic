@@ -8,6 +8,7 @@ import '../core/models.dart';
 import 'copy_menu.dart';
 import 'cover.dart';
 import 'jam_panel.dart';
+import 'layout.dart';
 import 'lyrics_panel.dart';
 import 'player_bar.dart';
 import 'scope.dart';
@@ -51,13 +52,17 @@ class NowPlaying extends StatelessWidget {
                   ]),
                 ),
               ),
-              LayoutBuilder(builder: (context, box) {
+              // clear of the status bar and the gesture strip: the close button sat under the clock (13 Oct)
+              SafeArea(child: LayoutBuilder(builder: (context, box) {
                 final side = (box.maxHeight - 330).clamp(180.0, 500.0).toDouble();
                 final info = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Flexible(child: Text(t.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.4, height: 1.15))),
                     if (t.isExplicit) const Padding(padding: EdgeInsets.only(left: 8), child: ExplicitBadge()),
+                    const Spacer(),
+                    LikeButton(track: t, size: 22),
+                    SongMoreButton(track: t, size: 22),
                   ]),
                   const SizedBox(height: 4),
                   // the artists and the album open their pages (Now Playing closes first)
@@ -90,10 +95,26 @@ class NowPlaying extends StatelessWidget {
                 // song and its controls; no volume slider (the phone's own buttons). Beside each other, the cover and
                 // a 340-point panel were 485 points wider than the screen
                 final phone = box.maxWidth < 700;
+                // Lyrics and Up Next; pressing the one shown hides it, leaving the song alone. A phone has them under the
+                // controls, as Apple Music on an iPhone: in the top corner they went unnoticed (13 Oct)
+                final panelButtons = Row(mainAxisSize: MainAxisSize.min, children: [
+                  for (final (id, icon, label) in [('lyrics', FluentIcons.comment_quote_24_regular, 'Lyrics'), ('upNext', FluentIcons.text_bullet_list_ltr_24_regular, 'Up Next')])
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: phone ? 18 : 3),
+                      child: IconButton(
+                        tooltip: p.panel == id ? 'Hide $label' : 'Show $label',
+                        iconSize: phone ? 22 : 20,
+                        style: IconButton.styleFrom(backgroundColor: p.panel == id ? ink.withValues(alpha: 0.1) : Colors.transparent),
+                        color: p.panel == id ? theme.colorScheme.primary : ink.withValues(alpha: 0.75),
+                        onPressed: () => p.setPanel(id),
+                        icon: Icon(icon),
+                      ),
+                    ),
+                ]);
                 final phoneCover = (box.maxWidth - 48).clamp(140.0, (box.maxHeight - 400).clamp(140.0, 600.0)).toDouble();
                 final body = phone
                     ? Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 72, 24, 28),
+                        padding: const EdgeInsets.fromLTRB(24, 56, 24, 12),
                         child: Column(children: [
                           if (p.panel == 'none')
                             Expanded(child: Center(child: Cover(t.image, size: phoneCover, radius: 14)))
@@ -105,6 +126,8 @@ class NowPlaying extends StatelessWidget {
                           Progress(key: ValueKey('np${t.id}')),
                           const SizedBox(height: 8),
                           const Transport(size: 22, play: 56),
+                          const SizedBox(height: 10),
+                          panelButtons,
                         ]),
                       )
                     : null;
@@ -113,25 +136,7 @@ class NowPlaying extends StatelessWidget {
                     left: 24, top: 18,
                     child: IconButton(tooltip: 'Close (Esc)', iconSize: 20, onPressed: () => p.setShowNowPlaying(false), icon: const Icon(FluentIcons.chevron_down_24_regular)),
                   ),
-                  // The panel sits beside the song; pressing the button of the panel already shown hides it, leaving
-                  // the song alone.
-                  Positioned(
-                    right: 24, top: 18,
-                    child: Row(children: [
-                      for (final (id, icon, label) in [('lyrics', FluentIcons.comment_quote_24_regular, 'Lyrics'), ('upNext', FluentIcons.text_bullet_list_ltr_24_regular, 'Up Next')])
-                        Padding(
-                          padding: const EdgeInsets.only(left: 6),
-                          child: IconButton(
-                            tooltip: p.panel == id ? 'Hide $label' : 'Show $label',
-                            iconSize: 20,
-                            style: IconButton.styleFrom(backgroundColor: p.panel == id ? ink.withValues(alpha: 0.1) : Colors.transparent),
-                            color: p.panel == id ? theme.colorScheme.primary : ink.withValues(alpha: 0.75),
-                            onPressed: () => p.setPanel(id),
-                            icon: Icon(icon),
-                          ),
-                        ),
-                    ]),
-                  ),
+                  if (!phone) Positioned(right: 24, top: 18, child: panelButtons),
                   if (body != null) body else Center(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 40),
@@ -169,7 +174,7 @@ class NowPlaying extends StatelessWidget {
                     ),
                   ),
                 ]);
-              }),
+              })),
             ]);
           },
         ),
@@ -178,7 +183,8 @@ class NowPlaying extends StatelessWidget {
   }
 }
 
-/// Lists the songs queued after the current one: drag to reorder, double-click to play, remove icon to drop a row.
+/// Lists the songs queued after the current one: drag to reorder, double-click (a tap on a phone) to play, remove icon to
+/// drop a row.
 /// Songs Autoplay added come after those the user queued, under their own heading. The ∞ switches Autoplay.
 class UpNext extends StatelessWidget {
   const UpNext({super.key});
@@ -192,17 +198,34 @@ class UpNext extends StatelessWidget {
     return ListenableBuilder(listenable: Listenable.merge([p, s.settings]), builder: (context, _) {
     final entries = p.queue.upcoming;
     final heading = entries.indexWhere((e) => e.autoplay); // where Autoplay's part begins; -1: none
-    Widget row(Track t, int offset) => GestureDetector(
-          onDoubleTap: () => p.jump(p.queue.index + 1 + offset),
-          child: ListTile(
-            dense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-            leading: Cover(t.image, size: 36),
-            title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(t.artistLine, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: IconButton(iconSize: 16, tooltip: 'Remove from Up Next', onPressed: () => p.removeFromUpNext(offset), icon: const Icon(FluentIcons.dismiss_circle_24_filled)),
-          ),
-        );
+    // A phone taps to play, long-presses for the song's menu and drags by the handle, so a swipe scrolls (the whole row
+    // was draggable: a swipe picked a song up instead, 13 Oct). A mouse double-clicks, right-clicks and drags the row.
+    Widget row(Track t, int offset, int index) {
+      void play() => p.jump(p.queue.index + 1 + offset);
+      void menu(Offset at) => showSongMenu(context, at, t, play: play,
+          remove: (label: 'Remove from Up Next', run: () => p.removeFromUpNext(offset)));
+      return GestureDetector(
+        onTap: isTouchDevice ? play : null,
+        onDoubleTap: isTouchDevice ? null : play,
+        onLongPressStart: isTouchDevice ? (d) => menu(d.globalPosition) : null,
+        onSecondaryTapUp: (d) => menu(d.globalPosition),
+        child: ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+          leading: Cover(t.image, size: 36),
+          title: Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(t.artistLine, maxLines: 1, overflow: TextOverflow.ellipsis),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(iconSize: 16, tooltip: 'Remove from Up Next', onPressed: () => p.removeFromUpNext(offset), icon: const Icon(FluentIcons.dismiss_circle_24_filled)),
+            if (isTouchDevice)
+              ReorderableDragStartListener(
+                index: index,
+                child: Padding(padding: const EdgeInsets.all(8), child: Icon(FluentIcons.re_order_dots_vertical_24_regular, size: 20, color: muted)),
+              ),
+          ]),
+        ),
+      );
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(6, 2, 0, 6),
@@ -216,7 +239,7 @@ class UpNext extends StatelessWidget {
         ),
         Expanded(
           child: entries.isEmpty
-              ? Padding(padding: const EdgeInsets.all(6), child: Text('Nothing queued. Play a list, or right-click a song → Play Next or Add to Queue.', style: TextStyle(color: muted)))
+              ? Padding(padding: const EdgeInsets.all(6), child: Text(isTouchDevice ? 'Nothing queued. Play a list, or long-press a song → Play Next or Add to Queue.' : 'Nothing queued. Play a list, or right-click a song → Play Next or Add to Queue.', style: TextStyle(color: muted)))
               // One queue: your songs, then Autoplay's under its heading, as on the Mac. Any song can be dragged anywhere;
               // which side of the heading it lands on makes it yours or Autoplay's (12 Oct). The heading row stays put.
               : ReorderableListView.builder(
@@ -239,11 +262,10 @@ class UpNext extends StatelessWidget {
                       );
                     }
                     final offset = heading >= 0 && i > heading ? i - 1 : i;
-                    return ReorderableDragStartListener(
-                      key: ValueKey(entries[offset].key),
-                      index: i,
-                      child: row(entries[offset].track, offset),
-                    );
+                    final child = row(entries[offset].track, offset, i);
+                    return isTouchDevice
+                        ? KeyedSubtree(key: ValueKey(entries[offset].key), child: child)
+                        : ReorderableDragStartListener(key: ValueKey(entries[offset].key), index: i, child: child);
                   },
                 ),
         ),

@@ -27,7 +27,16 @@ class Home extends StatelessWidget {
         final recent = lib.recent.map((x) => x.track).take(20).toList();
         final liked = lib.liked.map((x) => x.track).toList();
         Widget title(String t) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(t, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)));
-        return ListView(padding: EdgeInsets.fromLTRB(32, 28, 32, bottomClearance(context)), children: [
+        // A phone sizes from its width, as Apple Music and Spotify do: 20-point margins, two covers and a clear part of
+        // a third on a shelf, playlists two to a row. The computer's fixed 148-point covers left a 10-point sliver of
+        // the third and an uneven gap beside the playlists (13 Oct)
+        final phone = isPhone(context);
+        final margin = phone ? 20.0 : 32.0;
+        final width = MediaQuery.sizeOf(context).width - 2 * margin;
+        final shelfCover = phone ? ((width - 2 * 16) / 2.4).floorToDouble() : 148.0;
+        final card = phone ? ((width - 16) / 2).floorToDouble() : 148.0;
+        final gap = phone ? 16.0 : 22.0;
+        return ListView(padding: EdgeInsets.fromLTRB(margin, 28, margin, bottomClearance(context)), children: [
           Text(greeting(DateTime.now()), style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 28),
           if (!lib.reachable)
@@ -37,34 +46,35 @@ class Home extends StatelessWidget {
           if (recent.isNotEmpty) ...[
             title('Jump back in'),
             SizedBox(
-              height: 210,
+              height: shelfCover + 62,                               // the cover, then two lines of text
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,                             // runs to the screen's edge, past the margin
                 itemCount: recent.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 20),
-                itemBuilder: (_, i) => _CoverTile(track: recent[i], onPlay: () => s.player.play(lib.recent.map((x) => x.track).toList(), startAt: i)),
+                separatorBuilder: (_, _) => SizedBox(width: phone ? 16 : 20),
+                itemBuilder: (_, i) => _CoverTile(track: recent[i], size: shelfCover, onPlay: () => s.player.play(lib.recent.map((x) => x.track).toList(), startAt: i)),
               ),
             ),
             const SizedBox(height: 32),
           ],
           if (lib.ownPlaylistsOnly.isNotEmpty) ...[
             title('Your playlists'),
-            Wrap(spacing: 22, runSpacing: 22, children: [
-              for (final p in lib.ownPlaylistsOnly) _PlaylistCard(playlist: p, onOpen: () => openPlaylist(p.id)),
+            Wrap(spacing: gap, runSpacing: 22, children: [
+              for (final p in lib.ownPlaylistsOnly) _PlaylistCard(playlist: p, size: card, onOpen: () => openPlaylist(p.id)),
             ]),
             const SizedBox(height: 32),
           ],
           if (lib.pinnedAlbums.isNotEmpty) ...[
             title('Pinned Albums'),
-            Wrap(spacing: 22, runSpacing: 22, children: [
-              for (final p in lib.pinnedAlbums) _PlaylistCard(playlist: p, onOpen: () => openPlaylist(p.id)),
+            Wrap(spacing: gap, runSpacing: 22, children: [
+              for (final p in lib.pinnedAlbums) _PlaylistCard(playlist: p, size: card, onOpen: () => openPlaylist(p.id)),
             ]),
             const SizedBox(height: 32),
           ],
           if (lib.sharedPlaylists.isNotEmpty) ...[
             title('Shared with you'),
-            Wrap(spacing: 22, runSpacing: 22, children: [
-              for (final p in lib.sharedPlaylists) _PlaylistCard(playlist: p, onOpen: () => openPlaylist(p.id)),
+            Wrap(spacing: gap, runSpacing: 22, children: [
+              for (final p in lib.sharedPlaylists) _PlaylistCard(playlist: p, size: card, onOpen: () => openPlaylist(p.id)),
             ]),
             const SizedBox(height: 32),
           ],
@@ -74,7 +84,9 @@ class Home extends StatelessWidget {
               height: 3 * 62,
               child: GridView.builder(
                 scrollDirection: Axis.horizontal,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisExtent: 300, crossAxisSpacing: 4, mainAxisSpacing: 16),
+                clipBehavior: Clip.none,
+                // a phone shows most of a column and a clear part of the next (a 300-point column left a clipped cover)
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisExtent: phone ? width * 0.86 : 300, crossAxisSpacing: 4, mainAxisSpacing: 16),
                 itemCount: liked.take(24).length,
                 itemBuilder: (_, i) => _CompactTile(track: liked[i], onPlay: () => s.player.play(liked, startAt: i)),
               ),
@@ -88,15 +100,16 @@ class Home extends StatelessWidget {
 
 class _CoverTile extends StatelessWidget {
   final Track track;
+  final double size;
   final VoidCallback onPlay;
-  const _CoverTile({required this.track, required this.onPlay});
+  const _CoverTile({required this.track, required this.size, required this.onPlay});
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onPlay,
         child: SizedBox(
-          width: 148,
+          width: size,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Cover(track.image, size: 148, radius: 10),
+            Cover(track.image, size: size, radius: 10),
             const SizedBox(height: 8),
             Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
             Text(track.artistLine, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
@@ -107,8 +120,9 @@ class _CoverTile extends StatelessWidget {
 
 class _PlaylistCard extends StatefulWidget {
   final PlaylistSummary playlist;
+  final double size;
   final VoidCallback onOpen;
-  const _PlaylistCard({required this.playlist, required this.onOpen});
+  const _PlaylistCard({required this.playlist, required this.size, required this.onOpen});
   @override
   State<_PlaylistCard> createState() => _PlaylistCardState();
 }
@@ -117,18 +131,25 @@ class _PlaylistCardState extends State<_PlaylistCard> {
   PlaylistSummary get playlist => widget.playlist;
   VoidCallback get onOpen => widget.onOpen;
 
-  // A pinned album shows its own cover, which needs its songs: they are loaded once when its card first shows.
+  // The cover is made from the songs' covers, so the songs are loaded when the card first shows and again when the
+  // count changes, as on the Mac. Only pinned albums loaded theirs: a playlist of 121 songs showed a blank cover (13 Oct)
   @override
   void initState() {
     super.initState();
-    if (playlist.isAlbum) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    _loadIfStale();
+  }
+
+  @override
+  void didUpdateWidget(_PlaylistCard old) {
+    super.didUpdateWidget(old);
+    if (old.playlist.songCount != playlist.songCount) _loadIfStale();
+  }
+
+  void _loadIfStale() => WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final library = Scope.of(context).library;
-        if (library.details[playlist.id] == null) library.loadPlaylist(playlist.id);
+        if (library.details[playlist.id]?.tracks.length != playlist.songCount) library.loadPlaylist(playlist.id);
       });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,12 +158,12 @@ class _PlaylistCardState extends State<_PlaylistCard> {
     return GestureDetector(
       onTap: onOpen,
       child: SizedBox(
-        width: 148,
+        width: widget.size,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          PlaylistCover(covers: covers, size: 148, name: playlist.name),
+          PlaylistCover(covers: covers, size: widget.size, name: playlist.name),
           const SizedBox(height: 8),
           Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-          Text('${playlist.songCount} songs', style: Theme.of(context).textTheme.bodySmall),
+          Text(songCount(playlist.songCount), style: Theme.of(context).textTheme.bodySmall),
         ]),
       ),
     );

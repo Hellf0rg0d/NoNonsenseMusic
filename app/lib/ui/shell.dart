@@ -322,7 +322,11 @@ class _ShellState extends State<Shell> {
                 bottom: 0,
                 child: MeasureHeight(
                   onHeight: (h) { if (mounted && h != _bottomArea) setState(() => _bottomArea = h); },
-                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  // NavigationBar keeps clear of every system inset (a SafeArea on all sides). As a Scaffold's bottom bar
+                  // the top one is taken away first; here, in the body, it padded the bar by the status bar's height:
+                  // an empty band above the tabs (13 Oct)
+                  child: MediaQuery.removePadding(context: context, removeTop: true, child:
+                  Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: message),
                   const Padding(padding: EdgeInsets.fromLTRB(12, 0, 12, 8), child: Center(child: PlayerBar())),
                   if (showNav) NavigationBar(
@@ -369,17 +373,31 @@ class _ShellState extends State<Shell> {
                             ),
                           ],
                         ),
-                ]),
+                ])),
                 ),
               ),
-            // Now Playing last: over everything, the phone's bottom bar too (it covered Now Playing's controls)
+            // Now Playing last: over everything, the phone's bottom bar too (it covered Now Playing's controls). It slides
+            // up from the bottom and back down (a 180 ms fade read as no animation, 13 Oct). Back closes it rather than
+            // the app: it is a layer of this screen, not a page of its own
             ListenableBuilder(
               listenable: s.player,
-              builder: (context, _) => AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: s.player.showNowPlaying
-                    ? const NowPlaying()
-                    : const SizedBox.shrink(),
+              builder: (context, _) => PopScope(
+                canPop: !s.player.showNowPlaying,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (!didPop) s.player.setShowNowPlaying(false);
+                },
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) => SlideTransition(
+                    position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
+                    child: child,
+                  ),
+                  child: s.player.showNowPlaying
+                      ? const NowPlaying()
+                      : const SizedBox.shrink(),
+                ),
               ),
             ),
           ],
