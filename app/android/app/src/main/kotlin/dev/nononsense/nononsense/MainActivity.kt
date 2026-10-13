@@ -1,5 +1,6 @@
 package dev.nononsense.nononsense
 
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 
-class MainActivity : FlutterActivity()
+// audio_service's activity: it shares one Flutter engine with the playback service (lib/core/media_controls.dart)
+class MainActivity : AudioServiceActivity()
