@@ -6,6 +6,7 @@ import '../core/api.dart';
 import '../core/discord.dart';
 import '../core/settings.dart';
 import 'account_settings.dart';
+import 'layout.dart';
 import 'scope.dart';
 import 'storage_settings.dart';
 
@@ -40,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Widget heading(String t) => Padding(padding: const EdgeInsets.only(top: 24, bottom: 8), child: Text(t, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)));
     return ListenableBuilder(
       listenable: s.settings,
-      builder: (context, _) => ListView(padding: const EdgeInsets.fromLTRB(32, 28, 32, 120), children: [
+      builder: (context, _) => ListView(padding: EdgeInsets.fromLTRB(32, 28, 32, bottomClearance(context)), children: [
         Text('Settings', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
         heading('Account'),
         Row(children: [

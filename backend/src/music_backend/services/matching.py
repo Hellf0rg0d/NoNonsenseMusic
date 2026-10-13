@@ -165,6 +165,25 @@ def to_song(group: list[Listing], score: float = 0.0) -> Song:
                 listings = group, image = pick_cover(group))
 
 
+def coverage(query: str, song: Song) -> float:
+    """How much of what was typed a song contains: the share of the query's words in its title or artists."""
+    words = normalise(query).split()
+    if not words:
+        return 1.0
+    have = set(normalise(" ".join([song.title, *song.artists])).split())
+    return sum(word in have for word in words) / len(words)
+
+
+def by_relevance(songs: list[Song], query: str) -> list[Song]:
+    """Songs that contain more of what was typed first, in steps of a fifth; within a step, the order they had.
+
+    The sources' own order put popular songs that share a word or two above the one asked for: "who cares if you exist
+    eisu remix" ranked "Who Cares" (2 of 7 words) and "Wait for You" by I-Exist first (13 Oct). A short query that every
+    result contains keeps the sources' order unchanged.
+    """
+    return sorted(songs, key = lambda song: -round(coverage(query, song) * 5))
+
+
 def merge_youtube(songs: list[Song], videos: list[Listing]) -> list[Song]:
     """Merge plain-YouTube results into the ranked songs, below every music-source song.
 

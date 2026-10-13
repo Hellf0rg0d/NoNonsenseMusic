@@ -264,6 +264,7 @@ struct SongListView: View {
     @Environment(Player.self) private var player
     @Environment(DownloadStore.self) private var downloads
     @State private var confirmingRemoveAll = false
+    @State private var filter = ""
 
     private var tracks: [Track] {
         switch item {
@@ -279,13 +280,15 @@ struct SongListView: View {
         // LazyVStack: that rebuilt the whole window's drawing on every step of a scroll, 17 ms a frame where a 120 Hz
         // screen gives 8: the scroll ran at about 60 frames a second and stuttered (114 late frames in 14 s of flicks,
         // against 11 for the same songs in a List; measured with real trackpad input and Instruments, 8 Oct)
+        // Filter narrows the rows; playing one plays what is shown, in that order
+        let shown = filter.isEmpty ? tracks : tracks.filter { songMatches($0, filter) }
         List {
             header(tracks)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 20, leading: 24, bottom: 16, trailing: 24))
-            ForEach(Array(tracks.enumerated()), id: \.element.id) { i, track in
-                SongRow(track: track, queue: tracks, index: i)
+            ForEach(Array(shown.enumerated()), id: \.element.id) { i, track in
+                SongRow(track: track, queue: shown, index: i)
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 1, leading: 24, bottom: 1, trailing: 24))
@@ -295,7 +298,9 @@ struct SongListView: View {
         .scrollContentBackground(.hidden)
         .animation(.snappy(duration: 0.3), value: tracks.map(\.id))     // a like or a new play slides rows in
         .overlay {
-            if tracks.isEmpty && item != .downloads && !Connectivity.shared.serverAnswers {
+            if !tracks.isEmpty && shown.isEmpty {
+                ContentUnavailableView.search(text: filter)
+            } else if tracks.isEmpty && item != .downloads && !Connectivity.shared.serverAnswers {
                 // not "No liked songs yet" when the songs are only out of reach (a server down at launch said that)
                 ContentUnavailableView("Can't reach your server", systemImage: "bolt.horizontal.circle",
                                        description: Text("\(item.title) comes from it. Downloads still play."))
@@ -331,6 +336,7 @@ struct SongListView: View {
                     .textStyle(.body).foregroundStyle(.secondary)
             }
             Spacer()
+            if !tracks.isEmpty { FilterField(text: $filter) }
             Button { player.playInOrder(tracks) } label: { Label("Play", systemImage: "play.fill") }
                 .compatGlassButton(prominent: true)
                 .disabled(tracks.isEmpty)
@@ -348,6 +354,39 @@ struct SongListView: View {
     }
 }
 
+
+// MARK: - filtering a list
+
+/// Whether a song matches what was typed in a list's Filter: every word in its title, artists or album, ignoring case
+/// and accents ("beyonce" finds "Beyoncé").
+func songMatches(_ track: Track, _ query: String) -> Bool {
+    let words = query.split(whereSeparator: \.isWhitespace)
+    guard !words.isEmpty else { return true }
+    let text = ([track.best.title, track.best.album ?? ""] + track.best.artists).joined(separator: " ")
+    return words.allSatisfy { text.range(of: $0, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+}
+
+/// A list's Filter: narrows the songs shown (Liked Songs, Recently Played, Downloads, a playlist). Escape clears it.
+struct FilterField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
+            TextField("Filter", text: $text)
+                .textFieldStyle(.plain)
+                .onKeyPress(.escape) { text = ""; return .handled }
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
+                    .help("Clear")
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .frame(width: 190)
+        .background(.quaternary.opacity(0.6), in: Capsule())
+    }
+}
 
 /// Download for a whole list, beside Play and Shuffle: "Downloading 3 of 20" while it runs, "Downloaded" once every
 /// song is on this Mac. One song at a time, each fetched as playback fetches it.

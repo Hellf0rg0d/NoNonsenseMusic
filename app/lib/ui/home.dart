@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import '../core/api.dart';
 import '../core/models.dart';
 import 'cover.dart';
+import 'layout.dart';
 import 'scope.dart';
 
 /// The first screen, laid out as on the Mac: a greeting, then "Jump back in" as a sideways shelf of recently played
@@ -26,7 +27,7 @@ class Home extends StatelessWidget {
         final recent = lib.recent.map((x) => x.track).take(20).toList();
         final liked = lib.liked.map((x) => x.track).toList();
         Widget title(String t) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(t, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)));
-        return ListView(padding: const EdgeInsets.fromLTRB(32, 28, 32, 120), children: [
+        return ListView(padding: EdgeInsets.fromLTRB(32, 28, 32, bottomClearance(context)), children: [
           Text(greeting(DateTime.now()), style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 28),
           if (!lib.reachable)

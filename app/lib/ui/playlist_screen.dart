@@ -9,6 +9,8 @@ import 'browse_nav.dart';
 import 'friends.dart';
 import 'home.dart';
 import 'account_settings.dart';
+import 'layout.dart';
+import 'list_filter.dart';
 import 'scope.dart';
 import 'download_button.dart';
 import 'song_row.dart';
@@ -29,6 +31,14 @@ class PlaylistScreen extends StatefulWidget {
 }
 
 class _PlaylistScreenState extends State<PlaylistScreen> {
+  final _filter = TextEditingController();
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
   // The shell gives each playlist its own key, so this runs once per opening, not on every theme or size change.
   @override
   void initState() {
@@ -49,7 +59,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     final s = Scope.of(context);
     final theme = Theme.of(context);
     return ListenableBuilder(
-      listenable: s.library,
+      listenable: Listenable.merge([s.library, _filter]),
       builder: (context, _) {
         final d = s.library.details[widget.id];
         if (d == null) return const Center(child: Waiting(size: 28));
@@ -80,6 +90,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                           icon: const Icon(FluentIcons.arrow_shuffle_24_regular, size: 18), label: const Text('Shuffle')),
                       DownloadAllButton(tracks: tracks),
                       if (p.canEdit && !p.isAlbum) ImportIntoPlaylistButton(playlistId: widget.id),
+                      if (tracks.isNotEmpty) FilterField(controller: _filter),
                       PopupMenuButton<String>(
                         icon: const Icon(FluentIcons.more_horizontal_24_regular),
                         // Only what the role allows: the server refuses anything else with 403, so it is not offered.
@@ -150,10 +161,32 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
           ),
           if (tracks.isEmpty)
             const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(40), child: Center(child: Text('No songs yet. Right-click any song › Add to Playlist.'))))
+          else if (_filter.text.isNotEmpty)
+            // Filter narrows the rows: playing one plays what is shown (as its own queue, not kept in step with the
+            // playlist, which would bring the hidden songs back); no dragging while some songs are hidden
+            Builder(builder: (context) {
+              final shown = [for (var i = 0; i < tracks.length; i++) if (songMatches(tracks[i], _filter.text)) i];
+              final shownTracks = [for (final i in shown) tracks[i]];
+              return SliverPadding(
+                padding: EdgeInsets.fromLTRB(16, 0, 22, bottomClearance(context)),
+                sliver: shown.isEmpty
+                    ? SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(32), child: Center(child: Text('No songs match “${_filter.text}”'))))
+                    : SliverList.builder(
+                        itemCount: shown.length,
+                        itemBuilder: (_, row) => Padding(
+                          padding: const EdgeInsets.only(left: 28),
+                          child: SizedBox(height: 58, child: SongRow(queue: shownTracks, index: row,
+                              removeFrom: p.canEdit
+                                  ? (name: d.summary.name, remove: () => s.library.remove(d.items[shown[row]].$1, d.summary.id))
+                                  : null)),
+                        ),
+                      ),
+              );
+            })
           else if (!p.canEdit)
             // A viewer gets the songs to play, without grips or Remove, which the server would refuse.
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 22, 120),
+              padding: EdgeInsets.fromLTRB(16, 0, 22, bottomClearance(context)),
               sliver: SliverList.builder(
                 itemCount: d.items.length,
                 itemBuilder: (_, i) => Padding(
@@ -164,7 +197,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 22, 120),
+              padding: EdgeInsets.fromLTRB(16, 0, 22, bottomClearance(context)),
               sliver: SliverReorderableList(
                 itemCount: d.items.length,
                 onReorderItem: (from, to) => s.library.moveItem(d.summary.id, from, to),

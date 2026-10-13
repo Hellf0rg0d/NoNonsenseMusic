@@ -50,7 +50,20 @@ class PlayerBar extends StatelessWidget {
             ],
           ),
           child: phone
-              ? Row(
+              // the phone's bar: swipe sideways for the next or previous song, swipe down to close it (the song stops;
+              // not in a jam, where it would leave the room's playback without leaving the room), tap to open
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => p.setShowNowPlaying(true),
+                  onHorizontalDragEnd: (d) {
+                    final v = d.primaryVelocity ?? 0;
+                    if (v < -250) p.next();
+                    if (v > 250) p.previous();
+                  },
+                  onVerticalDragEnd: (d) {
+                    if ((d.primaryVelocity ?? 0) > 250 && p.jam == null) p.stop();
+                  },
+                  child: Row(
                   children: [
                     Cover(t.image, size: 44, radius: 7),
                     const SizedBox(width: 10),
@@ -110,6 +123,7 @@ class PlayerBar extends StatelessWidget {
                       onPressed: p.next,
                     ),
                   ],
+                ),
                 )
               : Row(
                   children: [

@@ -11,6 +11,7 @@ struct PlaylistView: View {
     @Environment(DownloadStore.self) private var downloads
     @State private var loading = true
     @State private var selection: Set<UUID> = []
+    @State private var filter = ""
 
     private var detail: PlaylistDetail? { library.details[id] }
 
@@ -62,8 +63,14 @@ struct PlaylistView: View {
 
             // a viewer's rows: no Remove, no drag (the server would refuse both, 403)
             let canEdit = detail.summary.canEdit
-            ForEach(Array(detail.items.enumerated()), id: \.element.itemID) { i, entry in
-                SongRow(track: tracks[i], queue: tracks, index: i, keys: detail.keys, source: detail.queueSource,
+            // Filter narrows the rows: playing one plays what is shown (as its own queue, not kept in step with the
+            // playlist, which would bring the hidden songs back); no dragging while some songs are hidden
+            let shown = Array(detail.items.indices).filter { filter.isEmpty || songMatches(tracks[$0], filter) }
+            let shownTracks = shown.map { tracks[$0] }
+            ForEach(Array(shown.enumerated()), id: \.element) { row, i in
+                let entry = detail.items[i]
+                SongRow(track: tracks[i], queue: filter.isEmpty ? tracks : shownTracks, index: filter.isEmpty ? i : row,
+                        keys: filter.isEmpty ? detail.keys : nil, source: filter.isEmpty ? detail.queueSource : nil,
                         removeLabel: "Remove from “\(detail.name)”", remove: canEdit ? {
                     Task { await library.remove(entry, from: detail.id) }
                 } : nil, doubleClickPlays: false)
@@ -72,7 +79,12 @@ struct PlaylistView: View {
                 .listRowInsets(EdgeInsets(top: 1, leading: 16, bottom: 1, trailing: 16))
                 .selfTestFrame("playlist.row:\(i)")
             }
-            .onMove(perform: canEdit ? { from, to in Task { await library.moveItems(in: detail.id, from: from, to: to) } } : nil)
+            .onMove(perform: canEdit && filter.isEmpty ? { from, to in Task { await library.moveItems(in: detail.id, from: from, to: to) } } : nil)
+
+            if !detail.items.isEmpty && shown.isEmpty {
+                ContentUnavailableView.search(text: filter).frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden).listRowBackground(Color.clear)
+            }
 
             if detail.items.isEmpty {
                 ContentUnavailableView("No songs yet", systemImage: "music.note.list",
@@ -129,6 +141,7 @@ struct PlaylistView: View {
                     .disabled(tracks.isEmpty)
                     DownloadAllButton(tracks: tracks, name: detail.name)
                     if detail.summary.canEdit { ImportIntoPlaylistButton(playlist: detail.id) }
+                    if !tracks.isEmpty { FilterField(text: $filter) }
                     Menu {
                         PlaylistRoleActions(playlist: detail.summary)
                     } label: {

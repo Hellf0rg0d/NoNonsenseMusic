@@ -139,7 +139,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
             SliverFillRemaining(
               hasScrollBody: false,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 120),
+                padding: EdgeInsets.only(bottom: bottomClearance(context)),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(FluentIcons.people_24_regular, size: 44, color: theme.colorScheme.onSurface.withValues(alpha: 0.55)),
                   const SizedBox(height: 10),

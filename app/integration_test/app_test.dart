@@ -74,7 +74,11 @@ void main() {
     // a new account's recovery codes come first, and Done unlocks only after Copy
     expect(find.text('Save Your Recovery Codes'), findsOneWidget, reason: 'sign-up shows the recovery codes once');
     await tester.tap(find.text('Copy'));
-    await tester.pump(const Duration(milliseconds: 300));
+    // the clipboard is a call into the platform: on the Android emulator it took longer than a fixed 300 ms (13 Oct)
+    for (var i = 0; i < 50 && find.text('Copied').evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('Copied'), findsOneWidget, reason: 'Copy puts the codes on the clipboard and says so: Done waits for it');
     await tester.tap(find.text('Done'));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Save Your Recovery Codes'), findsNothing, reason: 'Done closes the codes');

@@ -5,6 +5,7 @@ import '../core/search_model.dart';
 import 'browse_widgets.dart';
 import 'download_button.dart';
 import 'layout.dart';
+import 'list_filter.dart';
 import 'scope.dart';
 import 'song_row.dart';
 import 'waiting.dart';
@@ -100,7 +101,7 @@ class _Results extends StatelessWidget {
     final theme = Theme.of(context);
     Widget heading(String text) => SliverToBoxAdapter(
         child: Padding(padding: EdgeInsets.fromLTRB(side, 10, side, 8), child: Text(text, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold))));
-    final gridPad = EdgeInsets.fromLTRB(side, 8, side, 140);
+    final gridPad = EdgeInsets.fromLTRB(side, 8, side, bottomClearance(context, extra: 20));
     final songs = model.songs;
     return switch (model.filter) {
       SearchFilter.artists => CustomScrollView(slivers: [SliverPadding(padding: gridPad, sliver: ArtistGrid(artists: model.artists))]),
@@ -116,7 +117,7 @@ class _Results extends StatelessWidget {
           ],
           if (songs.isNotEmpty && (model.artists.isNotEmpty || model.albums.isNotEmpty)) heading('Songs'),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 140), // keeps the last row clear of the player bar
+            padding: EdgeInsets.fromLTRB(22, 0, 22, bottomClearance(context, extra: 20)), // the last row clear of the player bar
             sliver: SliverFixedExtentList.builder(
               itemExtent: 58,
               itemCount: songs.length,
@@ -132,18 +133,33 @@ class _Results extends StatelessWidget {
 /// Shows either the liked songs or the recently played tracks, chosen by [liked].
 ///
 /// Renders the title, the song count, Play and Shuffle actions, then the list.
-class SongListScreen extends StatelessWidget {
+class SongListScreen extends StatefulWidget {
   final bool liked;
   const SongListScreen({super.key, required this.liked});
+  @override
+  State<SongListScreen> createState() => _SongListScreenState();
+}
+
+class _SongListScreenState extends State<SongListScreen> {
+  final _filter = TextEditingController();
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final liked = widget.liked;
     final s = Scope.of(context);
     final theme = Theme.of(context);
     return ListenableBuilder(
-      listenable: s.library,
+      listenable: Listenable.merge([s.library, _filter]),
       builder: (context, _) {
         final tracks = (liked ? s.library.liked : s.library.recent).map((x) => x.track).toList();
+        // Filter narrows the rows; playing one plays what is shown, in that order
+        final shown = _filter.text.isEmpty ? tracks : [for (final t in tracks) if (songMatches(t, _filter.text)) t];
         final title = liked ? 'Liked Songs' : 'Recently Played';
         if (tracks.isEmpty) {
           return !s.library.reachable
@@ -166,6 +182,7 @@ class SongListScreen extends StatelessWidget {
                   FilledButton.icon(onPressed: () => s.player.play(tracks, wholeList: true), icon: const Icon(FluentIcons.play_24_filled, size: 16), label: const Text('Play')),
                   OutlinedButton.icon(onPressed: () => s.player.play(tracks, startAt: 0, shuffled: true, wholeList: true), icon: const Icon(FluentIcons.arrow_shuffle_24_regular, size: 16), label: const Text('Shuffle')),
                   DownloadAllButton(tracks: tracks),
+                  FilterField(controller: _filter),
                 ]);
                 // three buttons do not fit beside the title on a phone: they go under it
                 return isPhone(context)
@@ -175,8 +192,10 @@ class SongListScreen extends StatelessWidget {
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 120),
-            sliver: SliverFixedExtentList.builder(itemExtent: 58, itemCount: tracks.length, itemBuilder: (_, i) => SongRow(queue: tracks, index: i)),
+            padding: EdgeInsets.fromLTRB(22, 0, 22, bottomClearance(context)),
+            sliver: shown.isEmpty
+                ? SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(32), child: Center(child: Text('No songs match “${_filter.text}”'))))
+                : SliverFixedExtentList.builder(itemExtent: 58, itemCount: shown.length, itemBuilder: (_, i) => SongRow(queue: shown, index: i)),
           ),
         ]);
       },

@@ -11,7 +11,7 @@ from psycopg import errors
 
 from music_backend.core import db, ratelimit
 from music_backend.services import auth, library, cache, genius, lyrics, friends, notifications, jam, served, spotify_import
-from music_backend.services.matching import rank_songs, merge_youtube, rank_albums, rank_artists
+from music_backend.services.matching import rank_songs, merge_youtube, rank_albums, rank_artists, by_relevance, coverage
 from music_backend.models import (SpotifyImportRequest, SpotifyImportStatus, Song, EventRequest, LibrarySong, ListingsRequest, Listing, SearchResponse,
                                   SearchSourceInfo, SongRef, SourceName, PlaylistRequest, PlaylistMetadata,
                                   PlaylistsResponse, PlaylistItemRef, PlaylistItems, MoveRequest, PrefetchRequest,
@@ -271,8 +271,16 @@ async def search(q: str, request: Request, user: Annotated[User, Depends(per_acc
             albums_by_source.append(album_refs)
             artists_by_source.append(artist_refs)
     songs = rank_songs(songs_by_source)
+    # nothing from the music sources has most of what was typed: plain YouTube too, where uploads like a fan's remix
+    # live ("who cares if you exist eisu remix": only YouTube had it, 13 Oct). A search the music sources answer well
+    # never waits for it
+    if not videos and want["songs"] and "youtube" not in active and max((coverage(q, s) for s in songs), default=0) < 0.8:
+        song_listings, _, _, info = await search_one("youtube", SOURCES["youtube"], q, albums=False, artists=False)
+        sources.append(info)
+        videos = song_listings
     if videos:
         songs = merge_youtube(songs, videos)
+    songs = by_relevance(songs, q)
     remember_served(request, songs)
     # a song already stored keeps the cover it has in the library (one indexed query)
     async with request.app.state.pool.connection() as conn:

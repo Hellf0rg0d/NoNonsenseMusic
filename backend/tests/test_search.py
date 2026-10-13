@@ -240,3 +240,16 @@ def test_a_broken_album_search_marks_the_source_unhealthy_but_keeps_the_others(c
     assert js["num_results"] == 1                                          # its song search still answered
     assert len(body["albums"]) == 1 and body["albums"][0]["best"]["source"] == "ytmusic"
     assert len(body["songs"]) == 1                                         # one broken kind never loses the rest
+
+
+def test_a_result_with_more_of_the_words_typed_ranks_first():
+    from music_backend.services.matching import by_relevance, coverage, to_song
+    def s(title, artists):
+        return to_song([Listing(source="jiosaavn", id=title, title=title, artists=artists, album=None, duration=200, popularity=None)])
+    popular, asked = s("Who Cares", ["Maninder Buttar"]), s("Peacock Affect - Who Cares If You Exist (Eisu remix)", ["Ikigai"])
+    q = "who cares if you exist eisu remix"
+    assert coverage(q, asked) == 1 and coverage(q, popular) < 0.3
+    assert by_relevance([popular, asked], q) == [asked, popular]
+    # a query every result contains keeps the sources' order
+    first, second = s("Tum Hi Ho", ["Arijit Singh"]), s("Tum Hi Ho (From Aashiqui 2)", ["Arijit Singh"])
+    assert by_relevance([first, second], "tum hi ho") == [first, second]

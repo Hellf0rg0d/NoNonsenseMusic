@@ -40,6 +40,8 @@ class Shell extends StatefulWidget {
 class _ShellState extends State<Shell> {
   Section section = Section.home;
   String? playlistId;
+  /// The phone's floating bottom area, measured: lists end above it (BottomArea, bottomClearance).
+  double _bottomArea = 0;
 
   void _open(Section sec, {String? playlist}) {
     BrowseNav.shared.clear(); // choosing a sidebar item starts afresh, as on the Mac
@@ -174,7 +176,9 @@ class _ShellState extends State<Shell> {
         backgroundColor: Platform.isWindows
             ? Colors.transparent
             : theme.colorScheme.surface,
-        body: Stack(
+        body: BottomArea(
+          height: phone ? _bottomArea : 0,
+          child: Stack(
           children: [
             Row(
               children: [
@@ -316,7 +320,9 @@ class _ShellState extends State<Shell> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                child: MeasureHeight(
+                  onHeight: (h) { if (mounted && h != _bottomArea) setState(() => _bottomArea = h); },
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: message),
                   const Padding(padding: EdgeInsets.fromLTRB(12, 0, 12, 8), child: Center(child: PlayerBar())),
                   if (showNav) NavigationBar(
@@ -364,6 +370,7 @@ class _ShellState extends State<Shell> {
                           ],
                         ),
                 ]),
+                ),
               ),
             // Now Playing last: over everything, the phone's bottom bar too (it covered Now Playing's controls)
             ListenableBuilder(
@@ -376,6 +383,7 @@ class _ShellState extends State<Shell> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

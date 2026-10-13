@@ -5,6 +5,7 @@ import '../core/catalog.dart';
 import 'browse_nav.dart';
 import 'browse_widgets.dart';
 import 'cover.dart';
+import 'layout.dart';
 import 'scope.dart';
 import 'song_row.dart';
 import 'waiting.dart';
@@ -156,7 +157,7 @@ class ArtistView extends StatelessWidget {
         ],
         if (artist.albums.isNotEmpty) ...[
           _section(context, 'Albums', side),
-          SliverPadding(padding: EdgeInsets.fromLTRB(side, 0, side, 140), sliver: AlbumGrid(albums: artist.albums)),
+          SliverPadding(padding: EdgeInsets.fromLTRB(side, 0, side, bottomClearance(context, extra: 20)), sliver: AlbumGrid(albums: artist.albums)),
         ] else
           const SliverToBoxAdapter(child: SizedBox(height: 140)), // keeps the last row clear of the player bar
       ]);
@@ -254,7 +255,7 @@ class _AlbumViewState extends State<AlbumView> {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 140),
+          padding: EdgeInsets.fromLTRB(12, 0, 12, bottomClearance(context, extra: 20)),
           sliver: SliverFixedExtentList.builder(
             itemExtent: 58,
             itemCount: tracks.length,
