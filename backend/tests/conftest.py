@@ -65,6 +65,18 @@ async def user_id(pool):
         return (await auth.create_user(conn, new_username(), "a test password")).id
 
 
+@pytest.fixture
+def no_catalog(monkeypatch):
+    """The music catalogues know no song: a lyrics lookup that finds nothing as given would otherwise search the real
+    YouTube Music and JioSaavn (services/lyrics.py, _catalog_reading)."""
+    from music_backend.services import lyrics
+
+    async def nothing(_query):
+        return []
+    monkeypatch.setattr(lyrics.ytmusic, "search", nothing)
+    monkeypatch.setattr(lyrics.jiosaavn, "search", nothing)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _fresh_test_database():
     """music_test starts every run empty: the first pool or app start runs every migration from nothing, so each run

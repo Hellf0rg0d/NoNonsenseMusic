@@ -17,9 +17,11 @@ from music_backend.services import lyrics
 from music_backend.core.http_client import SharedClient
 from music_backend.sources import ytmusic
 from music_backend.services.lyrics import LyricsNotFound, parse_lrc, plain_lines
-from music_backend.models import LyricLine, LyricsRequest, LyricsResponse
+from music_backend.models import LyricLine, Listing, LyricsRequest, LyricsResponse
 from conftest import TEST_URL, sign_up
 
+
+pytestmark = pytest.mark.usefixtures("no_catalog")
 
 TIMED = {"instrumental": False, "plainLyrics": "first words\nsecond words", "syncedLyrics": "[00:01.50] first words\n[00:03.00] second words"}
 PLAIN = {"instrumental": False, "plainLyrics": "first words\n\nsecond words", "syncedLyrics": None}
@@ -390,29 +392,73 @@ def test_a_translation_after_a_caret_is_split_off_the_line():
     assert parse_lrc("[00:12.00]Plain line")[0].translation is None
 
 
-def test_a_video_title_names_the_song_and_its_artist():
-    from music_backend.sources.youtube import song_of_video
-    assert song_of_video("Lomtre - slow days", "Ikigai") == ("slow days", ["Lomtre"])
-    assert song_of_video("Peacock Affect - Who Cares If You Exist (Eisu remix)", "Ikigai") == \
-        ("Who Cares If You Exist (Eisu remix)", ["Peacock Affect"])
-    assert song_of_video('dontaskalex - "e l u s i v e"', "Ikigai") == ("e l u s i v e", ["dontaskalex"])
-    assert song_of_video("The Weeknd - Blinding Lights (Official Video)", "TheWeekndVEVO") == ("Blinding Lights", ["The Weeknd"])
-    # not split: a label's "Song - Film | Cast", an auto-made Topic channel's own title, a title with no dash
-    assert song_of_video("Kesariya - Brahmastra | Ranbir Kapoor | Pritam", "Sony Music India")[1] == ["Sony Music India"]
-    assert song_of_video("Bohemian Rhapsody - Remastered 2011", "Queen - Topic") == ("Bohemian Rhapsody - Remastered 2011", ["Queen"])
-    assert song_of_video("Mellow Skies", "Hakaisu") == ("Mellow Skies", ["Hakaisu"])
+def lrclib_knowing(name: str, artist: str, asked: list):
+    """A fake LRCLIB with timed lyrics for one song only, noting each (title, artist, length) it is asked for."""
+    async def lrclib(song):
+        asked.append((song.song_name, song.artist_name, song.song_duration))
+        if (song.song_name, song.artist_name) == (name, artist):
+            return LyricsResponse(lyrics_source="lrclib", synced=True, lines=[LyricLine(start_ms=0, text="la")])
+        raise lyrics.LyricsNotFound("no")
+    return lrclib
+
+
+def catalog_with(*listings: Listing, queries: list | None = None):
+    async def search(query):
+        if queries is not None:
+            queries.append(query)
+        return list(listings)
+    return search
+
+
+def ytmusic_copy(title: str, artists: list[str], duration: int) -> Listing:
+    return Listing(source="ytmusic", id="catalog0001", title=title, artists=artists, album=None, duration=duration, popularity=None)
 
 
 @pytest.mark.anyio
 async def test_a_youtube_upload_stored_under_its_channel_finds_its_lyrics_as_the_titles_artist(monkeypatch):
     asked = []
-
-    async def lrclib(song):
-        asked.append((song.song_name, song.artist_name))
-        if (song.song_name, song.artist_name) == ("slow days", "Lomtre"):
-            return LyricsResponse(lyrics_source="lrclib", synced=True, lines=[LyricLine(start_ms=0, text="la")])
-        raise lyrics.LyricsNotFound("no")
-
-    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib})
+    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib_knowing("slow days", "Lomtre", asked)})
     found, _ = await lyrics.find_lyrics(LyricsRequest(song_name="Lomtre - slow days", artist_name="Ikigai", song_duration=165))
-    assert found.synced and asked == [("Lomtre - slow days", "Ikigai"), ("slow days", "Lomtre")]
+    assert found.synced and asked == [("Lomtre - slow days", "Ikigai", 165), ("slow days", "Lomtre", 165)]
+
+
+@pytest.mark.anyio
+async def test_a_song_named_properly_is_asked_once(monkeypatch):
+    asked, queries = [], []
+    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib_knowing("nothing", "nobody", asked)})
+    monkeypatch.setattr(lyrics.ytmusic, "search", catalog_with(queries=queries))
+    found, _ = await lyrics.find_lyrics(LyricsRequest(song_name="Kesariya", artist_name="Arijit Singh", song_duration=268))
+    assert not found.lines and len(asked) == 1 and queries == []
+
+
+@pytest.mark.anyio
+async def test_a_song_the_catalogues_know_is_asked_as_they_name_it(monkeypatch):
+    asked, queries = [], []
+    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib_knowing("Pasoori", "Ali Sethi", asked)})
+    monkeypatch.setattr(lyrics.ytmusic, "search", catalog_with(ytmusic_copy("Pasoori", ["Ali Sethi", "Shae Gill"], 224), queries=queries))
+    found, _ = await lyrics.find_lyrics(LyricsRequest(song_name="Coke Studio | Season 14 | Pasoori | Ali Sethi x Shae Gill",
+                                                      artist_name="Coke Studio Pakistan", song_duration=228))
+    # searched by the title read out of the pipes (the channel is no artist here); asked with the catalogue's length; 4 s apart, so still timed
+    assert queries == ["Pasoori"]
+    assert asked[-1] == ("Pasoori", "Ali Sethi", 224) and found.synced
+
+
+@pytest.mark.anyio
+async def test_a_music_video_longer_than_the_song_gets_its_words_without_times(monkeypatch):
+    asked = []
+    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib_knowing("Blinding Lights", "The Weeknd", asked)})
+    monkeypatch.setattr(lyrics.ytmusic, "search", catalog_with(ytmusic_copy("Blinding Lights", ["The Weeknd"], 202)))
+    found, _ = await lyrics.find_lyrics(LyricsRequest(song_name="The Weeknd - Blinding Lights (Official Video)",
+                                                      artist_name="TheWeekndVEVO", song_duration=263))
+    assert asked[1] == ("Blinding Lights", "The Weeknd", 202)
+    assert not found.synced and [(line.start_ms, line.text) for line in found.lines] == [(None, "la")]
+
+
+@pytest.mark.anyio
+async def test_a_song_of_the_same_name_and_length_by_an_artist_the_video_never_names_is_not_the_song(monkeypatch):
+    asked = []
+    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib_knowing("Blinding Lights", "Rising Insane", asked)})
+    monkeypatch.setattr(lyrics.ytmusic, "search", catalog_with(ytmusic_copy("Blinding Lights", ["Rising Insane"], 263)))
+    found, _ = await lyrics.find_lyrics(LyricsRequest(song_name="The Weeknd - Blinding Lights (Official Video)",
+                                                      artist_name="TheWeekndVEVO", song_duration=263))
+    assert not found.lines and ("Blinding Lights", "Rising Insane", 263) not in asked

@@ -11,8 +11,9 @@ import re
 
 from music_backend.core.http_client import SharedClient
 from music_backend.models import LyricLine, LyricsRequest, LyricsResponse
-from music_backend.sources import ytmusic
-from music_backend.sources.youtube import song_of_video
+from music_backend.services.matching import normalise
+from music_backend.services.video_titles import parse_video_title
+from music_backend.sources import jiosaavn, ytmusic
 
 LRCLIB_URL = "https://lrclib.net/api/get"
 # an LRC timestamp: [mm:ss.xx]. Tag lines like [ar: Someone] have letters, so they never match
@@ -70,6 +71,8 @@ def youtube_lyrics(video_id: str) -> dict:
 # Sources are asked in this order; like SOURCES in main.py, adding a source is one more line. Each takes the
 # whole request and raises LyricsNotFound when it has nothing
 LYRICS_SOURCES = {"lrclib": get_lyrics_lrclib, "ytmusic": get_lyrics_ytmusic}
+# seconds the identified song may differ from the video for its timed lyrics to still fit it
+TIMING_SLACK = 10
 
 
 async def find_lyrics(song: LyricsRequest) -> tuple[LyricsResponse, bool]:
@@ -77,17 +80,54 @@ async def find_lyrics(song: LyricsRequest) -> tuple[LyricsResponse, bool]:
     source's failure never raises. The bool is True when every source answered, meaning the reply is the best
     available; the cache stores an untimed reply only in that case (LyricsCache in cache.py).
 
-    Nothing found for a title shaped "Artist - Title" (a YouTube upload stored with its channel as the artist): asked
-    again as that title by that artist. A song found as given is never asked twice.
+    Nothing found for a song named by its video ("Lomtre - slow days" by the channel Ikigai): asked once more, as the
+    song it is (_identify).
     """
     found, complete = await _ask_sources(song)
     if found.lines:
         return found, complete
-    title, artists = song_of_video(song.song_name, song.artist_name)
-    if (title, artists) == (song.song_name, [song.artist_name]) or not artists:
+    named = await _identify(song)
+    if named is None:
         return found, complete
-    again, complete_again = await _ask_sources(song.model_copy(update={"song_name": title, "artist_name": artists[0]}))
-    return (again, complete and complete_again) if again.lines else (found, complete)
+    again, complete_again = await _ask_sources(named)
+    if not again.lines:
+        return found, complete
+    if again.synced and abs(named.song_duration - song.song_duration) > TIMING_SLACK:
+        # timed for another cut (a music video with an intro): the words are right, the times are not
+        again = again.model_copy(update={"synced": False, "lines": [l.model_copy(update={"start_ms": None}) for l in again.lines]})
+    return again, complete and complete_again
+
+
+async def _identify(song: LyricsRequest) -> LyricsRequest | None:
+    """The song a video is: as YouTube Music or JioSaavn have it (their copy's name, artist, length and id), else as
+    its title reads (services/video_titles.py). None for a song whose title reads as given: named properly already."""
+    title, artists = parse_video_title(song.song_name, song.artist_name)
+    if not artists or (title, artists[0]) == (song.song_name, song.artist_name):
+        return None
+    return (await _catalog_copy(song, title)
+            or LyricsRequest(song_name=title, artist_name=artists[0], song_duration=song.song_duration))
+
+
+async def _catalog_copy(song: LyricsRequest, query: str) -> LyricsRequest | None:
+    """A catalogue result whose title and artist are both written in the video's title or channel: "Blinding Lights"
+    by The Weeknd for his video. A length that agrees is no evidence: searched by title alone, "Taiko - Leaves" (150 s)
+    found "leaves" by PROVIDENCE144 (149 s), and "Pasoori" another band's (13 Oct)."""
+    written = f" {normalise(song.song_name)} {normalise(song.artist_name)} "
+
+    def named(text: str) -> bool:
+        return f" {normalise(text)} " in written
+
+    for source in (ytmusic, jiosaavn):
+        try:
+            results = await source.search(query)
+        except Exception as e:                    # a catalogue down: the title's reading is used instead
+            logger.info("lyrics: %s search failed (%s)", source.__name__.rsplit(".", 1)[-1], type(e).__name__)
+            continue
+        for found in results:
+            if named(found.title) and any(named(a) for a in found.artists):
+                return LyricsRequest(song_name=found.title, artist_name=found.artists[0], song_duration=found.duration,
+                                     youtube_id=found.id if found.source == "ytmusic" else None)
+    return None
 
 
 async def _ask_sources(song: LyricsRequest) -> tuple[LyricsResponse, bool]:

@@ -162,7 +162,7 @@ def test_youtube_parses_a_real_search_reply():
     assert len(rows) >= 5                                        # the reply also holds playlists and shelves
     listing = youtube.to_listing(rows[0])
     assert listing.source == "youtube"
-    # the song read out of the video's title: "The Weeknd - Blinding Lights (Official Video)" (song_of_video; until 13
+    # the song read out of the video's title: "The Weeknd - Blinding Lights (Official Video)" (parse_video_title; until 13
     # Oct the title stayed raw, MUS-13, and the channel stood as the artist, which lyrics could not find)
     assert listing.title == "Blinding Lights"
     assert listing.artists == ["The Weeknd"]

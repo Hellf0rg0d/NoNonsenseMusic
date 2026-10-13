@@ -16,6 +16,8 @@ from music_backend.models import LyricLine, LyricsRequest, LyricsResponse
 from music_backend.core.settings import settings
 from conftest import TEST_URL, sign_up
 
+pytestmark = pytest.mark.usefixtures("no_catalog")
+
 
 
 @pytest.fixture
