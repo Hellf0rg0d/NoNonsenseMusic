@@ -64,7 +64,11 @@ def _clean(title: str) -> str:
     title = _JAPANESE_ASIDE.sub("", title) if re.search(r"[A-Za-z]", title) else title
     title = re.sub(r"\s+song(?=\s*(?:\(|$))", "", title.strip(), flags=re.IGNORECASE)   # "Naatu Naatu Song (Telugu)"
     title = re.sub(r"(?<=\S)\(", " (", title)                          # "KICK BACK(Live" once （ became (
-    return re.sub(r"\s+", " ", title).strip(" '\"“”‘’")
+    title = re.sub(r"\s+", " ", title).strip()
+    # quotes that wrap the whole title go ('"e l u s i v e"'); one at an end is part of it ("Know The Feelin'", 13 Oct)
+    while len(title) > 1 and title[0] in "'\"“‘" and title[-1] in "'\"”’":
+        title = title[1:-1].strip()
+    return title
 
 
 def _artist(name: str) -> str:

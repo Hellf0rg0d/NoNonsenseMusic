@@ -4,6 +4,7 @@ import pytest
 from music_backend.services.video_titles import parse_video_title, without_video_labels
 
 REAL = [
+    ("ElFamosoDemon", "SHAG - Know The Feelin'", "Know The Feelin'", "SHAG"),     # an apostrophe at the end stays
     # Artist - Title, with labels about the video
     ("The Weeknd", "The Weeknd - Blinding Lights (Official Video)", "Blinding Lights", "The Weeknd"),
     ("7clouds", "The Weeknd - Blinding Lights (Lyrics)", "Blinding Lights", "The Weeknd"),

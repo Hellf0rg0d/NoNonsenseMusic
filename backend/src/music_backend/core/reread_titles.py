@@ -36,7 +36,11 @@ def youtube_reading(video_id: str) -> Reading | None:
 def ytmusic_reading(video_id: str) -> Reading | None:
     rows = ytmusic.client().get_watch_playlist(videoId=video_id, limit=1).get("tracks") or []
     row = next((r for r in rows if r.get("videoId") == video_id and r.get("title")), None)
-    return ytmusic.named(row) if row else None
+    # a song (ATV) is named by YouTube Music itself, nothing to re-read: its watch page credits more artists than its
+    # search row did, and would reorder them ("Aati Kya Khandala" gained its composer first, 13 Oct)
+    if row is None or row.get("videoType") == "MUSIC_VIDEO_TYPE_ATV":
+        return None
+    return ytmusic.named(row)
 
 
 READERS: dict[str, Callable[[str], Reading | None]] = {"youtube": youtube_reading, "ytmusic": ytmusic_reading}
