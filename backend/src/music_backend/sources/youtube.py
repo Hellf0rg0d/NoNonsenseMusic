@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 http = SharedClient(timeout = REQUEST_TIMEOUT, headers = {"User-Agent" : USER_AGENT})
 
 async def search(query: str) -> list[Listing]:
-    """Search plain YouTube (videos only) and return listings with titles untouched."""
+    """Search plain YouTube (videos only): each video as a listing, its song and artist read from its title (to_listing)."""
     body = {"context" : {"client" : CLIENT}, "query" : query}
     r = await http.client.post(SEARCH_URL, params = {"prettyPrint" : "false"}, json = body)
     r = r.json()
