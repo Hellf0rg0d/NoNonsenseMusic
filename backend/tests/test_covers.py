@@ -4,12 +4,10 @@ import uuid
 
 import pytest
 
-from music_backend.core import db
 from music_backend.models import Listing
 from music_backend.services import library
 from music_backend.services.matching import pick_best, pick_cover
 
-TEST_URL = "postgresql:///music_test"
 
 
 def copy(source, id, album, image, popularity=None, title="Gummo"):
@@ -33,15 +31,6 @@ def test_cover_prefers_youtube_music_and_skips_copies_without_art():
     ytm = copy("ytmusic", "yt-1", "Gummo", "https://img/ytm.jpg", 499_000_000)
     assert pick_cover(RELEASES + [ytm]) == "https://img/ytm.jpg"
     assert pick_cover([copy("jiosaavn", "x", "Gummo", None)]) is None
-
-
-@pytest.fixture
-async def pool():
-    pool = db.make_pool(TEST_URL)
-    await pool.open()
-    await db.apply_schema(pool)
-    yield pool
-    await pool.close()
 
 
 def fresh(listings):

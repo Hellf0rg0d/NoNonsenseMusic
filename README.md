@@ -9,7 +9,7 @@ A native macOS music player, designed with care.
 [![Flutter](https://img.shields.io/badge/Flutter-3-02569B?style=flat-square&logo=flutter&logoColor=white)](app)
 [![Python](https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white)](backend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](backend)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?style=flat-square&logo=postgresql&logoColor=white)](backend/schema.sql)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?style=flat-square&logo=postgresql&logoColor=white)](backend/migrations)
 [![No telemetry](https://img.shields.io/badge/telemetry-none-2ea44f?style=flat-square)](#privacy)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square)](#license)
 

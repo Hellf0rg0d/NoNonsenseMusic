@@ -2,15 +2,16 @@
 
 The database is wiped before every test; the real `music` database is never touched.
 """
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
 from music_backend.core import db
 from music_backend.services import library
 from music_backend.models import Listing
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 
 
 def listing(source, id, title="Blinding Lights", artists=("The Weeknd",), duration=200):
@@ -19,15 +20,11 @@ def listing(source, id, title="Blinding Lights", artists=("The Weeknd",), durati
 
 
 @pytest.fixture
-async def pool():
-    """Yield a pool on a freshly schema'd test database, then close it."""
-    pool = db.make_pool(TEST_URL)
-    await pool.open()
+async def pool(pool):
+    """conftest's pool, with the library's tables emptied: each test here starts from no songs."""
     async with pool.connection() as conn:
-        await conn.execute("DROP TABLE IF EXISTS playlist_members, playlist_items, playlists, events, likes, listings, songs CASCADE")
-    await db.apply_schema(pool)
+        await conn.execute("TRUNCATE playlist_members, playlist_items, playlists, events, likes, listings, songs CASCADE")
     yield pool
-    await pool.close()
 
 
 async def count(pool, table):
@@ -177,3 +174,22 @@ async def test_a_plain_youtube_result_can_be_liked(pool, user_id):
         await library.like(conn, user_id, song_id)
         songs = await library.liked_songs(conn, user_id)
     assert [l.source for s in songs if s.id == song_id for l in s.listings] == ["youtube"]
+
+
+@pytest.mark.anyio
+async def test_the_database_allows_exactly_the_sources_the_models_name(pool):
+    # one list of sources, checked: the database's copy fell behind models.SourceName once (a YouTube like: 500)
+    from typing import get_args
+    from music_backend.models import SourceName
+    async with pool.connection() as conn:
+        check = (await (await conn.execute(
+            "SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'listings_source_check'")).fetchone())["d"]
+    assert set(re.findall(r"'(\w+)'", check)) == set(get_args(SourceName))
+
+
+@pytest.mark.anyio
+async def test_migrations_run_once_and_are_recorded(pool):
+    assert await db.migrate(pool) == [], "a database already up to date runs nothing"
+    async with pool.connection() as conn:
+        versions = [r["version"] for r in await (await conn.execute("SELECT version FROM schema_migrations ORDER BY version")).fetchall()]
+    assert versions[:2] == ["0001", "0002"]

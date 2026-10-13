@@ -183,7 +183,7 @@ class PinAlbumRequest(BaseModel):
     source : SourceName
     source_id : str = Field(min_length=1, max_length=100)
 
-# The credential limits, in one place. schema.sql's CHECK on users.username repeats the 3 and 32 as a last guard
+# The credential limits, in one place. the users table's CHECK on username (migrations/0001) repeats the 3 and 32 as a last guard
 USERNAME_MIN, USERNAME_MAX = 3, 32
 PASSWORD_MIN = 8
 # a maximum too: Argon2 hashes any length, slowly, so a 10 MB "password" per sign-up would burn the server's CPU.

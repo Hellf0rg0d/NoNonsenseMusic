@@ -12,7 +12,7 @@ from psycopg import errors
 from music_backend.core import db, ratelimit
 from music_backend.services import auth, library, cache, genius, lyrics, friends, notifications, jam, served, spotify_import
 from music_backend.services.matching import rank_songs, merge_youtube, rank_albums, rank_artists, by_relevance, coverage
-from music_backend.models import (SpotifyImportRequest, SpotifyImportStatus, Song, EventRequest, LibrarySong, ListingsRequest, Listing, SearchResponse,
+from music_backend.models import (SpotifyImportRequest, SpotifyImportStatus, EventRequest, LibrarySong, ListingsRequest, Listing, SearchResponse,
                                   SearchSourceInfo, SongRef, SourceName, PlaylistRequest, PlaylistMetadata,
                                   PlaylistsResponse, PlaylistItemRef, PlaylistItems, MoveRequest, PrefetchRequest,
                                   RadioRequest, RadioResponse,
@@ -20,7 +20,7 @@ from music_backend.models import (SpotifyImportRequest, SpotifyImportStatus, Son
                                   PlaylistUpdate, ShareRequest, DeviceNameRequest, Member, GeniusRequest,
                                   RecoverRequest, PasswordRequest, RecoveryCodes, RecoveryCodesLeft,
                                   GeniusResponse, FriendUser, FriendRequests, RespondRequest, FriendRequest,
-                                  Notification, NotificationsResponse, WSTicket, MarkReadResponse,
+                                  NotificationsResponse, WSTicket, MarkReadResponse,
                                   AlbumRef, ArtistRef, AlbumDetail, ArtistDetail, PinAlbumRequest,
                                   JamCreateRequest, JamJoinRequest, JamInviteRequest, JamHostRequest, JamCommand, JamState,
                                   Song)
@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
     # runs once at startup (before yield) and once at shutdown (after yield)
     pool = db.make_pool(db.DATABASE_URL)
     await pool.open()
-    await db.apply_schema(pool)
+    await db.migrate(pool)
     app.state.pool = pool
     app.state.limits = ratelimit.Limiter()                        # rate limits (core/ratelimit.py): counts in memory
     app.state.served = served.ServedListings()                    # what search etc. returned: the only copies stored

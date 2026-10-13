@@ -14,21 +14,16 @@ from music_backend.services.cache import LyricsCache
 from music_backend.services.lyrics import LyricsNotFound
 from music_backend.models import LyricLine, LyricsRequest, LyricsResponse
 from music_backend.core.settings import settings
-from conftest import sign_up
+from conftest import TEST_URL, sign_up
 
-TEST_URL = "postgresql:///music_test"
 
 
 @pytest.fixture
-async def pool():
-    """Apply the schema to a pool on music_test, then delete rows named cache-test-* on teardown."""
-    pool = db.make_pool(TEST_URL)
-    await pool.open()
-    await db.apply_schema(pool)
+async def pool(pool):
+    """conftest's pool; afterwards, the rows these tests named cache-test-* are deleted."""
     yield pool
     async with pool.connection() as conn:
         await conn.execute("DELETE FROM lyrics WHERE song_name LIKE 'cache-test-%'")
-    await pool.close()
 
 
 def song(youtube_id="vid"):

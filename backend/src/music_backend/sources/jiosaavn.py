@@ -35,7 +35,7 @@ async def search(query: str) -> list[Listing]:
     for result in r.get("results", []):
         try:
             listings.append(to_listing(result))
-        except (ValidationError, KeyError) as e:
+        except (ValidationError, KeyError):
             logger.warning("JioSaavn: skipped a bad result %s", result.get("id"))
             continue
     return listings
@@ -50,7 +50,7 @@ async def search_albums(query: str) -> list[AlbumRef]:
     for result in r.get("results", []):
         try:
             albums.append(album_ref(result))
-        except (ValidationError, KeyError) as e:
+        except (ValidationError, KeyError):
             logger.warning("JioSaavn: skipped a bad album result %s", result.get("id"))
             continue
     return albums
@@ -88,7 +88,7 @@ async def search_artists(query: str) -> list[ArtistRef]:
                 name = html.unescape(result["name"]),
                 image = result["image"].replace("150x150", "500x500") if result.get("image") else None,
             ))
-        except (ValidationError, KeyError) as e:
+        except (ValidationError, KeyError):
             logger.warning("JioSaavn: skipped a bad artist result %s", result.get("id"))
             continue
     return artists

@@ -31,10 +31,10 @@ def anyio_backend():
 
 @pytest.fixture
 async def pool():
-    """Yield a pool on the test database with the schema applied, then close it."""
+    """Yield a pool on music_test, with every migration run, then close it."""
     pool = db.make_pool(TEST_URL)
     await pool.open()
-    await db.apply_schema(pool)
+    await db.migrate(pool)
     yield pool
     await pool.close()
 
@@ -66,7 +66,11 @@ async def user_id(pool):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _delete_test_accounts():
+def _fresh_test_database():
+    # music_test starts every run empty: the first pool or app start runs every migration from nothing, so each run
+    # also proves the migrations build a working database
+    with psycopg.connect(TEST_URL) as conn:
+        conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
     yield
     with psycopg.connect(TEST_URL) as conn:
         conn.execute("DELETE FROM users WHERE username LIKE 'test-%'")

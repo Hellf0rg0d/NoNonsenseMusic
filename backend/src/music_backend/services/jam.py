@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 from fastapi import WebSocket
 
-from music_backend.models import JamCommand, JamMember, JamQueueEntry, JamState, Listing
+from music_backend.models import JamCommand, JamMember, JamQueueEntry, JamState
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from music_backend.core import db
-from conftest import sign_up
 
 TEST_URL = "postgresql:///music_test"
 
