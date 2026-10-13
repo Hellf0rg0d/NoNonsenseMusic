@@ -12,6 +12,7 @@ import re
 from music_backend.core.http_client import SharedClient
 from music_backend.models import LyricLine, LyricsRequest, LyricsResponse
 from music_backend.sources import ytmusic
+from music_backend.sources.youtube import song_of_video
 
 LRCLIB_URL = "https://lrclib.net/api/get"
 # an LRC timestamp: [mm:ss.xx]. Tag lines like [ar: Someone] have letters, so they never match
@@ -74,7 +75,22 @@ LYRICS_SOURCES = {"lrclib": get_lyrics_lrclib, "ytmusic": get_lyrics_ytmusic}
 async def find_lyrics(song: LyricsRequest) -> tuple[LyricsResponse, bool]:
     """Ask every source in turn: the first timed lyrics, else the first plain ones, else an empty reply. A
     source's failure never raises. The bool is True when every source answered, meaning the reply is the best
-    available; the cache stores an untimed reply only in that case (LyricsCache in cache.py)."""
+    available; the cache stores an untimed reply only in that case (LyricsCache in cache.py).
+
+    Nothing found for a title shaped "Artist - Title" (a YouTube upload stored with its channel as the artist): asked
+    again as that title by that artist. A song found as given is never asked twice.
+    """
+    found, complete = await _ask_sources(song)
+    if found.lines:
+        return found, complete
+    title, artists = song_of_video(song.song_name, song.artist_name)
+    if (title, artists) == (song.song_name, [song.artist_name]) or not artists:
+        return found, complete
+    again, complete_again = await _ask_sources(song.model_copy(update={"song_name": title, "artist_name": artists[0]}))
+    return (again, complete and complete_again) if again.lines else (found, complete)
+
+
+async def _ask_sources(song: LyricsRequest) -> tuple[LyricsResponse, bool]:
     untimed = None
     every_source_answered = True
     for name, source in LYRICS_SOURCES.items():

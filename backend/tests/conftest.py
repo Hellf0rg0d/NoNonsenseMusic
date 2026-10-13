@@ -67,10 +67,7 @@ async def user_id(pool):
 
 @pytest.fixture(scope="session", autouse=True)
 def _fresh_test_database():
-    # music_test starts every run empty: the first pool or app start runs every migration from nothing, so each run
-    # also proves the migrations build a working database
+    """music_test starts every run empty: the first pool or app start runs every migration from nothing, so each run
+    also proves the migrations build a working database (and no earlier run's rows are left to clean up)."""
     with psycopg.connect(TEST_URL) as conn:
         conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
-    yield
-    with psycopg.connect(TEST_URL) as conn:
-        conn.execute("DELETE FROM users WHERE username LIKE 'test-%'")

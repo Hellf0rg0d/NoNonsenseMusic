@@ -95,11 +95,12 @@ def radio_blocking(source_id: str, limit: int) -> list[Listing]:
             continue
         try:
             entry_thumbs = entry.get("thumbnails") or []
+            title, artists = song_of_video(entry["title"], entry.get("channel") or channel)
             listings.append(Listing(
                 source = "youtube",
                 id = entry["id"],
-                title = entry["title"],          # raw: no keyword stripping
-                artists = [entry.get("channel") or channel] if (entry.get("channel") or channel) else [],
+                title = title,
+                artists = artists,
                 album = None,
                 duration = entry["duration"],
                 popularity = entry.get("view_count"),
@@ -147,11 +148,12 @@ def get_artist_blocking(artist_id: str) -> ArtistDetail | None:
             continue
         try:
             entry_thumbs = entry.get("thumbnails") or []
+            title, artists = song_of_video(entry["title"], channel)
             songs.append(to_song([Listing(
                 source = "youtube",
                 id = entry["id"],
-                title = entry["title"],          # raw: no keyword stripping
-                artists = [channel] if channel else [],
+                title = title,
+                artists = artists,
                 album = None,
                 duration = entry["duration"],
                 popularity = entry.get("view_count"),
@@ -232,16 +234,44 @@ def video_rows(response: dict) -> list[dict]:
     return rows
 
 
+
+# "Artist - Title" in a video title; the dash may be a hyphen, an en dash or an em dash
+_DASH = re.compile(r"\s+[-\u2013\u2014]\s+")
+# labels about the video, not the song: "(Official Video)", "[Lyrics]", "(Audio)". "(Eisu remix)" or "(slowed)" name
+# another recording and stay
+_VIDEO_LABEL = re.compile(r"\s*[(\[](?:official\s+(?:music\s+)?(?:video|audio|visuali[sz]er|lyric\s+video)|"
+                          r"lyrics?(?:\s+video)?|audio|visuali[sz]er|hd|4k)[)\]]", re.IGNORECASE)
+
+
+def song_of_video(title: str, channel: str) -> tuple[str, list[str]]:
+    """The song's title and artists from a video's title and channel.
+
+    A channel that is not the artist (a lofi channel, a label) names the artist in the title: "Lomtre - slow days" by
+    Ikigai is "slow days" by Lomtre (the channel stood as the artist, so lyrics were asked for under "Ikigai", 13 Oct).
+    Not split: a title with "|" (a label's "Song - Film | Cast | Composer", where the part before the dash is the
+    song), and an "Artist - Topic" channel, whose titles are the song's own ("Bohemian Rhapsody - Remastered 2011").
+    """
+    topic = channel.endswith(" - Topic")
+    channel = channel.removesuffix(" - Topic")
+    clean = _VIDEO_LABEL.sub("", title).strip()
+    parts = _DASH.split(clean, maxsplit=1)
+    if len(parts) == 2 and not topic and "|" not in clean and parts[0].strip() and parts[1].strip():
+        artist, name = parts
+        return name.strip().strip('"\u201c\u201d'), [artist.strip()]
+    return clean, [channel] if channel else []
+
+
 def to_listing(item: dict) -> Listing:
     """Turn one plain-YouTube video row into a Listing.
 
     A row without lengthText (live, upcoming) has no duration and is skipped by the caller.
     """
+    title, artists = song_of_video(title_of(item), channel_of(item))
     return Listing(
         source = "youtube",
         id = item["videoId"],
-        title = title_of(item),
-        artists = [channel_of(item)],
+        title = title,
+        artists = artists,
         # plain YouTube has no album information on a search row
         album = None,
         duration = to_seconds(item["lengthText"]["simpleText"]),
@@ -252,7 +282,7 @@ def to_listing(item: dict) -> Listing:
 
 
 def title_of(item: dict) -> str:
-    """Return the video's title raw: join its runs and strip nothing."""
+    """Return the video's title as shown: its runs joined (song_of_video reads the song out of it)."""
     return "".join(run["text"] for run in item["title"]["runs"])
 
 

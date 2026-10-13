@@ -17,7 +17,7 @@ from music_backend.services import lyrics
 from music_backend.core.http_client import SharedClient
 from music_backend.sources import ytmusic
 from music_backend.services.lyrics import LyricsNotFound, parse_lrc, plain_lines
-from music_backend.models import LyricsRequest, LyricsResponse
+from music_backend.models import LyricLine, LyricsRequest, LyricsResponse
 from conftest import TEST_URL, sign_up
 
 
@@ -388,3 +388,31 @@ def test_a_translation_after_a_caret_is_split_off_the_line():
                                             "lines": [{"start_ms": 12000, "text": "Despacito^Slowly"}]}).lines[0]
     assert (line.text, line.translation) == ("Despacito", "Slowly") == (cached.text, cached.translation)
     assert parse_lrc("[00:12.00]Plain line")[0].translation is None
+
+
+def test_a_video_title_names_the_song_and_its_artist():
+    from music_backend.sources.youtube import song_of_video
+    assert song_of_video("Lomtre - slow days", "Ikigai") == ("slow days", ["Lomtre"])
+    assert song_of_video("Peacock Affect - Who Cares If You Exist (Eisu remix)", "Ikigai") == \
+        ("Who Cares If You Exist (Eisu remix)", ["Peacock Affect"])
+    assert song_of_video('dontaskalex - "e l u s i v e"', "Ikigai") == ("e l u s i v e", ["dontaskalex"])
+    assert song_of_video("The Weeknd - Blinding Lights (Official Video)", "TheWeekndVEVO") == ("Blinding Lights", ["The Weeknd"])
+    # not split: a label's "Song - Film | Cast", an auto-made Topic channel's own title, a title with no dash
+    assert song_of_video("Kesariya - Brahmastra | Ranbir Kapoor | Pritam", "Sony Music India")[1] == ["Sony Music India"]
+    assert song_of_video("Bohemian Rhapsody - Remastered 2011", "Queen - Topic") == ("Bohemian Rhapsody - Remastered 2011", ["Queen"])
+    assert song_of_video("Mellow Skies", "Hakaisu") == ("Mellow Skies", ["Hakaisu"])
+
+
+@pytest.mark.anyio
+async def test_a_youtube_upload_stored_under_its_channel_finds_its_lyrics_as_the_titles_artist(monkeypatch):
+    asked = []
+
+    async def lrclib(song):
+        asked.append((song.song_name, song.artist_name))
+        if (song.song_name, song.artist_name) == ("slow days", "Lomtre"):
+            return LyricsResponse(lyrics_source="lrclib", synced=True, lines=[LyricLine(start_ms=0, text="la")])
+        raise lyrics.LyricsNotFound("no")
+
+    monkeypatch.setattr(lyrics, "LYRICS_SOURCES", {"lrclib": lrclib})
+    found, _ = await lyrics.find_lyrics(LyricsRequest(song_name="Lomtre - slow days", artist_name="Ikigai", song_duration=165))
+    assert found.synced and asked == [("Lomtre - slow days", "Ikigai"), ("slow days", "Lomtre")]
