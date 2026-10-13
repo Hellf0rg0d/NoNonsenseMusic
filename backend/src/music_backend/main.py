@@ -463,13 +463,13 @@ async def radio(body: RadioRequest, request: Request,
 
     The stations are asked best first until one answers with songs: YouTube's Mix, then YouTube Music's station, for a
     video of the song (station_video), then the seed's own source. The reply is ranked with the same machinery as
-    search (group duplicates, keep the station's order), then the seeds, the app's exclude list and the account's last
-    50 played songs are dropped. 200 with fewer songs (possibly none: the app stops asking) is a normal answer; 502 only
+    search (group duplicates, keep the station's order), then the seeds, the app's exclude list and (skip_recent, on
+    unless the app turned it off) the account's last 50 played songs are dropped. 200 with fewer songs (possibly none: the app stops asking) is a normal answer; 502 only
     when every station was unreachable.
     """
     async with request.app.state.pool.connection() as conn:
         copies = await library.copies_of(conn, body.seed.source, body.seed.source_id)
-        exclude = await library.recent_listing_refs(conn, user.id)
+        exclude = await library.recent_listing_refs(conn, user.id) if body.skip_recent else set()
     video = await station_video(copies)
     candidates = ([("youtube", video), ("ytmusic", video)] if video else []) + [(body.seed.source, body.seed.source_id)]
     listings, unreachable = [], []

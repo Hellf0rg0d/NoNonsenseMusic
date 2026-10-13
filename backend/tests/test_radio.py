@@ -81,6 +81,9 @@ def test_radio_also_drops_your_last_plays_from_the_database(client, monkeypatch)
     assert stored.status_code == 200
     r = client.post("/radio", json=radio())
     assert [s["best"]["id"] for s in r.json()["songs"]] == ["fresh"]
+    # Settings › Playback › Autoplay, "Skip songs played lately" off: it may come back
+    r = client.post("/radio", json=radio() | {"skip_recent": False})
+    assert [s["best"]["id"] for s in r.json()["songs"]] == ["played", "fresh"]
 
 
 def store(client, *listings):

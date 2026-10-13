@@ -204,6 +204,8 @@ final class Player {
 
     /// Up Next › Autoplay (on by default): when two songs or fewer are left, songs like the last one are added.
     static var autoplay: Bool { UserDefaults.standard.object(forKey: "autoplay") as? Bool ?? true }
+    /// Settings › Playback › Autoplay (on by default): the server leaves out your last 50 played songs, skipped ones too.
+    static var autoplaySkipsRecent: Bool { UserDefaults.standard.object(forKey: "autoplaySkipsRecent") as? Bool ?? true }
     /// The seed last asked about: one request per seed, so a station with nothing new is not asked again and again.
     @ObservationIgnored private var radioSeed: String?
     @ObservationIgnored private var radioAsking = false
@@ -216,12 +218,12 @@ final class Player {
         // a music source's copy when there is one: their stations follow the song, a video's follows the channel
         let seed = last.listings.first { $0.source == "jiosaavn" || $0.source == "ytmusic" } ?? last.best
         // what is still to come (and the song playing): the station must not repeat it. The server leaves out what was
-        // played lately on its own
+        // played lately on its own, unless that is switched off
         let exclude = queue[index...].flatMap(\.listings)
         radioAsking = true
         Task {
             defer { radioAsking = false }
-            guard let songs = try? await API.radio(seed: seed, exclude: exclude), !songs.isEmpty else { return }
+            guard let songs = try? await API.radio(seed: seed, exclude: exclude, skipRecent: Self.autoplaySkipsRecent), !songs.isEmpty else { return }
             // marked only after an answer: a failure (offline, a busy server) is asked again at the next song
             radioSeed = last.best.key
             guard queue.last?.id == last.id else { return }                 // the queue changed meanwhile: not for it

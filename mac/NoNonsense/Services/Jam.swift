@@ -254,7 +254,8 @@ final class JamSession {
         radioAsking = true
         Task {
             defer { radioAsking = false }
-            guard let songs = try? await API.radio(seed: last, exclude: exclude, limit: 10), !songs.isEmpty,
+            guard let songs = try? await API.radio(seed: last, exclude: exclude, limit: 10,
+                                                  skipRecent: Player.autoplaySkipsRecent), !songs.isEmpty,
                   state?.roomID == room.roomID else { return }
             radioSeed = last.key
             send(JamCommand(type: "add", listings: songs.map { Track($0).best }))

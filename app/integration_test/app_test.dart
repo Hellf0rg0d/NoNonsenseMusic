@@ -219,6 +219,24 @@ void main() {
       final r = tester.getRect(found.first);
       expect(window.contains(r.center), isTrue, reason: '"$label" at $r, inside the window $window');
     }
+    // Playback › Autoplay and the switch under it (back up: the list stands at Lyrics): stored when tapped, and only
+    // switchable while Autoplay is on
+    final autoplay = find.widgetWithText(SwitchListTile, 'Autoplay');
+    final skips = find.widgetWithText(SwitchListTile, 'Skip songs I played or skipped lately');
+    await tester.scrollUntilVisible(autoplay, -120, scrollable: settingsList);
+    await tester.pumpAndSettle();
+    expect(settings.autoplaySkipsRecent, isTrue);
+    await tester.tap(skips);
+    await tester.pumpAndSettle();
+    expect(settings.autoplaySkipsRecent, isFalse);
+    await tester.tap(autoplay);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(skips).onChanged, isNull);
+    await tester.tap(autoplay);
+    await tester.pumpAndSettle();                     // switchable again only once rebuilt
+    await tester.tap(skips);
+    await tester.pumpAndSettle();
+    expect((settings.autoplay, settings.autoplaySkipsRecent), (true, true));
     // dark, and larger text: the whole app follows at once
     await settings.setTheme(ThemeMode.dark);
     await settings.setTextScale(1.25);

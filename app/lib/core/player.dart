@@ -47,6 +47,7 @@ class Player extends ChangeNotifier implements JamPlayer {
 
   /// Settings › Playback › Autoplay, applied by Settings: on by default.
   static bool autoplay = true;
+  static bool autoplaySkipsRecent = true;
 
   final _autoplay = Autoplay();
   final _cache = AudioCache.shared;
@@ -611,7 +612,7 @@ class Player extends ChangeNotifier implements JamPlayer {
     if (due == null) return;
     final List<Track> songs;
     try {
-      songs = await Catalog.radio(due.seed, due.exclude);
+      songs = await Catalog.radio(due.seed, due.exclude, skipRecent: autoplaySkipsRecent);
     } catch (_) {
       return; // the same seed is not asked again; the next song or the next play starts over
     }

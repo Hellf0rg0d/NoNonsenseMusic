@@ -141,6 +141,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: const Text('When Up Next runs low, similar songs to the last one are added.'),
         ),
         SwitchListTile(
+          value: s.settings.autoplaySkipsRecent,
+          onChanged: s.settings.autoplay ? s.settings.setAutoplaySkipsRecent : null,
+          title: const Text('Skip songs I played or skipped lately'),
+          subtitle: const Text('Autoplay leaves out your last 50 songs.'),
+        ),
+        SwitchListTile(
           value: s.settings.checkUpdates,
           onChanged: (on) async {
             await s.settings.setCheckUpdates(on);

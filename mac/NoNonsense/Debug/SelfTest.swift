@@ -58,6 +58,13 @@ enum SelfTest {
                    let settingsFrame = settings.contentView?.superview {
                     report("settings window: \(settings.title), \(settings.frame.size)")
                     snapshot(settingsFrame, to: URL(filePath: folder).appending(path: "settings.png"))
+                    // with NN_SELFTEST_SETTINGS_TAB=Playback (any tab's name): that tab, drawn to settings-Playback.png
+                    if let name = ProcessInfo.processInfo.environment["NN_SELFTEST_SETTINGS_TAB"],
+                       let tab = settings.toolbar?.items.first(where: { $0.label == name }), let action = tab.action {
+                        NSApp.sendAction(action, to: tab.target, from: tab)
+                        try? await Task.sleep(for: .seconds(0.8))
+                        snapshot(settingsFrame, to: URL(filePath: folder).appending(path: "settings-\(name).png"))
+                    }
                     // then the Appearance tab, through its toolbar button
                     if let tab = settings.toolbar?.items.first(where: { $0.label == "Appearance" }), let action = tab.action {
                         NSApp.sendAction(action, to: tab.target, from: tab)

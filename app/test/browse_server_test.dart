@@ -62,7 +62,7 @@ void main() {
 
   test('radio gives songs like the seed, none of the excluded', () async {
     final seed = (await Catalog.search('arijit singh', filter: 'songs')).songs.first;
-    final more = await Catalog.radio(seed.best, seed.listings);
+    final more = await Catalog.radio(seed.best, seed.listings, skipRecent: true);
     expect(more, isNotEmpty);
     expect(more.any((t) => t.listings.any((l) => seed.listings.any((s) => s.key == l.key))), isFalse);
   }, skip: skip);

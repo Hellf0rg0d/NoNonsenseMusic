@@ -199,13 +199,14 @@ class Catalog {
   static Future<PlaylistSummary> pinAlbum(AlbumRef ref) async => PlaylistSummary.fromJson(
       await Api.sendJson('POST', 'albums/pin', {'source': ref.source, 'source_id': ref.id}) as Map<String, dynamic>);
 
-  /// POST /radio: songs like [seed], from the seed's own source, leaving out [exclude] (the server takes 100 at most)
-  /// and what the user played lately.
-  static Future<List<Track>> radio(Listing seed, List<Listing> exclude, {int limit = 20}) async {
+  /// POST /radio: songs like [seed], leaving out [exclude] (the server takes 100 at most) and, with [skipRecent], what
+  /// the user played lately.
+  static Future<List<Track>> radio(Listing seed, List<Listing> exclude, {int limit = 20, required bool skipRecent}) async {
     final j = await Api.sendJson('POST', 'radio', {
       'seed': {'source': seed.source, 'source_id': seed.id},
       'exclude': [for (final l in exclude.take(100)) {'source': l.source, 'source_id': l.id}],
       'limit': limit,
+      'skip_recent': skipRecent,
     }) as Map<String, dynamic>;
     return [for (final s in j['songs'] as List) Track.fromSong(s as Map<String, dynamic>)];
   }

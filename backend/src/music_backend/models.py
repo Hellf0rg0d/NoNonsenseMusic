@@ -253,11 +253,13 @@ class RadioRequest(BaseModel):
     """Body of POST /radio: more songs after the queue runs low, seeded from its last song.
 
     exclude holds the ids already in the queue or recently played, so the station does not
-    repeat them. The server also excludes the account's last 50 played songs on its own.
+    repeat them. The server also excludes the account's last 50 played songs (a skipped song was
+    played first), unless skip_recent is off (Settings › Playback › Autoplay).
     """
     seed : PrefetchListing
     exclude : list[PrefetchListing] = Field(default = [], max_length = 100)
     limit : int = Field(default = 25, ge = 1, le = 50)
+    skip_recent : bool = True
 
 class RadioResponse(BaseModel):
     songs : list[Song]

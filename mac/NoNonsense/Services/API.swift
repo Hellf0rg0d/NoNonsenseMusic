@@ -59,12 +59,16 @@ enum API {
         enum CodingKeys: String, CodingKey { case source; case sourceID = "source_id" }
         init(_ listing: Listing) { source = listing.source; sourceID = listing.id }
     }
-    private struct RadioBody: Encodable { let seed: RadioRef; let exclude: [RadioRef]; let limit: Int }
+    private struct RadioBody: Encodable {
+        let seed: RadioRef; let exclude: [RadioRef]; let limit: Int; let skipRecent: Bool
+        enum CodingKeys: String, CodingKey { case seed, exclude, limit; case skipRecent = "skip_recent" }
+    }
     private struct RadioReply: Decodable { let songs: [SearchSong] }
 
-    /// `POST /radio`: songs like `seed`, from the seed's own source, leaving out `exclude` and what you played lately.
-    static func radio(seed: Listing, exclude: [Listing], limit: Int = 20) async throws -> [SearchSong] {
-        let body = RadioBody(seed: RadioRef(seed), exclude: exclude.suffix(100).map(RadioRef.init), limit: limit)
+    /// `POST /radio`: songs like `seed`, leaving out `exclude` and, with `skipRecent`, what you played lately.
+    static func radio(seed: Listing, exclude: [Listing], limit: Int = 20, skipRecent: Bool) async throws -> [SearchSong] {
+        let body = RadioBody(seed: RadioRef(seed), exclude: exclude.suffix(100).map(RadioRef.init), limit: limit,
+                             skipRecent: skipRecent)
         let reply: RadioReply = try await send("POST", path: "radio", body: body)
         return reply.songs
     }

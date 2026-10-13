@@ -360,9 +360,23 @@ private struct TrackpadSettings: View {
 private struct PlaybackSettings: View {
     @AppStorage("versionPreference") private var version = "explicit"
     @AppStorage("preferredSource") private var preferredSource = ""        // "" = Automatic (Track.preferredSource)
+    @AppStorage("autoplay") private var autoplay = true                     // also ∞ in Up Next
+    @AppStorage("autoplaySkipsRecent") private var skipsRecent = true       // Player.autoplaySkipsRecent
+    @Environment(Player.self) private var player
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Autoplay", isOn: $autoplay)
+                    .onChange(of: autoplay) { _, on in if on { player.upNextChanged() } }
+                Toggle("Skip songs I played or skipped lately", isOn: $skipsRecent)
+                    .disabled(!autoplay)
+            } header: {
+                Text("Autoplay")
+            } footer: {
+                Text("When Up Next runs low, songs like the last one are added. They leave out your last 50 songs unless you switch that off.")
+                    .foregroundStyle(.secondary)
+            }
             Section {
                 Picker("Preferred Source", selection: $preferredSource) {
                     Text("Automatic").tag("")
