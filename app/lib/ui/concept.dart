@@ -962,6 +962,10 @@ class _CoverBackdropState extends State<CoverBackdrop> {
 /// [appear] (0 to 1) brings it in: the blur, the surface and the content come up together. It must never be faded from
 /// outside: a BackdropFilter under an Opacity blurs the empty layer the opacity draws into, so a fading card showed black
 /// until the fade ended and then the glass all at once (15 Oct).
+///
+/// The blur takes the place of what is behind it. On a see-through window (Mica, Glass, Acrylic, Clear) what is behind is
+/// mostly text over nothing, and the blur drawn over it (the default) left that text sharp under the glass: the search
+/// list and the Jam panel read as see-through, the page's lines through their own (20 Oct).
 class GlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -984,6 +988,7 @@ class GlassCard extends StatelessWidget {
         borderRadius: shape,
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 24 * a, sigmaY: 24 * a),
+          blendMode: BlendMode.src,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: theme.colorScheme.surface.withValues(alpha: (dark ? 0.55 : 0.68) * a),

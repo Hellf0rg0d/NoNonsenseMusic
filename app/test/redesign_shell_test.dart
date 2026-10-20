@@ -1,5 +1,6 @@
 // UI v2 (15 Oct): the redesigned window on a computer: the floating sidebar, the top actions and Home fit every window
-// size without an overflow, Ctrl+K opens the command bar, and the sidebar opens Library.
+// size without an overflow, the search box sits in the middle of the top bar, Ctrl+K opens the command bar, and the
+// sidebar opens Library.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:nononsense/core/lyrics.dart';
 import 'package:nononsense/core/player.dart';
 import 'package:nononsense/core/settings.dart';
 import 'package:nononsense/core/social.dart';
+import 'package:nononsense/ui/command_bar.dart';
 import 'package:nononsense/ui/redesign.dart';
 import 'package:nononsense/ui/scope.dart';
 import 'package:nononsense/ui/shell.dart';
@@ -53,6 +55,21 @@ void main() {
         await close(tester);
       });
     }
+  }
+
+  for (final size in [const Size(1920, 1009), const Size(1280, 800), const Size(1000, 700)]) {
+    testWidgets('the search box is in the middle of the top bar, clear of Jam and the bell, at $size', (tester) async {
+      await window(tester, size);
+      final row = tester.getRect(find.ancestor(of: find.byType(CommandBar), matching: find.byType(CustomMultiChildLayout)).first);
+      final box = tester.getRect(find.byType(CommandBar));
+      final actions = tester.getRect(find.byType(TopActions));
+      expect(box.right, lessThanOrEqualTo(actions.left - 12));
+      expect(box.left, greaterThanOrEqualTo(row.left));
+      // in the middle wherever there is room for it to be; a narrow window moves it left, never under Jam
+      if (box.width / 2 + actions.width + 12 <= row.width / 2) expect(box.center.dx, moreOrLessEquals(row.center.dx));
+      expect(tester.takeException(), isNull);
+      await close(tester);
+    });
   }
 
   testWidgets('Ctrl+K puts the keyboard in the command bar; the sidebar opens Library', (tester) async {
