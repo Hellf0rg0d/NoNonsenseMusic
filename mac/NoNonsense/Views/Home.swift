@@ -77,7 +77,8 @@ struct HomeView: View {
                 }
             }
             .padding(.horizontal, 32)
-            .padding(.top, 8)                               // the toolbar is above: the greeting sits just under it
+            .padding(.top, look == .classic ? 20 : 8)       // New: just under the command field. Classic: main's 20, so the
+            // toolbar's title appears (36 pt scrolled, scrollTitle) as the greeting goes under it, not over it (20 Oct)
             .padding(.bottom, 32)
             // at most maxPageWidth, centred: in a wide window the lines and shelves do not stretch across it (15 Oct)
             .pageColumn()

@@ -321,6 +321,8 @@ struct NowPlayingView: View {
     /// The side panel and its gap from the song (15 Oct, as in the Windows app).
     private static let panelWidth: CGFloat = 380
     private static let panelGap: CGFloat = 56
+    /// The song's room starts this much lower than the window's 64 pt margin: 24 pt under the top bar (24 + 38 pt).
+    private static let underBar: CGFloat = 22
 
     var body: some View {
         GeometryReader { geo in
@@ -340,7 +342,7 @@ struct NowPlayingView: View {
                     // short), and never so wide that the song and the panel leave the window
                     let beside = panel == .none ? 0 : Self.panelGap + Self.panelWidth
                     let tall = geo.size.height + geo.safeAreaInsets.top
-                    let side = min(min(max(tall - 440, 170), 470), geo.size.width - 48 - beside)
+                    let side = min(min(max(tall - 440 - Self.underBar, 170), 470), geo.size.width - 48 - beside)
                     HStack(spacing: 0) {
                         songColumn(track, side: side)
                             .selfTestFrame("nowPlaying.column")
@@ -358,9 +360,11 @@ struct NowPlayingView: View {
                                 .transition(.opacity.combined(with: .offset(x: 30)))
                         }
                     }
-                    .padding(.vertical, 64).padding(.horizontal, 24)
+                    // centred in the room under the top bar: centred in the whole window, a tall song started 2 pt
+                    // under the album's name (20 Oct)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .selfTestFrame("nowPlaying.area")
+                    .padding(.top, 64 + Self.underBar).padding(.bottom, 64).padding(.horizontal, 24)
                     // no SwiftUI animation keyed on the song: it redrew the column on every frame of the change. The
                     // cover's crossfade and springs are Core Animation (LiveArtwork); the titles change at once
 
@@ -419,7 +423,9 @@ struct NowPlayingView: View {
                         .lineLimit(1)                       // under a small cover it wrapped ("JioSaavn · AAC / 320 kbps")
                         .padding(.top, 4)
                 }
-                Spacer(minLength: 0)
+                // all the room the buttons leave: beside a Spacer it was offered half, and a short title ("Newww2")
+                // was cut at that half (20 Oct)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 LikeButton(track: track, font: .title2)
                 SongActionsButton(track: track, font: .title2)
             }
@@ -610,6 +616,25 @@ struct LyricsPanel: View {
                 .help(translating ? "Show the Lyrics" : "Translate")
                 .accessibilityLabel(translating ? "Show the lyrics" : "Translate the lyrics")
                 .selfTestFrame("lyrics.translate")
+                // the language, changeable here: in Settings › Lyrics alone it was not found (20 Oct)
+                if translating {
+                    Menu {
+                        Picker("Translate into", selection: $translateInto) {
+                            Text("System language").tag("")
+                            Divider()
+                            ForEach(LyricsTranslations.choices, id: \.id) { Text($0.name).tag($0.id) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Text(LyricsTranslations.choices.first { $0.id == translateInto }?.name ?? "System language")
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.quiet)
+                    .textStyle(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .help("Translate into")
+                }
             }
             if case .found(let found) = state, let source = found.sourceName {
                 Text(found.synced ? "from \(source)" : "from \(source) · not timed")

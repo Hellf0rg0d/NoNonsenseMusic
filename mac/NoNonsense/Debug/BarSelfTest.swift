@@ -151,6 +151,10 @@ extension SelfTest {
                           abs(panel.width - 380) <= 0.5 && abs(panel.minX - column.maxX - 56) <= 0.5,
                           String(format: "%.1f wide, %.1f from the song", panel.width, panel.minX - column.maxX))
                 }
+                if let pill = frames["nowPlaying.pill.lyrics"] {
+                    check("\(name): the song starts at least 24 pt under the top bar", column.minY - pill.maxY >= 24,
+                          String(format: "%.1f pt", column.minY - pill.maxY))
+                }
                 check("\(name): NOW PLAYING is centred on the window (within 1 pt)", abs(title.midX - content.bounds.midX) <= 1,
                       String(format: "off by %.1f", title.midX - content.bounds.midX))
                 report(String(format: "bar2: %@: the song %.0f × %.0f pt in a %.0f × %.0f pt area", name,
