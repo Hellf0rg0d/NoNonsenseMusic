@@ -61,6 +61,7 @@ extension Track {
 
 /// An artist's page: their picture and name, Play and Shuffle for their top songs, the top songs, then their albums.
 struct ArtistView: View {
+    @AppStorage(AppLook.key) private var look = AppLook.standard          // Classic: no label over the title
     let route: Route
     @Environment(Player.self) private var player
     @State private var artist: ArtistDetail?
@@ -88,7 +89,7 @@ struct ArtistView: View {
                     .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
                     .selfTestFrame("artist.picture")
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Artist").textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                    if look == .new { Text("Artist").textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary) }
                     Text(artist.name).textStyle(size: 34, weight: .bold).lineLimit(2).padding(.top, 4)
                     if let listeners = artist.monthlyListeners ?? artist.followers {
                         Text("\(listeners.formatted(.number.notation(.compactName))) \(artist.monthlyListeners != nil ? "monthly listeners" : "followers")")
@@ -146,6 +147,7 @@ struct ArtistView: View {
 
 /// An album's page: the cover, title and artists, Play, Shuffle and Pin to Home, then the songs in order, numbered.
 struct AlbumView: View {
+    @AppStorage(AppLook.key) private var look = AppLook.standard          // Classic: no label over the title
     let route: Route
     @Environment(LibraryStore.self) private var library
     @State private var album: AlbumDetail?
@@ -179,7 +181,7 @@ struct AlbumView: View {
                     .shadow(color: .black.opacity(0.25), radius: 18, y: 10)
                     .selfTestFrame("album.cover")
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Album").textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                    if look == .new { Text("Album").textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary) }
                     Text(album.title).textStyle(size: 34, weight: .bold).lineLimit(2).padding(.top, 4)
                     ArtistLinks(artists: album.artists).textStyle(.title3, weight: .medium).foregroundStyle(.tint).padding(.top, 4)
                     Text(Self.facts(year: album.year, songs: tracks.count, minutes: minutes))

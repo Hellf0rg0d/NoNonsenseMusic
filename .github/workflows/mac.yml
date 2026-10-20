@@ -59,7 +59,7 @@ jobs:
           env NN_SELFTEST_AUTH=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > selftest.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > selftest.log 2>&1 || true
           grep SELFTEST selftest.log
           echo "--- the server's answers (requests only; the repo is public: no addresses, no URLs)"
           grep -hE '"(GET|POST|PUT|PATCH|DELETE) /' ~/Library/Logs/NoNonsense/server-selftest.log \
@@ -70,7 +70,7 @@ jobs:
           env NN_SELFTEST_FULLSCREEN=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > fullscreen.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > fullscreen.log 2>&1 || true
           grep SELFTEST fullscreen.log
           grep -q "fullscreen: all checks pass" fullscreen.log
       - name: Self-test, YouTube's loader (NN_SELFTEST_LOADER), on a local file; then latency on real songs (counts only)
@@ -78,7 +78,7 @@ jobs:
           env NN_SELFTEST_LOADER=1 DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 120 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > loader.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > loader.log 2>&1 || true
           grep SELFTEST loader.log
           grep -q "loader: all checks pass" loader.log
       - name: Self-test, latency (NN_SELFTEST_LATENCY) on real songs, if YouTube and JioSaavn answer this runner
@@ -87,14 +87,14 @@ jobs:
           env NN_SELFTEST_LATENCY=1 DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 200 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > latency.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > latency.log 2>&1 || true
           grep "SELFTEST latency" latency.log
       - name: Self-test, Genius notes (NN_SELFTEST_GENIUS), on made-up lyrics and notes
         run: |
           env NN_SELFTEST_GENIUS=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > genius.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > genius.log 2>&1 || true
           grep SELFTEST genius.log
           grep -q "genius: all checks pass" genius.log
       - name: Genius, live (the server's lookup against genius.com; counts only, never the text)
@@ -121,7 +121,7 @@ jobs:
           env NN_SELFTEST_QUEUE=1 DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 120 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > queue.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > queue.log 2>&1 || true
           grep SELFTEST queue.log
           grep -q "queue: all rules pass" queue.log
       # The redesign (15 Oct, as in the Windows app): each part's checks, with pictures of the window as it is on screen
@@ -132,7 +132,7 @@ jobs:
           env NN_SELFTEST_SHELL=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > shell.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > shell.log 2>&1 || true
           grep SELFTEST shell.log
           grep -q "shell: all checks pass" shell.log
       - name: Self-test, downloads as files and their folder (NN_SELFTEST_DOWNLOADFILES)
@@ -142,7 +142,7 @@ jobs:
           env NN_SELFTEST_DOWNLOADFILES=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 180 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > downloadfiles.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > downloadfiles.log 2>&1 || true
           grep SELFTEST downloadfiles.log
           grep -q "downloadfiles: all checks pass" downloadfiles.log
       - name: Self-test, album, artist and playlist pages (NN_SELFTEST_PAGES)
@@ -152,7 +152,7 @@ jobs:
           env NN_SELFTEST_PAGES=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > pages.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > pages.log 2>&1 || true
           grep SELFTEST pages.log
           grep -q "pages: all checks pass" pages.log
       - name: Self-test, player bar and Now Playing (NN_SELFTEST_BAR2)
@@ -162,7 +162,7 @@ jobs:
           env NN_SELFTEST_BAR2=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 180 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > bar2.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > bar2.log 2>&1 || true
           grep SELFTEST bar2.log
           grep -q "bar2: all checks pass" bar2.log
       - name: Self-test, Home (NN_SELFTEST_HOMEHERO)
@@ -172,9 +172,21 @@ jobs:
           env NN_SELFTEST_HOMEHERO=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > homehero.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > homehero.log 2>&1 || true
           grep SELFTEST homehero.log
           grep -q "homehero: all checks pass" homehero.log
+      - name: Pictures of the Classic look (Settings › Appearance › Look) - pictures only, the checks are the New look's
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/snaps/classic"
+          for test in SHELL PAGES HOMEHERO; do
+            lsof -ti tcp:8765 | xargs kill 2>/dev/null || true
+            env NN_SELFTEST_$test=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps/classic" DATABASE_URL=postgresql:///music_test \
+              perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
+              -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
+              -discordEnabled NO -ApplePersistenceIgnoreState YES -look classic > classic-$test.log 2>&1 || true
+          done
+          ls "$RUNNER_TEMP/snaps/classic" || true
       - name: Self-test, the command bar and its keys (NN_SELFTEST_COMMANDBAR)
         if: ${{ !cancelled() }}
         run: |
@@ -182,7 +194,7 @@ jobs:
           env NN_SELFTEST_COMMANDBAR=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > commandbar.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > commandbar.log 2>&1 || true
           grep SELFTEST commandbar.log
           grep -q "commandbar: all checks pass" commandbar.log
       - name: Self-test, your songs first in a search, and with no server (NN_SELFTEST_LIBRARYSEARCH)
@@ -207,7 +219,7 @@ jobs:
           env NN_SELFTEST_LIBRARYSEARCH=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > librarysearch.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > librarysearch.log 2>&1 || true
           grep SELFTEST librarysearch.log
           grep -q "librarysearch: all checks pass" librarysearch.log
       - name: Self-test, jam (NN_SELFTEST_JAM), the scenarios of docs/jam.md with two accounts and songs made here
@@ -217,7 +229,7 @@ jobs:
           env NN_SELFTEST_JAM=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > jam.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > jam.log 2>&1 || true
           grep SELFTEST jam.log
           grep -q "jam: all checks pass" jam.log
       - name: Self-test, Autoplay (NN_SELFTEST_AUTOPLAY) on real songs, if YouTube Music and JioSaavn answer this runner
@@ -228,7 +240,7 @@ jobs:
           env NN_SELFTEST_AUTOPLAY=1 DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 120 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > autoplay.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > autoplay.log 2>&1 || true
           grep SELFTEST autoplay.log
           grep -q "autoplay: all checks pass" autoplay.log
       - name: Self-test, Now Playing's text on any cover (NN_SELFTEST_READABLE)
@@ -238,7 +250,7 @@ jobs:
           env NN_SELFTEST_READABLE=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 300 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > readable.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > readable.log 2>&1 || true
           grep SELFTEST readable.log
           grep -q "readable: all checks pass" readable.log
       - name: Self-test, Settings › Lyrics › Translate into (NN_SELFTEST_TRANSLATEINTO), on made-up songs
@@ -248,7 +260,7 @@ jobs:
           env NN_SELFTEST_TRANSLATEINTO=1 NN_SELFTEST_VISIBLE=1 NN_SELFTEST_SNAP="$RUNNER_TEMP/snaps" DATABASE_URL=postgresql:///music_test \
             perl -e 'alarm shift; exec @ARGV' 240 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > translateinto.log 2>&1 || true
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > translateinto.log 2>&1 || true
           grep SELFTEST translateinto.log
           grep -q "translateinto: all checks pass" translateinto.log
       - name: CPU at rest on Home (NN_SELFTEST_IDLE; the Debug build, so above what you would see; a number, not a check)
@@ -259,7 +271,7 @@ jobs:
           env NN_SELFTEST_IDLE=40 NN_SELFTEST_VISIBLE=1 DATABASE_URL=postgresql:///music_test \
             mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
-            -discordEnabled NO -ApplePersistenceIgnoreState YES > idle.log 2>&1 &
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > idle.log 2>&1 &
           app=$!
           for i in $(seq 1 60); do grep -q "idle: on Home now" idle.log && break; sleep 1; done
           sleep 8                                                  # Home settles: covers, the entrance

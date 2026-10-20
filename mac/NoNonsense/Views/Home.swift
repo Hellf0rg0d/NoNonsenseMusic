@@ -12,6 +12,7 @@ struct HomeView: View {
     @Environment(Account.self) private var account
     @AppStorage("cardSize") private var cardSize = Double(Look.cardSize)
     @AppStorage(Shown.greeting.key) private var showGreeting = Shown.greeting.on
+    @AppStorage(AppLook.key) private var look = AppLook.standard
     @AppStorage(Shown.nowPlayingCard.key) private var showNowPlaying = Shown.nowPlayingCard.on
     @AppStorage(Shown.jumpBackIn.key) private var showJumpBackIn = Shown.jumpBackIn.on
     @AppStorage(Shown.homeLibrary.key) private var showLibrary = Shown.homeLibrary.on
@@ -29,12 +30,16 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // one quiet line, then the song playing: the song is the page's headline, not the greeting
                 VStack(alignment: .leading, spacing: 18) {
-                    if showGreeting {
+                    if look == .classic {
+                        // as until 0.2.4: the greeting is the page's large title, over the shelves
+                        Text(Self.greeting(hour: Calendar.current.component(.hour, from: .now), name: account.user?.username))
+                            .textStyle(size: 34, weight: .bold)
+                    } else if showGreeting {
                         Text(Self.greeting(hour: Calendar.current.component(.hour, from: .now), name: account.user?.username))
                             .textStyle(.title2, weight: .bold)
                             .foregroundStyle(.primary.opacity(0.85))
                     }
-                    if showNowPlaying {
+                    if look == .new, showNowPlaying {
                         NowHero()
                             .selfTestFrame("home.hero")
                     }

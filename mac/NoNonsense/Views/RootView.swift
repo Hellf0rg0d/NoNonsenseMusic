@@ -4,6 +4,7 @@ import SwiftUI
 /// and Now Playing on top when open.
 struct RootView: View {
     @AppStorage(Shown.jamButton.key) private var showJam = Shown.jamButton.on
+    @AppStorage(AppLook.key) private var look = AppLook.standard
     @Environment(Player.self) private var player
     @Environment(LibraryStore.self) private var library
     @Environment(ServerLauncher.self) private var server
@@ -85,7 +86,7 @@ struct RootView: View {
                             #endif
                     }
                 }
-                .modifier(LeadingToolbarItems(commandBar: !onSearchPage))
+                .modifier(LeadingToolbarItems(commandBar: look == .new && !onSearchPage))
                 // the command bar's field is as wide as the toolbar can spare beside Back, Jam and the bell
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { CommandBarState.shared.columnResized($0) }
                 .onChange(of: Navigator.shared.playlistRequest) { _, id in
@@ -220,8 +221,8 @@ struct RootView: View {
         // that only hold the shortcuts). ⌘F opened Search before the bar (15 Oct)
         .background {
             Group {
-                Button("") { summonCommandBar() }.keyboardShortcut("k", modifiers: .command)
-                Button("") { summonCommandBar() }.keyboardShortcut("f", modifiers: .command)
+                Button("") { find() }.keyboardShortcut("k", modifiers: .command)
+                Button("") { find() }.keyboardShortcut("f", modifiers: .command)
             }
             .hidden()
         }
@@ -284,6 +285,16 @@ struct RootView: View {
 
     /// ⌘K and ⌘F: the command bar takes the keyboard, what is in it selected; on the Search page, Search's own field.
     /// Now Playing closes first: the toolbar, and the bar with it, is hidden under it.
+    /// ⌘K and ⌘F: the command bar in the New look; the Search page in Classic, which has no command field.
+    private func find() {
+        if look == .classic {
+            Navigator.shared.path = []
+            selection = .section(.search)
+        } else {
+            summonCommandBar()
+        }
+    }
+
     private func summonCommandBar() {
         if player.showNowPlaying { player.showNowPlaying = false }
         if onSearchPage { searchRequests += 1 } else { CommandBarState.shared.summon() }

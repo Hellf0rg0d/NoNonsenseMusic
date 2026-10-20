@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// The window's layout (Settings › Appearance › Look). Classic is the Mac app as it was until 0.2.4, in the manner of
+/// Apple's own apps: the places in the sidebar as plain rows (Search among them), Home as a large title over shelves,
+/// pages titled without a label above, ⌘K going to Search, Jam an icon. New is the 0.3 redesign, as in the Windows
+/// app: pictures in the sidebar, a greeting over Now Playing and Up Next on Home, the command bar in the toolbar.
+enum AppLook: String, CaseIterable, Identifiable {
+    case classic, new
+    static let key = "look"
+    static let standard = AppLook.classic
+    var id: String { rawValue }
+    var label: String { self == .classic ? "Classic" : "New" }
+}
+
 /// Parts of the window you can turn off (Settings › Appearance › Show), all on by default: the look as built. Views read
 /// `@AppStorage(Shown.x.key)` with `Shown.x.on`.
 enum Shown: String, CaseIterable, Identifiable {
@@ -164,6 +176,7 @@ private struct AppearanceSettings: View {
     @AppStorage("settings.open.window") private var openWindow = true
     @AppStorage("settings.open.sizes") private var openSizes = true
     @AppStorage("settings.open.show") private var openShow = true
+    @AppStorage(AppLook.key) private var look = AppLook.standard
     @AppStorage("settings.open.colours") private var openColours = false
     @AppStorage("settings.open.surfaces") private var openSurfaces = true
     @AppStorage("settings.surfacePart") private var part = SurfacePart.main
@@ -277,6 +290,17 @@ private struct AppearanceSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("Sizes")
+            }
+
+            Section {
+                Picker("Look", selection: $look) {
+                    ForEach(AppLook.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text(look == .classic
+                     ? "As in Apple's apps: the places in the sidebar, Home as shelves, ⌘K goes to Search."
+                     : "The redesign: pictures in the sidebar, Now Playing and Up Next on Home, a command bar in the toolbar.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section(isExpanded: $openShow) {

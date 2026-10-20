@@ -22,6 +22,7 @@ enum Destination: Hashable {
 /// in, and Settings, at the bottom. Search is not here: it is the command bar's, at the top of the page.
 struct SidebarView: View {
     @AppStorage(Shown.sidebarLogo.key) private var showLogo = Shown.sidebarLogo.on
+    @AppStorage(AppLook.key) private var look = AppLook.standard
     @Binding var selection: Destination?
     @Environment(LibraryStore.self) private var library
     @Environment(DownloadStore.self) private var downloads
@@ -32,6 +33,8 @@ struct SidebarView: View {
 
     /// The places at the top. Liked Songs, Recently Played and Downloads are pictures under Playlists now.
     private static let places: [SidebarItem] = [.home, .library, .friends]
+    /// Classic (AppLook): every place a plain row, as until 0.2.4 and in Apple's apps.
+    private static let classicPlaces: [SidebarItem] = [.home, .search, .liked, .recent, .downloads, .friends]
 
     var body: some View {
         // While an artist or album page is open, no row is selected: you are on that page. A click on any row,
@@ -40,31 +43,41 @@ struct SidebarView: View {
         List(selection: Binding(get: { Navigator.shared.path.isEmpty ? selection : nil },
                                 set: { if let picked = $0 { selection = picked; Navigator.shared.path = [] } })) {
             if showLogo { brand }                                   // no tag: not a place, never selected
-            ForEach(Self.places) { item in
+            ForEach(look == .classic ? Self.classicPlaces : Self.places) { item in
                 Label {
                     Text(item.title).selfTestFrame("sidebar.title:\(item.title)").selfTestFrame("sidebar.place:\(item.title)")
                 } icon: {
                     Image(systemName: item.symbol).selfTestFrame("sidebar.icon:\(item.title)")
                 }
-                .badge(item == .friends ? Social.shared.incoming.count : 0)
+                .badge(item == .friends ? Social.shared.incoming.count
+                       : look != .classic ? 0 : item == .liked ? library.liked.count : item == .downloads ? downloads.items.count : 0)
                 // .tag must come last: placed before .badge, the list could not see it and no row was selectable (5 Oct)
                 .tag(Destination.section(item))
             }
             Section {
+                if look == .new {
                 ForEach(SidebarItem.collections(downloads)) { item in
                     PictureRow(name: item.title, count: item.songCount(library: library, downloads: downloads)) {
                         CollectionTile(item: item, size: 40)
                     }
                     .tag(Destination.section(item))                 // last, as above
                 }
+                }
                 ForEach(library.ownPlaylists) { playlistRow($0) }
                     // only your own: shared ones keep their owner's order (LibraryStore.movePlaylists)
                     .onMove { from, to in Task { await library.movePlaylists(from: from, to: to) } }
                     .animation(.snappy(duration: 0.3), value: library.ownPlaylists.map(\.id))   // new and deleted playlists slide
+                if look == .classic {
+                    Button { library.newPlaylistRequest = .init(track: nil) } label: { Label("New Playlist", systemImage: "plus") }
+                        .buttonStyle(.quiet)
+                        .foregroundStyle(.secondary)
+                        .help("New Playlist (⌘N)")
+                }
             } header: {
                 HStack {
                     Text("Playlists")
                     Spacer()
+                    if look == .new {
                     Button { library.newPlaylistRequest = .init(track: nil) } label: { Image(systemName: "plus").font(.body) }
                         .buttonStyle(.quiet)
                         .help("New Playlist (⌘N)")
@@ -72,6 +85,7 @@ struct SidebarView: View {
                         .selfTestFrame("sidebar.newPlaylist")
                         // the header runs wider than the rows (6 Oct): this brings the + back over the rows' right edge
                         .padding(.trailing, 8)
+                    }
                 }
             }
             // under your own, as Shared with You in Apple's apps (AUTH-3)
@@ -85,7 +99,17 @@ struct SidebarView: View {
             }
         }
         .selfTestFrame("sidebar.list")
-        .safeAreaInset(edge: .bottom) { accountRow }
+        .safeAreaInset(edge: .bottom) {
+            if look == .classic {
+                SettingsLink { Label("Settings", systemImage: "gearshape") }
+                    .buttonStyle(.quiet)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.bottom, 14)
+            } else {
+                accountRow
+            }
+        }
         // macOS draws the sidebar as a floating glass panel, and SwiftUI cannot change that glass (probed 6 Oct:
         // NSContainerConcentricGlassEffectView). This frosts and fills over it, inside the panel; 0 / 0 draws nothing.
         .background { SurfaceLayer(blur: sidebarBlur, solid: sidebarSolid, blending: .behindWindow).ignoresSafeArea() }
@@ -132,7 +156,17 @@ struct SidebarView: View {
     }
 
     private func playlistRow(_ playlist: PlaylistSummary) -> some View {
-        PictureRow(name: playlist.name, count: playlist.songCount) { SidebarPlaylistCover(playlist: playlist) }
+        Group {
+            if look == .classic {
+                // a symbol and the name, as until 0.2.4: a song just went in, and the icon hops
+                Label { Text(playlist.name).selfTestFrame("sidebar.title:\(playlist.name)") } icon: {
+                    Image(systemName: playlist.isAlbum ? "square.stack" : playlist.isOwner ? "music.note.list" : "person.2")
+                }
+                .symbolEffect(.bounce, value: playlist.songCount)
+            } else {
+                PictureRow(name: playlist.name, count: playlist.songCount) { SidebarPlaylistCover(playlist: playlist) }
+            }
+        }
             .contextMenu {
                 Button("Play") { Task { await play(playlist, shuffled: false) } }
                 Button("Shuffle") { Task { await play(playlist, shuffled: true) } }

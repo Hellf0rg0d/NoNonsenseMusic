@@ -3,6 +3,7 @@ import SwiftUI
 /// One playlist: its cover, name and length, Play and Shuffle, and its songs. Drag a song to move it; right-click
 /// to remove it. Everything goes through LibraryStore, which also keeps a playing copy of this playlist in step.
 struct PlaylistView: View {
+    @AppStorage(AppLook.key) private var look = AppLook.standard          // Classic: no label over the title
     let id: UUID
     /// It is gone (deleted, or no longer shared with you): RootView closes it.
     var closed: () -> Void = {}
@@ -121,8 +122,10 @@ struct PlaylistView: View {
                 .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
                 .selfTestFrame("playlist.cover")
             VStack(alignment: .leading, spacing: 4) {
-                Text(detail.summary.isAlbum ? "Album" : "Playlist")
-                    .textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                if look == .new {
+                    Text(detail.summary.isAlbum ? "Album" : "Playlist")
+                        .textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                }
                 Text(detail.name).textStyle(size: 34, weight: .bold).lineLimit(2)
                 Text(Self.stats(count: detail.items.count, seconds: detail.duration))
                     .textStyle(.body)

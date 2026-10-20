@@ -4,6 +4,7 @@ import SwiftUI
 /// with LIVE while you are in a jam. Its popover starts or joins a jam, and in one shows the room: its code, who plays,
 /// the song, Up Next and the people.
 struct JamButton: View {
+    @AppStorage(AppLook.key) private var look = AppLook.standard
     private var jam: JamSession { .shared }
     private var panel: JamPanelState { .shared }
 
@@ -12,8 +13,8 @@ struct JamButton: View {
             HStack(spacing: 6) {
                 Image(systemName: jam.inJam ? "person.2.wave.2.fill" : "person.2.wave.2")
                     .contentTransition(.symbolEffect(.replace))
-                Text("Jam").selfTestFrame("jam.title")
-                if jam.inJam {
+                if look == .new { Text("Jam").selfTestFrame("jam.title") }    // Classic: the icon alone, filled while live
+                if look == .new, jam.inJam {
                     Text("LIVE")
                         .textStyle(.caption, weight: .semibold)
                         .padding(.horizontal, 7).padding(.vertical, 2)
