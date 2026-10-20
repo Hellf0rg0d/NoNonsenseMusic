@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import 'command_bar.dart';
 import 'jam_panel.dart';
@@ -10,11 +11,13 @@ import 'redesign.dart';
 ///
 /// On a computer (15 Oct): the search and command box at the left, where the page's content starts, and Jam with the
 /// bell at the right. With no [places] (the Search page, which has its own field) the box is left out. On a phone the bar sits
-/// below the status bar with Jam and the bell: one short row, so a screen keeps nearly all its height.
+/// below the status bar with Jam, the bell and Settings (a phone has no sidebar to hold it): one short row, so a screen
+/// keeps nearly all its height.
 class TopBarFrame extends StatelessWidget {
   final Widget child;
   final CommandPlaces? places;
-  const TopBarFrame({super.key, required this.child, this.places});
+  final VoidCallback? openSettings;
+  const TopBarFrame({super.key, required this.child, this.places, this.openSettings});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +29,13 @@ class TopBarFrame extends StatelessWidget {
         child: phone
             ? SizedBox(
                 height: 48,
-                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [JamButton(), NotificationsButton(), const SizedBox(width: 8)]),
+                child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  JamButton(),
+                  NotificationsButton(),
+                  if (openSettings != null)
+                    IconButton(tooltip: 'Settings', onPressed: openSettings, icon: const Icon(FluentIcons.settings_24_regular)),
+                  const SizedBox(width: 8),
+                ]),
               )
             : Padding(
                 padding: EdgeInsets.fromLTRB(side, 14, side, 0),

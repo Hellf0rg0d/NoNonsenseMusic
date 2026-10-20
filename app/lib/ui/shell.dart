@@ -60,7 +60,39 @@ class _ShellState extends State<Shell> {
   /// The phone's floating bottom area, measured: lists end above it (BottomArea, bottomClearance).
   double _bottomArea = 0;
 
+  /// The tab Settings was opened over, on a phone: Back returns to it.
+  Section _beforeSettings = Section.home;
+
+  /// The phone's tabs (15-20 Oct, as the computer's places): Home, Search, Library, Friends. Liked Songs, Recently
+  /// Played, Downloads and the playlists are Library's, as on the computer's Library page; Settings opens from the top
+  /// row over the tab you were on.
+  static int _tab(Section s) => switch (s) {
+        Section.home => 0,
+        Section.search => 1,
+        Section.library || Section.liked || Section.recent || Section.downloads || Section.playlist => 2,
+        Section.friends => 3,
+        Section.settings => -1,
+      };
+
+  /// Android's Back, on a phone: one step back, in this order, and the app closes only from Home (#21). Before, Back
+  /// anywhere but Now Playing closed the app, an album's page included.
+  void _back() {
+    final player = Scope.of(context).player;
+    if (player.showNowPlaying) {
+      player.setShowNowPlaying(false);
+    } else if (BrowseNav.shared.path.isNotEmpty) {
+      BrowseNav.shared.back();
+    } else if (section == Section.settings) {
+      _open(_beforeSettings);
+    } else if (_tab(section) == 2 && section != Section.library) {
+      _open(Section.library);
+    } else if (section != Section.home) {
+      _open(Section.home);
+    }
+  }
+
   void _open(Section sec, {String? playlist}) {
+    if (sec == Section.settings && section != Section.settings) _beforeSettings = section;
     BrowseNav.shared
         .clear(); // choosing a sidebar item starts afresh, as on the Mac
     setState(() {
@@ -276,7 +308,8 @@ class _ShellState extends State<Shell> {
                   if (!phone)
                     // UI v2 (15 Oct): the sidebar floats as a glass panel over the window's background (redesign.dart)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+                      // under the status bar on an Android tablet (its clock was drawn over the logo, 20 Oct)
+                      padding: EdgeInsets.fromLTRB(12, 12 + MediaQuery.paddingOf(context).top, 0, 12),
                       child: SizedBox(
                         width: sidebarWidth,
                         child: DesktopSidebar(
@@ -317,6 +350,7 @@ class _ShellState extends State<Shell> {
                           width: math.min(box.maxWidth, maxPageWidth),
                           child: TopBarFrame(
                       places: section == Section.search ? null : places,
+                      openSettings: phone ? () => _open(Section.settings) : null,
                       child: BrowseHost(
                         // the concept (13 Oct): on a computer too, one screen gives way to the next with a short fade
                         // and rise (one-shot)
@@ -445,22 +479,14 @@ class _ShellState extends State<Shell> {
                                 removeTop: true,
                                 removeBottom: true,
                                 child: NavigationBar(
-                                selectedIndex: switch (section) {
-                                  Section.home => 0,
-                                  Section.search => 1,
-                                  Section.liked => 2,
-                                  Section.recent => 3,
-                                  Section.friends => 4,
-                                  _ => 5,
-                                },
+                                // Settings shows the tab it was opened over
+                                selectedIndex: _tab(section == Section.settings ? _beforeSettings : section),
                                 onDestinationSelected: (index) =>
                                     _open(switch (index) {
                                       0 => Section.home,
                                       1 => Section.search,
-                                      2 => Section.liked,
-                                      3 => Section.recent,
-                                      4 => Section.friends,
-                                      _ => Section.settings,
+                                      2 => Section.library,
+                                      _ => Section.friends,
                                     }),
                                 destinations: [
                                   const NavigationDestination(
@@ -471,21 +497,13 @@ class _ShellState extends State<Shell> {
                                     icon: Icon(FluentIcons.search_24_regular),
                                     label: 'Search',
                                   ),
-                                  NavigationDestination(
-                                    icon: Icon(FluentIcons.heart_24_regular),
-                                    label: 'Liked',
-                                  ),
-                                  NavigationDestination(
-                                    icon: Icon(FluentIcons.history_24_regular),
-                                    label: 'Recent',
+                                  const NavigationDestination(
+                                    icon: Icon(FluentIcons.library_24_regular),
+                                    label: 'Library',
                                   ),
                                   NavigationDestination(
                                     icon: FriendsNavIcon(),
                                     label: 'Friends',
-                                  ),
-                                  const NavigationDestination(
-                                    icon: Icon(FluentIcons.settings_24_regular),
-                                    label: 'Settings',
                                   ),
                                 ],
                               ),
@@ -499,11 +517,16 @@ class _ShellState extends State<Shell> {
               // Now Playing last: over everything, the phone's bottom bar too (it covered Now Playing's controls). Back
               // closes it rather than the app: it is a layer of this screen, not a page of its own
               ListenableBuilder(
-                listenable: s.player,
+                // the browse pages too: Back's answer changes when an album or artist page opens (_back)
+                listenable: Listenable.merge([s.player, BrowseNav.shared]),
                 builder: (context, _) => PopScope(
-                  canPop: !s.player.showNowPlaying,
+                  // a phone: Back steps back (_back), and closes the app from Home alone; a computer: Back closes Now Playing
+                  canPop: phone
+                      ? !s.player.showNowPlaying && BrowseNav.shared.path.isEmpty && section == Section.home
+                      : !s.player.showNowPlaying,
                   onPopInvokedWithResult: (didPop, _) {
-                    if (!didPop) s.player.setShowNowPlaying(false);
+                    if (didPop) return;
+                    phone ? _back() : s.player.setShowNowPlaying(false);
                   },
                   child: AnimatedSwitcher(
                   duration: MediaQuery.disableAnimationsOf(context)

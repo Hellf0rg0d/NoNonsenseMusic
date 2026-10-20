@@ -9,6 +9,7 @@ import 'concept.dart';
 import 'cover.dart';
 import 'glass.dart';
 import 'layout.dart';
+import 'playlist_screen.dart' show askName;
 import 'redesign.dart';
 import 'scope.dart';
 
@@ -603,6 +604,7 @@ class LibraryScreen extends StatelessWidget {
         Widget grid(Iterable<PlaylistSummary> playlists) => Wrap(spacing: 22, runSpacing: 22, children: [
               for (final p in playlists) _PlaylistCard(playlist: p, size: Look.of(context).cardSize, onOpen: () => openPlaylist(p.id)),
             ]);
+        if (isPhone(context)) return _PhoneLibrary(openPlaylist: openPlaylist, openCollection: openCollection);
         return ListView(padding: EdgeInsets.fromLTRB(side, 8, side, bottomClearance(context)), children: [
           Text('Library', style: TextStyle(fontFamily: displayFont, fontSize: 40, fontWeight: FontWeight.w700, letterSpacing: -1, color: theme.colorScheme.onSurface)),
           heading('Collections'),
@@ -642,5 +644,69 @@ class _CollectionCard extends StatelessWidget {
         ]),
       ),
     );
+  }
+}
+
+/// Library on a phone (20 Oct): the computer's Library page as touch rows, as its sidebar lists the same things (a picture,
+/// the name, how many songs). Three big tiles two to a row took a screen and a half before the first playlist.
+class _PhoneLibrary extends StatelessWidget {
+  final void Function(String id) openPlaylist;
+  final void Function(Collection) openCollection;
+  const _PhoneLibrary({required this.openPlaylist, required this.openCollection});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Scope.of(context);
+    final theme = Theme.of(context);
+    final side = gutter(context);
+    final lib = s.library;
+    Widget heading(String t, {Widget? action}) => Padding(
+          padding: EdgeInsets.fromLTRB(side, 24, side - 8, 4),
+          child: Row(children: [
+            Expanded(child: Text(t, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+            ?action,
+          ]),
+        );
+    Widget row(Widget picture, String name, int count, VoidCallback onTap) => ListTile(
+          contentPadding: EdgeInsets.symmetric(horizontal: side),
+          minVerticalPadding: 10,
+          leading: ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox.square(dimension: 52, child: picture)),
+          title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(songs(count)),
+          onTap: onTap,
+        );
+    Widget playlist(PlaylistSummary p) {
+      final covers = lib.details[p.id]?.tracks.map((t) => t.image).whereType<String>().toSet().take(4).toList() ?? const <String>[];
+      return row(PlaylistCover(covers: covers, size: 52, name: p.name), p.name, p.songCount, () => openPlaylist(p.id));
+    }
+    return ListView(padding: EdgeInsets.only(top: 8, bottom: bottomClearance(context)), children: [
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: side),
+        child: Text('Library', style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700, fontFamily: displayFont)),
+      ),
+      const SizedBox(height: 8),
+      row(CollectionTile(Collection.liked, size: 52), Collection.liked.label, lib.liked.length, () => openCollection(Collection.liked)),
+      row(CollectionTile(Collection.recent, size: 52), Collection.recent.label, lib.recent.length, () => openCollection(Collection.recent)),
+      if (DownloadStore.shared.folder != null)
+        row(CollectionTile(Collection.downloads, size: 52), Collection.downloads.label, DownloadStore.shared.items.length,
+            () => openCollection(Collection.downloads)),
+      heading('Playlists',
+          action: IconButton(
+            tooltip: 'New Playlist',
+            icon: const Icon(FluentIcons.add_24_regular),
+            onPressed: () async {
+              final name = await askName(context, title: 'New Playlist');
+              if (name != null) await lib.createPlaylist(name);
+            },
+          )),
+      if (lib.ownPlaylistsOnly.isEmpty)
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: side, vertical: 8),
+          child: Text('Your playlists appear here.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ),
+      for (final p in lib.ownPlaylistsOnly) playlist(p),
+      if (lib.pinnedAlbums.isNotEmpty) ...[heading('Pinned Albums'), for (final p in lib.pinnedAlbums) playlist(p)],
+      if (lib.sharedPlaylists.isNotEmpty) ...[heading('Shared with you'), for (final p in lib.sharedPlaylists) playlist(p)],
+    ]);
   }
 }

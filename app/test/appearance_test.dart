@@ -1,5 +1,6 @@
 // Settings › Appearance (#29): every option kept, today's look the default, applied at once; Now Playing's text readable
 // at every colour strength by #20's rule; nothing left drawing.
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -243,9 +244,11 @@ void main() {
   group('the settings', () {
     testWidgets('Surfaces, Sizes and Colours as on the Mac; a custom colour is taken from its hex code', (tester) async {
       final (settings, _) = await app(tester, const Scaffold(body: SettingsScreen()), size: const Size(1000, 3000), playing: false);
-      for (final heading in ['Window', 'Surfaces', 'Sizes', 'Colours']) {
+      for (final heading in ['Surfaces', 'Sizes', 'Colours']) {
         expect(find.text(heading), findsOneWidget);
       }
+      // the window's material is Windows' alone (Mica, Acrylic): the section is not there on another system
+      expect(find.text('Window'), Platform.isWindows ? findsOneWidget : findsNothing);
       Slider slider(String label) => tester.widget<Slider>(
           find.descendant(of: find.ancestor(of: find.text(label), matching: find.byType(Column)).first, matching: find.byType(Slider)));
       expect(slider('Colour strength').max, Look.defaultStrength, reason: "the window's colour can be softer, not stronger");
