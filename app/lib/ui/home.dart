@@ -24,11 +24,6 @@ class Home extends StatelessWidget {
   final void Function(Collection)? openCollection;
   const Home({super.key, required this.openPlaylist, this.openRecent, this.openLibrary, this.openCollection});
 
-  /// The day above the greeting, as Apple Music dates its pages: MONDAY, 13 OCTOBER.
-  static String today(DateTime t) =>
-      '${const ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'][t.weekday - 1]}, ${t.day} '
-      '${const ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'][t.month - 1]}';
-
   static String greeting(DateTime t) => t.hour < 5
       ? 'Good night'
       : t.hour < 12
@@ -48,9 +43,6 @@ class Home extends StatelessWidget {
         final recent = lib.recent.map((x) => x.track).take(20).toList();
         final liked = lib.liked.map((x) => x.track).toList();
         final phone = isPhone(context);
-        final cardSize = phone
-            ? (MediaQuery.sizeOf(context).width - 52) / 2
-            : 148.0;
         final side = gutter(context);
         // The list itself has no side padding: the shelves scroll to the window's edge, and everything else is
         // inset by the gutter. Inside padded sides, a shelf's cards were cut off short of the edge (13 Oct)
@@ -62,17 +54,6 @@ class Home extends StatelessWidget {
         final scaler = MediaQuery.textScalerOf(context);
         final tileText = (scaler.scale(14) + scaler.scale(12)) * 1.45;
         final tile = Look.of(context).cardSize;
-        Widget title(String t) => Padding(
-          padding: EdgeInsets.fromLTRB(side, 0, side, 10),
-          child: Text(
-            t,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              fontFamily: displayFont,
-              letterSpacing: -0.3,
-            ),
-          ),
-        );
         // the concept (13 Oct): the greeting, then each shelf, come in one after another when Home opens (once)
         Widget section(String key, int order, List<Widget> children) => Stagger(
           key: ValueKey(key),
@@ -98,29 +79,16 @@ class Home extends StatelessWidget {
                 inset(const NowHero()),
               ])
             else
+            // a phone (20 Oct, as the computer): the greeting, then the song to pick up again when nothing plays
             section('greeting', 0, [
               inset(
                 Text(
-                  today(DateTime.now()),
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.3,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 2),
-              inset(
-                Text(
                   greeting(DateTime.now()),
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontFamily: displayFont,
-                    letterSpacing: -0.6,
-                  ),
+                  style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700, fontFamily: displayFont),
                 ),
               ),
+              const SizedBox(height: 14),
+              inset(const NowHero(resumeOnly: true)),
             ]),
             SizedBox(height: phone ? 20 : 28),
             if (!lib.reachable)
@@ -153,7 +121,7 @@ class Home extends StatelessWidget {
               const SizedBox(height: 32),
             ]),
             if (recent.isNotEmpty && phone) section('recent', 1, [
-              title('Jump back in'),
+              ShelfHeading('Jump back in', seeAll: openRecent, padding: EdgeInsets.fromLTRB(side, 0, side - 8, 8)),
               SizedBox(
                 // the cover and the gaps around it, then the text
                 height: tile + 24 + tileText,
@@ -174,70 +142,12 @@ class Home extends StatelessWidget {
               ),
               const SizedBox(height: 32),
             ]),
-            if (!phone && openCollection != null) section('library', 2, [
+            if (openCollection != null) section('library', 2, [
               ShelfHeading('Your Library', seeAll: openLibrary, padding: EdgeInsets.fromLTRB(side, 0, side - 8, 10)),
               inset(LibraryShelf(openCollection: openCollection!, openPlaylist: openPlaylist)),
               const SizedBox(height: 32),
             ]),
-            // a phone keeps its cards; a computer has them in Your Library above
-            if (phone && lib.ownPlaylistsOnly.isNotEmpty) section('own', 2, [
-              title('Your playlists'),
-              inset(
-                Wrap(
-                  spacing: phone ? 12 : 22,
-                  runSpacing: phone ? 12 : 22,
-                  children: [
-                    for (final p in lib.ownPlaylistsOnly)
-                      _PlaylistCard(
-                        playlist: p,
-                        size: cardSize,
-                        onOpen: () => openPlaylist(p.id),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-            ]),
-            if (phone && lib.pinnedAlbums.isNotEmpty) section('pinned', 3, [
-              title('Pinned Albums'),
-              inset(
-                Wrap(
-                  spacing: phone ? 12 : 22,
-                  runSpacing: phone ? 12 : 22,
-                  children: [
-                    for (final p in lib.pinnedAlbums)
-                      _PlaylistCard(
-                        playlist: p,
-                        size: cardSize,
-                        onOpen: () => openPlaylist(p.id),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-            ]),
-            if (phone && lib.sharedPlaylists.isNotEmpty) section('shared', 4, [
-              title('Shared with you'),
-              inset(
-                Wrap(
-                  spacing: phone ? 12 : 22,
-                  runSpacing: phone ? 12 : 22,
-                  children: [
-                    for (final p in lib.sharedPlaylists)
-                      _PlaylistCard(
-                        playlist: p,
-                        size: cardSize,
-                        onOpen: () => openPlaylist(p.id),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-            ]),
             if (liked.isNotEmpty) section('liked', 5, [
-              if (phone)
-                title('Liked Songs')
-              else
                 ShelfHeading('Liked Songs',
                     seeAll: openCollection == null ? null : () => openCollection!(Collection.liked), padding: EdgeInsets.fromLTRB(side, 0, side - 8, 8)),
               // on a computer it is cut off at the margins, as the rest of the page is
@@ -280,30 +190,16 @@ class _CoverTile extends StatelessWidget {
     return GestureDetector(
     onTap: onPlay,
     child: isPhone(context)
-        ? GlassSurface(
-            radius: 20,
-            padding: const EdgeInsets.all(8),
-            child: SizedBox(
-              width: side,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Cover(track.image, size: side, radius: 14),
-                  const SizedBox(height: 8),
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    track.artistLine,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
+        ? SizedBox(
+            width: side,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Cover(track.image, size: side, radius: 10),
+                const SizedBox(height: 8),
+                Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(track.artistLine, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+              ],
             ),
           )
         : SizedBox(

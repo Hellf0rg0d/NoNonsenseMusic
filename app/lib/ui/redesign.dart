@@ -398,7 +398,9 @@ class _JamPill extends StatelessWidget {
 /// second while the song plays and the window is in front: the rest is drawn again when the song, its state or Up Next
 /// changes.
 class NowHero extends StatelessWidget {
-  const NowHero({super.key});
+  /// A phone shows only the song to pick up again: while one plays, the player bar under the page is already it.
+  final bool resumeOnly;
+  const NowHero({super.key, this.resumeOnly = false});
 
   @override
   Widget build(BuildContext context) {
@@ -412,6 +414,7 @@ class NowHero extends StatelessWidget {
           final last = s.library.recent.firstOrNull?.track;
           return last == null ? const SizedBox.shrink() : _ResumeCard(track: last);
         }
+        if (resumeOnly) return const SizedBox.shrink();
         final next = p.queue.upNext;
         final now = _NowCard(track: current);
         if (next.isEmpty) return now;
@@ -660,7 +663,8 @@ class _ResumeCard extends StatelessWidget {
         const SizedBox(width: 20),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('PICK UP WHERE YOU LEFT OFF',
+            Text('PICK UP AGAIN', // one line on a phone too (it took two, 20 Oct)
+                
                 style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 2, color: ink.withValues(alpha: 0.55))),
             const SizedBox(height: 6),
             Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis,
