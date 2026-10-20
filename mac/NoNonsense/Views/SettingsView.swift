@@ -1,5 +1,49 @@
 import SwiftUI
 
+/// The window's layout (Settings › Appearance › Look). Classic is the Mac app as it was until 0.2.4, in the manner of
+/// Apple's own apps: the places in the sidebar as plain rows (Search among them), Home as a large title over shelves,
+/// pages titled without a label above, ⌘K going to Search, Jam an icon. New is the 0.3 redesign, as in the Windows
+/// app: pictures in the sidebar, a greeting over Now Playing and Up Next on Home, the command bar in the toolbar.
+enum AppLook: String, CaseIterable, Identifiable {
+    case classic, new
+    static let key = "look"
+    static let standard = AppLook.classic
+    var id: String { rawValue }
+    var label: String { self == .classic ? "Classic" : "New" }
+}
+
+/// Parts of the window you can turn off (Settings › Appearance › Show), all on by default: the look as built. Views read
+/// `@AppStorage(Shown.x.key)` with `Shown.x.on`.
+enum Shown: String, CaseIterable, Identifiable {
+    case greeting, nowPlayingCard, upNextCard, jumpBackIn, homeLibrary, homeLiked, songSource, trackNumbers, jamButton, sidebarLogo
+
+    var id: String { rawValue }
+    var key: String { "show." + rawValue }
+    var on: Bool { true }
+
+    var label: String {
+        switch self {
+        case .greeting: "Greeting"
+        case .nowPlayingCard: "Now Playing"
+        case .upNextCard: "Up Next beside it"
+        case .jumpBackIn: "Jump Back In"
+        case .homeLibrary: "Your Library"
+        case .homeLiked: "Liked Songs"
+        case .songSource: "Where each song plays from"
+        case .trackNumbers: "Track numbers on albums"
+        case .jamButton: "Jam in the toolbar"
+        case .sidebarLogo: "Logo in the sidebar"
+        }
+    }
+
+    /// The groups Settings shows them in.
+    static let groups: [(String, [Shown])] = [
+        ("Home", [.greeting, .nowPlayingCard, .upNextCard, .jumpBackIn, .homeLibrary, .homeLiked]),
+        ("Lists", [.songSource, .trackNumbers]),
+        ("Window", [.jamButton, .sidebarLogo]),
+    ]
+}
+
 /// The look's defaults, in one place: the window and Settings must agree on them.
 enum Look {
     static let windowOpacity = 0.5      // half see-through
@@ -131,6 +175,8 @@ private struct AppearanceSettings: View {
     // which sections are open, remembered; Colours (seven rows) starts closed
     @AppStorage("settings.open.window") private var openWindow = true
     @AppStorage("settings.open.sizes") private var openSizes = true
+    @AppStorage("settings.open.show") private var openShow = true
+    @AppStorage(AppLook.key) private var look = AppLook.standard
     @AppStorage("settings.open.colours") private var openColours = false
     @AppStorage("settings.open.surfaces") private var openSurfaces = true
     @AppStorage("settings.surfacePart") private var part = SurfacePart.main
@@ -244,6 +290,29 @@ private struct AppearanceSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("Sizes")
+            }
+
+            Section {
+                Picker("Look", selection: $look) {
+                    ForEach(AppLook.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text(look == .classic
+                     ? "As in Apple's apps: the places in the sidebar, Home as shelves, ⌘K goes to Search."
+                     : "The redesign: pictures in the sidebar, Now Playing and Up Next on Home, a command bar in the toolbar.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section(isExpanded: $openShow) {
+                ForEach(Shown.groups, id: \.0) { group, parts in
+                    LabeledContent(group) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(parts) { ShownToggle(part: $0) }
+                        }
+                    }
+                }
+            } header: {
+                Text("Show")
             }
 
             Section(isExpanded: $openColours) {
@@ -410,6 +479,7 @@ private struct LyricsSettings: View {
     @AppStorage("lyricsFetch") private var fetch = LyricsFetch.songStart
     @AppStorage("lyricsMotion") private var motion = Look.lyricsMotion
     @AppStorage("geniusNotes") private var genius = false                // experimental, off by default (8 Oct)
+    @AppStorage("translateInto") private var translateInto = ""          // LyricsTranslations.target: "" the Mac's own (#19)
 
     var body: some View {
         Form {
@@ -426,6 +496,16 @@ private struct LyricsSettings: View {
                 }
             } footer: {
                 Text("Fetching when a song starts has the lyrics ready when you open them. Downloaded songs keep their lyrics offline.")
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("Translate into", selection: $translateInto) {
+                    Text("System language").tag("")
+                    Divider()
+                    ForEach(LyricsTranslations.choices, id: \.id) { Text($0.name).tag($0.id) }
+                }
+            } footer: {
+                Text("For Translate in Lyrics. This Mac translates them (macOS asks to download a language the first time); what it can't goes to Google. The line under the translation says which.")
                     .foregroundStyle(.secondary)
             }
             Section {
@@ -814,6 +894,12 @@ private struct FootprintSettings: View {
             .task { cacheUsed = await AudioCache.shared.size() }
 
             Section {
+                DownloadLocation()
+            } header: {
+                Text("Downloads")
+            }
+
+            Section {
                 Toggle(isOn: $animateBackdrop) {
                     Text("Moving background")
                     Text("Uses about 5% more CPU while music plays, and 10–14% more in Now Playing.")
@@ -841,6 +927,78 @@ private struct FootprintSettings: View {
             }
         }
         .settingsPage()
+    }
+}
+
+/// Settings › Footprint › Downloads: the folder songs download to, and a way to choose another. Choosing one moves the
+/// songs already downloaded there (DownloadStore.moveTo); the choice is saved only once every file is there, and the
+/// app opens it at launch. The same row as the Windows app's Settings › Storage › Download location (15 Oct).
+private struct DownloadLocation: View {
+    @Environment(DownloadStore.self) private var downloads
+    @AppStorage("downloadFolder") private var chosenFolder = ""    // a path; empty: the app's own (DownloadStore reads it)
+    /// Why the last move failed, until the next one.
+    @State private var failure: String?
+
+    var body: some View {
+        let busy = downloads.moving || !downloads.inProgress.isEmpty
+        let note = self.note
+        LabeledContent {
+            HStack {
+                Button("Change…") { choose() }
+                    .disabled(busy)
+                if let folder = downloads.folder {
+                    Button("Show in Finder") { NSWorkspace.shared.open(folder) }
+                }
+                if !chosenFolder.isEmpty {
+                    Button("Use Default") { move(to: nil) }
+                        .disabled(busy)
+                }
+            }
+        } label: {
+            Text("Download location")
+            Text(note.text).foregroundStyle(note.warning ? .red : .secondary)
+        }
+        .selfTestFrame("settings.downloadLocation")
+        #if DEBUG
+        .onChange(of: note.text, initial: true) { SelfTest.downloadLocationNote = note.text }
+        #endif
+    }
+
+    /// The folder (~ for your home folder), or what is happening to it.
+    private var note: (text: String, warning: Bool) {
+        let shown = downloads.folder ?? downloads.missingFolder ?? downloads.defaultFolder
+        let path = (shown.path as NSString).abbreviatingWithTildeInPath
+        if downloads.moving { return ("Moving your downloads…", false) }
+        if let failure { return (failure, true) }
+        if !downloads.available { return ("Not found: \(path). Connect its drive, or choose another folder.", true) }
+        if !downloads.inProgress.isEmpty { return ("\(path)\nIt can be changed once the downloads in progress finish.", false) }
+        return (path, false)
+    }
+
+    /// The system's folder picker, at the folder in use; the folder chosen takes every download.
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = downloads.folder
+        panel.prompt = "Choose"
+        panel.message = "Download songs to"
+        guard panel.runModal() == .OK, let target = panel.url else { return }
+        move(to: target)
+    }
+
+    /// `target` nil: back to the app's own folder, and the choice forgotten.
+    private func move(to target: URL?) {
+        failure = nil
+        Task {
+            do {
+                try await downloads.moveTo(target ?? downloads.defaultFolder)
+                chosenFolder = target?.path ?? ""
+            } catch {
+                failure = "Couldn't move your downloads there: \(error.localizedDescription)"
+            }
+        }
     }
 }
 
@@ -925,4 +1083,17 @@ struct HexColorControl: View {
         .onAppear { draft = hex }
         .onChange(of: hex) { _, new in draft = new }
     }
+}
+
+/// One Settings › Appearance › Show switch.
+private struct ShownToggle: View {
+    let part: Shown
+    @AppStorage private var isOn: Bool
+
+    init(part: Shown) {
+        self.part = part
+        _isOn = AppStorage(wrappedValue: part.on, part.key)
+    }
+
+    var body: some View { Toggle(part.label, isOn: $isOn) }
 }

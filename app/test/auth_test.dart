@@ -89,7 +89,7 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextField, 'Username'), 'kai');
     await tester.enterText(find.widgetWithText(TextField, 'Password'), 'short');
-    await tester.tap(find.text('Create Account…'));
+    await tester.tap(find.textContaining('Create Account'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Create Account'));
     await tester.pumpAndSettle();

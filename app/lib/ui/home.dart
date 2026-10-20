@@ -2,18 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
 import '../core/api.dart';
+import '../core/download_store.dart';
 import '../core/models.dart';
+import '../core/settings.dart';
+import 'concept.dart';
 import 'cover.dart';
 import 'glass.dart';
 import 'layout.dart';
+import 'playlist_screen.dart' show askName;
+import 'redesign.dart';
 import 'scope.dart';
 
 /// The first screen, laid out as on the Mac: a greeting, then "Jump back in" as a sideways shelf of recently played
 /// covers, the user's playlists, and Liked Songs as compact rows three high. Shelves scroll only sideways; nothing
-/// animates.
+/// animates. On a computer (UI v2, 15 Oct) the greeting is one line over the song playing and Up Next (NowHero), and the
+/// playlists are one grid with Liked Songs and Downloads (LibraryShelf).
 class Home extends StatelessWidget {
   final void Function(String playlistId) openPlaylist;
-  const Home({super.key, required this.openPlaylist});
+  final VoidCallback? openRecent; // Jump back in's "See all"
+  final VoidCallback? openLibrary; // Your Library's "See all"
+  final void Function(Collection)? openCollection;
+  const Home({super.key, required this.openPlaylist, this.openRecent, this.openLibrary, this.openCollection});
 
   static String greeting(DateTime t) => t.hour < 5
       ? 'Good night'
@@ -34,9 +43,6 @@ class Home extends StatelessWidget {
         final recent = lib.recent.map((x) => x.track).take(20).toList();
         final liked = lib.liked.map((x) => x.track).toList();
         final phone = isPhone(context);
-        final cardSize = phone
-            ? (MediaQuery.sizeOf(context).width - 52) / 2
-            : 148.0;
         final side = gutter(context);
         // The list itself has no side padding: the shelves scroll to the window's edge, and everything else is
         // inset by the gutter. Inside padded sides, a shelf's cards were cut off short of the edge (13 Oct)
@@ -44,32 +50,46 @@ class Home extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: side),
           child: child,
         );
-        // a tile's two lines of text under its cover, at the user's text size
+        // a tile's two lines of text under its cover, at the user's text size; the cover at the card size
         final scaler = MediaQuery.textScalerOf(context);
         final tileText = (scaler.scale(14) + scaler.scale(12)) * 1.45;
-        Widget title(String t) => Padding(
-          padding: EdgeInsets.fromLTRB(side, 0, side, 10),
-          child: Text(
-            t,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+        final tile = Look.of(context).cardSize;
+        // the concept (13 Oct): the greeting, then each shelf, come in one after another when Home opens (once)
+        Widget section(String key, int order, List<Widget> children) => Stagger(
+          key: ValueKey(key),
+          order: order,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
         );
         return ListView(
           padding: EdgeInsets.only(
-            top: phone ? phoneTop : 28,
+            top: phone ? phoneTop : 8,
             bottom: bottomClearance(context),
           ),
           children: [
-            inset(
-              Text(
-                greeting(DateTime.now()),
-                style: theme.textTheme.headlineLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+            // UI v2 (15 Oct): on a computer, one quiet line of greeting, then the song playing with Up Next beside it
+            if (!phone)
+              section('greeting', 0, [
+                inset(
+                  Text(
+                    [greeting(DateTime.now()), displayName(s.auth.user?.username ?? '')].where((w) => w.isNotEmpty).join(', '),
+                    style: TextStyle(fontFamily: displayFont, fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.3, color: theme.colorScheme.onSurface.withValues(alpha: 0.85)),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                inset(const NowHero()),
+              ])
+            else
+            // a phone (20 Oct, as the computer): the greeting, then the song to pick up again when nothing plays
+            section('greeting', 0, [
+              inset(
+                Text(
+                  greeting(DateTime.now()),
+                  style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700, fontFamily: displayFont),
                 ),
               ),
-            ),
+              const SizedBox(height: 14),
+              inset(const NowHero(resumeOnly: true)),
+            ]),
             SizedBox(height: phone ? 20 : 28),
             if (!lib.reachable)
               inset(
@@ -87,11 +107,24 @@ class Home extends StatelessWidget {
                   FluentIcons.music_note_2_24_regular,
                 ),
               ),
-            if (recent.isNotEmpty) ...[
-              title('Jump back in'),
+            if (recent.isNotEmpty && !phone) section('recent', 1, [
+              ShelfHeading('Jump back in', seeAll: openRecent, padding: EdgeInsets.fromLTRB(side, 0, side - 8, 8)),
+              ArrowShelf(
+                height: tile + 24 + tileText,
+                padding: EdgeInsets.symmetric(horizontal: side),
+                itemCount: recent.length,
+                itemBuilder: (_, i) => _CoverTile(
+                  track: recent[i],
+                  onPlay: () => s.player.play(lib.recent.map((x) => x.track).toList(), startAt: i),
+                ),
+              ),
+              const SizedBox(height: 32),
+            ]),
+            if (recent.isNotEmpty && phone) section('recent', 1, [
+              ShelfHeading('Jump back in', seeAll: openRecent, padding: EdgeInsets.fromLTRB(side, 0, side - 8, 8)),
               SizedBox(
                 // the cover and the gaps around it, then the text
-                height: 172 + tileText,
+                height: tile + 24 + tileText,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   clipBehavior: Clip.none, // a card's shadow falls below the shelf: cut off, it drew as a band
@@ -108,68 +141,22 @@ class Home extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-            ],
-            if (lib.ownPlaylistsOnly.isNotEmpty) ...[
-              title('Your playlists'),
-              inset(
-                Wrap(
-                  spacing: phone ? 12 : 22,
-                  runSpacing: phone ? 12 : 22,
-                  children: [
-                    for (final p in lib.ownPlaylistsOnly)
-                      _PlaylistCard(
-                        playlist: p,
-                        size: cardSize,
-                        onOpen: () => openPlaylist(p.id),
-                      ),
-                  ],
-                ),
-              ),
+            ]),
+            if (openCollection != null) section('library', 2, [
+              ShelfHeading('Your Library', seeAll: openLibrary, padding: EdgeInsets.fromLTRB(side, 0, side - 8, 10)),
+              inset(LibraryShelf(openCollection: openCollection!, openPlaylist: openPlaylist)),
               const SizedBox(height: 32),
-            ],
-            if (lib.pinnedAlbums.isNotEmpty) ...[
-              title('Pinned Albums'),
-              inset(
-                Wrap(
-                  spacing: phone ? 12 : 22,
-                  runSpacing: phone ? 12 : 22,
-                  children: [
-                    for (final p in lib.pinnedAlbums)
-                      _PlaylistCard(
-                        playlist: p,
-                        size: cardSize,
-                        onOpen: () => openPlaylist(p.id),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-            if (lib.sharedPlaylists.isNotEmpty) ...[
-              title('Shared with you'),
-              inset(
-                Wrap(
-                  spacing: phone ? 12 : 22,
-                  runSpacing: phone ? 12 : 22,
-                  children: [
-                    for (final p in lib.sharedPlaylists)
-                      _PlaylistCard(
-                        playlist: p,
-                        size: cardSize,
-                        onOpen: () => openPlaylist(p.id),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-            if (liked.isNotEmpty) ...[
-              title('Liked Songs'),
-              SizedBox(
-                height: 3 * 62,
+            ]),
+            if (liked.isNotEmpty) section('liked', 5, [
+                ShelfHeading('Liked Songs',
+                    seeAll: openCollection == null ? null : () => openCollection!(Collection.liked), padding: EdgeInsets.fromLTRB(side, 0, side - 8, 8)),
+              // on a computer it is cut off at the margins, as the rest of the page is
+              Container(
+                height: 3 * (62 + textGrowth(context, 14 + 12)), // three songs, their two lines at any text size (#20)
+                padding: EdgeInsets.symmetric(horizontal: phone ? 0 : side),
                 child: GridView.builder(
                   scrollDirection: Axis.horizontal,
-                  padding: EdgeInsets.symmetric(horizontal: side),
+                  padding: EdgeInsets.symmetric(horizontal: phone ? side : 0),
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     // a phone shows most of a column and a clear part of the next (a 300-point column left a clipped
@@ -185,7 +172,7 @@ class Home extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
+            ]),
           ],
         );
       },
@@ -198,42 +185,29 @@ class _CoverTile extends StatelessWidget {
   final VoidCallback onPlay;
   const _CoverTile({required this.track, required this.onPlay});
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) {
+    final side = Look.of(context).cardSize;
+    return GestureDetector(
     onTap: onPlay,
     child: isPhone(context)
-        ? GlassSurface(
-            blur: false,
-            radius: 20,
-            padding: const EdgeInsets.all(8),
-            child: SizedBox(
-              width: 148,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Cover(track.image, size: 148, radius: 14),
-                  const SizedBox(height: 8),
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    track.artistLine,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          )
-        : SizedBox(
-            width: 148,
+        ? SizedBox(
+            width: side,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Cover(track.image, size: 148, radius: 10),
+                Cover(track.image, size: side, radius: 10),
+                const SizedBox(height: 8),
+                Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(track.artistLine, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          )
+        : SizedBox(
+            width: side,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Hovering(track: track, size: side, radius: 10, onPlay: onPlay),
                 const SizedBox(height: 8),
                 Text(
                   track.title,
@@ -250,7 +224,8 @@ class _CoverTile extends StatelessWidget {
               ],
             ),
           ),
-  );
+    );
+  }
 }
 
 class _PlaylistCard extends StatefulWidget {
@@ -303,11 +278,11 @@ class _PlaylistCardState extends State<_PlaylistCard> {
             .take(4)
             .toList() ??
         [];
+    final player = Scope.of(context).player;
     return GestureDetector(
       onTap: onOpen,
       child: isPhone(context)
           ? GlassSurface(
-              blur: false,
               radius: 20,
               padding: const EdgeInsets.all(8),
               child: SizedBox(
@@ -340,10 +315,18 @@ class _PlaylistCardState extends State<_PlaylistCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  PlaylistCover(
-                    covers: covers,
+                  HoverCover(
                     size: widget.size,
-                    name: playlist.name,
+                    onTap: onOpen,
+                    // the corner button plays the playlist from its start, once its songs have loaded
+                    onPlay: detail == null || detail.tracks.isEmpty
+                        ? null
+                        : () => player.play(detail.tracks, keys: detail.keys, source: detail.queueSource, wholeList: true),
+                    child: PlaylistCover(
+                      covers: covers,
+                      size: widget.size,
+                      name: playlist.name,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -426,7 +409,7 @@ class _CompactTile extends StatelessWidget {
     onTap: onPlay,
     child: Row(
       children: [
-        Cover(track.image, size: 48),
+        _Hovering(track: track, size: 48, radius: 6, onPlay: onPlay),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -453,6 +436,29 @@ class _CompactTile extends StatelessWidget {
   );
 }
 
+/// A song's cover on Home: lifts under the pointer with a play button, and marks the song that is playing.
+class _Hovering extends StatelessWidget {
+  final Track track;
+  final double size, radius;
+  final VoidCallback onPlay;
+  const _Hovering({required this.track, required this.size, required this.radius, required this.onPlay});
+  @override
+  Widget build(BuildContext context) {
+    final player = Scope.of(context).player;
+    return ValueListenableBuilder(
+      valueListenable: player.currentId,
+      builder: (context, _, _) => HoverCover(
+        size: size,
+        radius: radius,
+        onTap: onPlay,
+        onPlay: onPlay,
+        playing: player.current?.isSameSong(track) ?? false,
+        child: Cover(track.image, size: size, radius: radius),
+      ),
+    );
+  }
+}
+
 class _Note extends StatelessWidget {
   final String title, detail;
   final IconData icon;
@@ -469,4 +475,134 @@ class _Note extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// UI v2 (15 Oct): everything the user has, in one place: Liked Songs, Recently Played and Downloads, then the user's
+/// playlists, the albums pinned to Home and the playlists shared with them.
+class LibraryScreen extends StatelessWidget {
+  final void Function(String id) openPlaylist;
+  final void Function(Collection) openCollection;
+  const LibraryScreen({super.key, required this.openPlaylist, required this.openCollection});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Scope.of(context);
+    final theme = Theme.of(context);
+    final side = gutter(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([s.library, DownloadStore.shared]),
+      builder: (context, _) {
+        final lib = s.library;
+        Widget heading(String t) => Padding(
+              padding: const EdgeInsets.only(top: 28, bottom: 12),
+              child: Text(t, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, fontFamily: displayFont, letterSpacing: -0.3)),
+            );
+        Widget grid(Iterable<PlaylistSummary> playlists) => Wrap(spacing: 22, runSpacing: 22, children: [
+              for (final p in playlists) _PlaylistCard(playlist: p, size: Look.of(context).cardSize, onOpen: () => openPlaylist(p.id)),
+            ]);
+        if (isPhone(context)) return _PhoneLibrary(openPlaylist: openPlaylist, openCollection: openCollection);
+        return ListView(padding: EdgeInsets.fromLTRB(side, 8, side, bottomClearance(context)), children: [
+          Text('Library', style: TextStyle(fontFamily: displayFont, fontSize: 40, fontWeight: FontWeight.w700, letterSpacing: -1, color: theme.colorScheme.onSurface)),
+          heading('Collections'),
+          Wrap(spacing: 22, runSpacing: 22, children: [
+            _CollectionCard(kind: Collection.liked, count: lib.liked.length, onOpen: () => openCollection(Collection.liked)),
+            _CollectionCard(kind: Collection.recent, count: lib.recent.length, onOpen: () => openCollection(Collection.recent)),
+            if (DownloadStore.shared.folder != null)
+              _CollectionCard(kind: Collection.downloads, count: DownloadStore.shared.items.length, onOpen: () => openCollection(Collection.downloads)),
+          ]),
+          if (lib.ownPlaylistsOnly.isNotEmpty) ...[heading('Playlists'), grid(lib.ownPlaylistsOnly)],
+          if (lib.pinnedAlbums.isNotEmpty) ...[heading('Pinned Albums'), grid(lib.pinnedAlbums)],
+          if (lib.sharedPlaylists.isNotEmpty) ...[heading('Shared with you'), grid(lib.sharedPlaylists)],
+        ]);
+      },
+    );
+  }
+}
+
+/// Liked Songs, Recently Played or Downloads as a card: its coloured tile, its name and how many songs.
+class _CollectionCard extends StatelessWidget {
+  final Collection kind;
+  final int count;
+  final VoidCallback onOpen;
+  const _CollectionCard({required this.kind, required this.count, required this.onOpen});
+  @override
+  Widget build(BuildContext context) {
+    final side = Look.of(context).cardSize;
+    return GestureDetector(
+      onTap: onOpen,
+      child: SizedBox(
+        width: side,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          HoverCover(size: side, onTap: onOpen, child: CollectionTile(kind, size: side)),
+          const SizedBox(height: 8),
+          Text(kind.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(songs(count), style: Theme.of(context).textTheme.bodySmall),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Library on a phone (20 Oct): the computer's Library page as touch rows, as its sidebar lists the same things (a picture,
+/// the name, how many songs). Three big tiles two to a row took a screen and a half before the first playlist.
+class _PhoneLibrary extends StatelessWidget {
+  final void Function(String id) openPlaylist;
+  final void Function(Collection) openCollection;
+  const _PhoneLibrary({required this.openPlaylist, required this.openCollection});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Scope.of(context);
+    final theme = Theme.of(context);
+    final side = gutter(context);
+    final lib = s.library;
+    Widget heading(String t, {Widget? action}) => Padding(
+          padding: EdgeInsets.fromLTRB(side, 24, side - 8, 4),
+          child: Row(children: [
+            Expanded(child: Text(t, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))),
+            ?action,
+          ]),
+        );
+    Widget row(Widget picture, String name, int count, VoidCallback onTap) => ListTile(
+          contentPadding: EdgeInsets.symmetric(horizontal: side),
+          minVerticalPadding: 10,
+          leading: ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox.square(dimension: 52, child: picture)),
+          title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(songs(count)),
+          onTap: onTap,
+        );
+    Widget playlist(PlaylistSummary p) {
+      final covers = lib.details[p.id]?.tracks.map((t) => t.image).whereType<String>().toSet().take(4).toList() ?? const <String>[];
+      return row(PlaylistCover(covers: covers, size: 52, name: p.name), p.name, p.songCount, () => openPlaylist(p.id));
+    }
+    return ListView(padding: EdgeInsets.only(top: 8, bottom: bottomClearance(context)), children: [
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: side),
+        child: Text('Library', style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700, fontFamily: displayFont)),
+      ),
+      const SizedBox(height: 8),
+      row(CollectionTile(Collection.liked, size: 52), Collection.liked.label, lib.liked.length, () => openCollection(Collection.liked)),
+      row(CollectionTile(Collection.recent, size: 52), Collection.recent.label, lib.recent.length, () => openCollection(Collection.recent)),
+      if (DownloadStore.shared.folder != null)
+        row(CollectionTile(Collection.downloads, size: 52), Collection.downloads.label, DownloadStore.shared.items.length,
+            () => openCollection(Collection.downloads)),
+      heading('Playlists',
+          action: IconButton(
+            tooltip: 'New Playlist',
+            icon: const Icon(FluentIcons.add_24_regular),
+            onPressed: () async {
+              final name = await askName(context, title: 'New Playlist');
+              if (name != null) await lib.createPlaylist(name);
+            },
+          )),
+      if (lib.ownPlaylistsOnly.isEmpty)
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: side, vertical: 8),
+          child: Text('Your playlists appear here.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ),
+      for (final p in lib.ownPlaylistsOnly) playlist(p),
+      if (lib.pinnedAlbums.isNotEmpty) ...[heading('Pinned Albums'), for (final p in lib.pinnedAlbums) playlist(p)],
+      if (lib.sharedPlaylists.isNotEmpty) ...[heading('Shared with you'), for (final p in lib.sharedPlaylists) playlist(p)],
+    ]);
+  }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 /// One playlist: its cover, name and length, Play and Shuffle, and its songs. Drag a song to move it; right-click
 /// to remove it. Everything goes through LibraryStore, which also keeps a playing copy of this playlist in step.
 struct PlaylistView: View {
+    @AppStorage(AppLook.key) private var look = AppLook.standard          // Classic: no label over the title
     let id: UUID
     /// It is gone (deleted, or no longer shared with you): RootView closes it.
     var closed: () -> Void = {}
@@ -57,13 +58,14 @@ struct PlaylistView: View {
         let keys = detail.keys                  // once: each row, the animation and the tick read it (#12: per row before)
         return List(selection: $selection) {
             header(detail, tracks)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 24, bottom: 0, trailing: 24))
+                .pageRow(top: 0, bottom: 0)
                 .moveDisabled(true)
 
             // a viewer's rows: no Remove, no drag (the server would refuse both, 403)
             let canEdit = detail.summary.canEdit
+            // a pinned album's rows are numbered, as on its album page (15 Oct, as in the Windows app); not while
+            // Search hides some of them
+            let numbered = detail.summary.isAlbum && filter.isEmpty
             // Search narrows the rows: playing one plays what is shown (as its own queue, not kept in step with the
             // playlist, which would bring the hidden songs back); no dragging while some songs are hidden
             let shown = Array(detail.items.indices).filter { filter.isEmpty || songMatches(tracks[$0], filter) }
@@ -71,14 +73,13 @@ struct PlaylistView: View {
             ForEach(Array(shown.enumerated()), id: \.element) { row, i in
                 let entry = detail.items[i]
                 SongRow(track: tracks[i], queue: filter.isEmpty ? tracks : shownTracks, index: filter.isEmpty ? i : row,
+                        number: numbered ? i + 1 : nil,
                         keys: filter.isEmpty ? keys : nil, source: filter.isEmpty ? detail.queueSource : nil,
                         removeLabel: "Remove from “\(detail.name)”", remove: canEdit ? {
                     Task { await library.remove(entry, from: detail.id) }
                 } : nil, doubleClickPlays: false)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 1, leading: 16, bottom: 1, trailing: 16))
                 .selfTestFrame("playlist.row:\(i)")
+                .pageRow(top: 1, bottom: 1, inset: 24)
             }
             .onMove(perform: canEdit && filter.isEmpty ? { from, to in Task { await library.moveItems(in: detail.id, from: from, to: to) } } : nil)
 
@@ -109,16 +110,22 @@ struct PlaylistView: View {
         }
         .scrollContentBackground(.hidden)
         .scrollTitle(detail.name)
+        .selfTestFrame("playlist.page")
         .animation(.snappy(duration: 0.3), value: keys)          // rows slide when one is removed or added
         .sensoryFeedback(.levelChange, trigger: keys)            // a light tick as the order changes (Force Touch trackpads)
     }
 
     private func header(_ detail: PlaylistDetail, _ tracks: [Track]) -> some View {
-        HStack(alignment: .bottom, spacing: 22) {
-            PlaylistCover(images: PlaylistCover.images(of: tracks.lazy.map(\.image)), size: 172, seed: detail.name)
+        // as the Windows app's (15 Oct): a bigger cover, and a pinned album called one
+        HStack(alignment: .bottom, spacing: 28) {
+            PlaylistCover(images: PlaylistCover.images(of: tracks.lazy.map(\.image)), size: 200, seed: detail.name)
                 .shadow(color: .black.opacity(0.22), radius: 18, y: 10)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Playlist").textStyle(.caption, weight: .semibold).foregroundStyle(.secondary).textCase(.uppercase)
+                .selfTestFrame("playlist.cover")
+            VStack(alignment: .leading, spacing: 4) {
+                if look == .new {
+                    Text(detail.summary.isAlbum ? "Album" : "Playlist")
+                        .textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                }
                 Text(detail.name).textStyle(size: 34, weight: .bold).lineLimit(2)
                 Text(Self.stats(count: detail.items.count, seconds: detail.duration))
                     .textStyle(.body)
@@ -313,7 +320,8 @@ struct AddToPlaylistMenu: View {
 }
 
 /// A song's library actions, the same wherever a song is offered (a row, a cover, Up Next, the playing song's "…"):
-/// like, add to a playlist, download.
+/// like, add to a playlist, download, and a downloaded song's file in the Finder. The download entries only while a
+/// downloads folder is in use (not while its drive is unplugged).
 struct SongLibraryActions: View {
     let track: Track
     @Environment(LibraryStore.self) private var library
@@ -322,12 +330,15 @@ struct SongLibraryActions: View {
     var body: some View {
         Button(library.isLiked(track) ? "Remove from Liked" : "Like") { Task { await library.toggleLike(track) } }
         AddToPlaylistMenu(track: track)
-        if downloads.isDownloading(track) {
-            Button("Downloading…") {}.disabled(true)
-        } else if downloads.isDownloaded(track) {
-            Button("Remove Download") { downloads.remove(track) }
-        } else {
-            Button("Download") { Task { await downloads.download(track) } }
+        if downloads.available {
+            if downloads.isDownloading(track) {
+                Button("Downloading…") {}.disabled(true)
+            } else if downloads.isDownloaded(track) {
+                Button("Remove Download") { downloads.remove(track) }
+                Button("Show in Finder") { downloads.revealInFinder(track) }
+            } else {
+                Button("Download") { Task { await downloads.download(track) } }
+            }
         }
     }
 }
