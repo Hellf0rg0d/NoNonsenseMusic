@@ -138,6 +138,14 @@ final class CommandBarState {
         focusChanged(true)
     }
 
+    /// The window's first responder changed (a click, Tab, ⌘K): the field being edited opens the list. Only opens:
+    /// closing stays with Esc, a run, and a click outside the field and the list (watchClicks), so a click on a row
+    /// that moved the keyboard could not close the list before the row ran.
+    func keyboardMoved() {
+        guard !open, let field = textField, field.currentEditor() != nil else { return }
+        focusChanged(true)
+    }
+
     /// After a leave: the field no longer has the keyboard, whether or not SwiftUI's focus got there first.
     func letGo() {
         guard let field = textField, field.currentEditor() != nil else { return }
@@ -438,8 +446,20 @@ private struct FieldAnchor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {}
 
+    /// Also watches the window's first responder, which a click in the field changes: SwiftUI's focus did not follow a
+    /// click into a field in the toolbar, so the list opened for ⌘K (which opens it itself) and never for a click (20 Oct).
     private final class Anchor: NSView {
+        private var watching: NSKeyValueObservation?
+
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            watching = window?.observe(\.firstResponder) { _, _ in
+                // a change passes through the field and the field editor: read once it has settled
+                Task { @MainActor in CommandBarState.shared.keyboardMoved() }
+            }
+        }
     }
 }
 
