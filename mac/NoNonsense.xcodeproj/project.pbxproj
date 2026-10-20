@@ -580,6 +580,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 8;
+				DEPLOYMENT_POSTPROCESSING = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = NoNonsense/Info.plist;
@@ -592,6 +593,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music;
 				PRODUCT_NAME = NoNonsenseMusic;
 				SDKROOT = macosx;
+				STRIP_INSTALLED_PRODUCT = YES;
+				STRIP_STYLE = "non-global";
 			};
 			name = Release;
 		};

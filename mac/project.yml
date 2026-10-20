@@ -53,3 +53,10 @@ targets:
           # nor share your app's identity: its preferences, audio cache and session (a test copy running beside your
           # app wrote to the same cache folder and settings)
           PRODUCT_BUNDLE_IDENTIFIER: app.nononsense.music.debug
+        Release:
+          # stripped: unstripped, the app carried 65,130 debug entries naming every source folder, the home folder of
+          # whoever built it (and so their name) among them (20 Oct). Build releases in a folder whose path names nobody
+          # (scripts/check-release-privacy.py checks the files before they go up)
+          DEPLOYMENT_POSTPROCESSING: YES
+          STRIP_INSTALLED_PRODUCT: YES
+          STRIP_STYLE: non-global
