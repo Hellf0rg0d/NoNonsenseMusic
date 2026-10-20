@@ -38,6 +38,16 @@ android {
     }
 }
 
+// Release APKs for 64-bit phones only (every phone since about 2017): the three kinds of CPU code made the APK 58 MB,
+// of which a phone runs one. Dropped at packing, after Flutter's plugin has set its own filters (an abiFilters in
+// buildTypes was overridden), so plugins' 32-bit and x86 libraries go too and a 32-bit phone refuses the APK instead of
+// installing an app that cannot start (20 Oct). Debug builds keep every kind, for the emulator.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.excludes.addAll(listOf("lib/armeabi-v7a/**", "lib/x86_64/**", "lib/x86/**"))
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
