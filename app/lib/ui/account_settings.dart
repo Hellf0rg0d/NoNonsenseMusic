@@ -8,6 +8,7 @@ import '../core/spotify_import.dart';
 import 'glass_menu.dart';
 import 'recovery_codes.dart';
 import 'scope.dart';
+import 'layout.dart';
 
 /// Settings › Account › Recovery Codes: how many of the ten are unused (orange at three or fewer), and a new set.
 class RecoveryCodesSettings extends StatefulWidget {
@@ -56,7 +57,7 @@ class _RecoveryCodesSettingsState extends State<RecoveryCodesSettings> {
             setState(() => _left = codes.length);
             await showRecoveryCodes(context, codes, s.auth.user?.username ?? '');
           },
-          child: const Text('New Recovery Codes…'),
+          child: Text(opens('New Recovery Codes…')),
         ),
       ),
     ]);
@@ -97,7 +98,7 @@ class SpotifyImportSettings extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: OutlinedButton(
               onPressed: importer.running ? null : () => _choose(context),
-              child: Text(importer.running ? 'Importing…' : 'Choose Files…'),
+              child: Text(importer.running ? 'Importing…' : opens('Choose Files…')),
             ),
           ),
           const SizedBox(height: 8),
@@ -187,9 +188,9 @@ class ImportIntoPlaylistButton extends StatelessWidget {
         tooltip: 'Add songs from Spotify or YouTube',
         onSelected: (v) => v == 'files' ? _files(context) : _link(context),
         width: 280,
-        entries: () => const [
-          GlassMenuEntry('files', 'Songs from Files…'),
-          GlassMenuEntry('link', 'Songs from a YouTube Playlist…'),
+        entries: () => [
+          GlassMenuEntry('files', opens('Songs from Files…')),
+          GlassMenuEntry('link', opens('Songs from a YouTube Playlist…')),
         ],
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

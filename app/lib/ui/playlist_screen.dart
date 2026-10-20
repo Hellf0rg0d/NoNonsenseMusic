@@ -114,15 +114,15 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                               ]
                             : p.isOwner
                             ? [
-                                const GlassMenuEntry('rename', 'Rename…'),
-                                const GlassMenuEntry('share', 'Share…'),
+                                GlassMenuEntry('rename', opens('Rename…')),
+                                GlassMenuEntry('share', opens('Share…')),
                                 GlassMenuEntry('public', p.public ? 'Make Private' : 'Make Public'),
                                 const GlassMenuEntry.divider(),
-                                const GlassMenuEntry('delete', 'Delete…'),
+                                GlassMenuEntry('delete', opens('Delete…')),
                               ]
-                            : const [
-                                GlassMenuEntry('share', 'People…'), // The same dialog, read-only.
-                                GlassMenuEntry('leave', 'Leave…'),
+                            : [
+                                GlassMenuEntry('share', opens('People…')), // The same dialog, read-only.
+                                GlassMenuEntry('leave', opens('Leave…')),
                               ],
                         onSelected: (v) async {
                           switch (v) {

@@ -226,7 +226,7 @@ Future<void> showSongMenu(
       const GlassMenuEntry.divider(),
     ],
     GlassMenuEntry('like', liked ? 'Remove from Liked' : 'Like'),
-    const GlassMenuEntry('playlist', 'Add to Playlist…'),
+    GlassMenuEntry('playlist', opens('Add to Playlist…')),
     const GlassMenuEntry.divider(),
     if (DownloadStore.shared.folder != null)
       if (DownloadStore.shared.isDownloading(track))
@@ -270,7 +270,7 @@ Future<void> showSongMenu(
       remove?.run();
     case 'playlist':
       final to = await showGlassMenu<String>(context, at, [
-        const GlassMenuEntry('+', 'New Playlist…'),
+        GlassMenuEntry('+', opens('New Playlist…')),
         const GlassMenuEntry.divider(),
         // Only playlists the user can edit: a viewer cannot add songs, and the server answers 403.
         for (final p in s.library.playlists.where((p) => p.canEdit)) GlassMenuEntry(p.id, p.name),

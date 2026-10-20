@@ -7,6 +7,7 @@ import '../core/settings.dart';
 import 'glass.dart';
 import 'recovery_codes.dart';
 import 'glass_menu.dart';
+import 'layout.dart';
 
 /// Show the sign-in screen until a session exists, then the signed-in app. A session that ends (expired, or signed
 /// out on another device) brings the screen back, with a notice saying so.
@@ -242,9 +243,9 @@ class _SignInScreenState extends State<SignInScreen> {
             TextField(
               controller: _device,
               enabled: !_busy,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Device Name',
-                prefixIcon: Icon(Icons.computer_outlined),
+                prefixIcon: Icon(isTouchDevice ? Icons.smartphone_outlined : Icons.computer_outlined),   // the device it is (20 Oct)
               ),
               onSubmitted: (_) => _go(),
             ),
@@ -273,7 +274,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                   child: Text(
                     _mode == _Mode.signIn
-                        ? 'Create Account…'
+                        ? opens('Create Account…')
                         : 'Sign In Instead',
                   ),
                 ),

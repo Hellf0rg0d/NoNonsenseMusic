@@ -61,8 +61,8 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('Username'), findsOneWidget);
         // every mode: creating an account and resetting a password add a longer label and a field
-        await tester.ensureVisible(find.text('Create Account…'));
-        await tester.tap(find.text('Create Account…'));
+        await tester.ensureVisible(find.textContaining('Create Account'));
+        await tester.tap(find.textContaining('Create Account'));
         await tester.pump();
         expect(tester.takeException(), isNull);
         await tester.ensureVisible(find.text('Sign In Instead'));

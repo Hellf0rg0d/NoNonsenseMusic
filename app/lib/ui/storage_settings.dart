@@ -8,6 +8,7 @@ import '../core/download_store.dart';
 import '../core/reveal.dart';
 import 'browse_nav.dart';
 import 'scope.dart';
+import 'layout.dart';
 
 /// "48 MB", "1.2 GB" (decimal, as the cache limit is).
 String formatBytes(int bytes) =>
@@ -158,7 +159,7 @@ class _DownloadLocationState extends State<DownloadLocation> {
             Text(note, style: theme.textTheme.bodySmall?.copyWith(color: warn ? theme.colorScheme.error : theme.colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
-              OutlinedButton(onPressed: busy ? null : _choose, child: const Text('Change…')),
+              OutlinedButton(onPressed: busy ? null : _choose, child: Text(opens('Change…'))),
               if (d.folder != null) OutlinedButton(onPressed: () => openFolder(d.folder!), child: const Text('Open')),
               if (settings.downloadFolder != null)
                 TextButton(onPressed: busy ? null : () => _moveTo(null), child: const Text('Use Default')),

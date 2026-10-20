@@ -146,9 +146,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   const SizedBox(height: 10),
                   Text('No Friends Yet', style: theme.textTheme.titleLarge),
                   const SizedBox(height: 4),
+                  // Add Friend is the header's: a second button here said the same thing twice on an empty screen (20 Oct)
                   Text('Add a friend by their username.', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.55))),
-                  const SizedBox(height: 16),
-                  OutlinedButton(onPressed: _add, child: const Text('Add Friend…')),
                 ]),
               ),
             ),
@@ -182,7 +181,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 GlassMenuButton<String>(
                   tooltip: 'More about ${f.username}',
                   icon: const Icon(FluentIcons.more_horizontal_24_regular, size: 20),
-                  entries: () => const [GlassMenuEntry('remove', 'Remove Friend…')],
+                  entries: () => [GlassMenuEntry('remove', opens('Remove Friend…'))],
                   onSelected: (_) => _remove(f),
                 ),
               ]),

@@ -75,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           constraints: const BoxConstraints(maxWidth: 480),
           child: TextField(
             controller: _server,
-            decoration: const InputDecoration(labelText: 'Address', helperText: 'Saved when you press Enter.'),
+            decoration: InputDecoration(labelText: 'Address', helperText: isTouchDevice ? 'Saved when you press Done.' : 'Saved when you press Enter.'),
             // A draft saved on Enter: saving each keystroke would store half-typed addresses
             onSubmitted: (v) async {
               await s.settings.setServer(v);

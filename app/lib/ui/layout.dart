@@ -88,3 +88,7 @@ class RenderMeasureHeight extends RenderProxyBox {
     }
   }
 }
+
+/// An action that opens a dialog, labelled as each system labels it: "Delete…" on a Mac or a PC, where the "…" says a
+/// dialog follows; "Delete" on a phone, where Android's and iOS's own apps have no such mark (20 Oct).
+String opens(String label) => isTouchDevice && label.endsWith('…') ? label.substring(0, label.length - 1) : label;

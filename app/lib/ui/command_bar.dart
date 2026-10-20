@@ -24,6 +24,7 @@ import 'playlist_screen.dart';
 import 'popover.dart';
 import 'redesign.dart';
 import 'scope.dart';
+import 'layout.dart';
 
 /// The shell's places, for the commands that go to one.
 class CommandPlaces {
@@ -212,7 +213,7 @@ class _CommandBarState extends State<CommandBar> {
       ],
       Command(JamSession.shared.inJam ? 'Jam' : 'Start or Join a Jam', FluentIcons.people_team_24_regular,
           () => showPanel(context, builder: (_) => JamPanel(jam: JamSession.shared, social: Social.shared)), suggested: true),
-      Command('New Playlist…', FluentIcons.add_24_regular, () async {
+      Command(opens('New Playlist…'), FluentIcons.add_24_regular, () async {
         final name = await askName(context, title: 'New Playlist');
         if (name != null) await s.library.createPlaylist(name);
       }, suggested: t == null),
