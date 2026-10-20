@@ -276,6 +276,9 @@ void main() {
       final row = find.ancestor(of: find.text('Translate into'), matching: find.byType(ListTile));
       await tester.scrollUntilVisible(row, 300, scrollable: find.byType(Scrollable).first);
       final menu = find.descendant(of: row, matching: find.byType(DropdownButton<String>));
+      // the row's top showing is not enough: on Windows (a Window section above) the menu sat 18 px under the screen
+      await tester.ensureVisible(menu);
+      await tester.pumpAndSettle();
       expect(tester.widget<DropdownButton<String>>(menu).items!.map((i) => i.value),
           ['', ...LyricsTranslations.languages.keys]);
       expect(find.descendant(of: row, matching: find.text('System language')), findsOneWidget);
