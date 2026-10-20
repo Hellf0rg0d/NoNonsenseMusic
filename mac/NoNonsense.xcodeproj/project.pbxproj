@@ -28,7 +28,6 @@
 		3DDD48B03F42672DEF183122 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73544AE9F06A2B4B55D2598C /* Components.swift */; };
 		40BF76B3B4FDEC0C4FEFF242 /* AutoplaySelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F428E571CB35CF429FEECFDB /* AutoplaySelfTest.swift */; };
 		482817B66F5AF7745C8AF391 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCDA5EC827220ADD683A012F /* SignInView.swift */; };
-		4B0DB110F4EFA89F638599E9 /* Figtree-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0CAC3603144F133B475D6CF2 /* Figtree-LICENSE.txt */; };
 		50493A6732F168A78D258680 /* SpotifyImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */; };
 		50C47D762F3D19445F64E8D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00C1B5E468195CB2D992A02B /* Assets.xcassets */; };
 		5189797CB1F3CCE3852B8037 /* PlayQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 065566838EF587BE46F586CF /* PlayQueue.swift */; };
@@ -68,7 +67,6 @@
 		C2F8B36F2094C626C85CAD53 /* Browse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241C02CAD86BD53024EE3BE2 /* Browse.swift */; };
 		C3D45EF8E04EE77DA5CECD1A /* Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219EB9D529F5EF24B0F08DDD /* Home.swift */; };
 		D044B7F4E4BE1BD07AC6E6B1 /* SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3D0063CBD5878029E2E727 /* SelfTest.swift */; };
-		D0ECFF225311471D884832F7 /* Figtree-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 085967F37CF2805D437DA112 /* Figtree-ExtraBold.ttf */; };
 		D14701BCE220BFFE52359ABA /* Social.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC180CBD9CAE5022E863BAD /* Social.swift */; };
 		D44F2A587722CA75FA8CDA97 /* UpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */; };
 		D6C295E72FEA5C8128DA9059 /* JamViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488DEC685DA0304B893444B7 /* JamViews.swift */; };
@@ -86,8 +84,6 @@
 		04C66CE5AA2573A220BAF1FD /* CacheSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSelfTest.swift; sourceTree = "<group>"; };
 		065566838EF587BE46F586CF /* PlayQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayQueue.swift; sourceTree = "<group>"; };
 		073460EB5596CE556DF8D082 /* Compat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Compat.swift; sourceTree = "<group>"; };
-		085967F37CF2805D437DA112 /* Figtree-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Figtree-ExtraBold.ttf"; sourceTree = "<group>"; };
-		0CAC3603144F133B475D6CF2 /* Figtree-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Figtree-LICENSE.txt"; sourceTree = "<group>"; };
 		0EC180CBD9CAE5022E863BAD /* Social.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Social.swift; sourceTree = "<group>"; };
 		1233A3ED8401FC7D692055ED /* FriendsSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsSelfTest.swift; sourceTree = "<group>"; };
 		14E78AB03F8D61BD062EA5D8 /* Translation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Translation.swift; sourceTree = "<group>"; };
@@ -162,21 +158,11 @@
 				AE0713C4CF39D2CF687A3DAE /* Info.plist */,
 				8E02059739508F0313F9A737 /* App */,
 				A366DD47A305AF5756A79EAA /* Debug */,
-				6521366A6472CD51D04FD38D /* Fonts */,
 				7C5D070267F6743A36424F1E /* Models */,
 				CF87F25A47928D5919ABC998 /* Services */,
 				A93CB8D74D053307E8E41EDE /* Views */,
 			);
 			path = NoNonsense;
-			sourceTree = "<group>";
-		};
-		6521366A6472CD51D04FD38D /* Fonts */ = {
-			isa = PBXGroup;
-			children = (
-				085967F37CF2805D437DA112 /* Figtree-ExtraBold.ttf */,
-				0CAC3603144F133B475D6CF2 /* Figtree-LICENSE.txt */,
-			);
-			path = Fonts;
 			sourceTree = "<group>";
 		};
 		7C5D070267F6743A36424F1E /* Models */ = {
@@ -357,8 +343,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				50C47D762F3D19445F64E8D7 /* Assets.xcassets in Resources */,
-				D0ECFF225311471D884832F7 /* Figtree-ExtraBold.ttf in Resources */,
-				4B0DB110F4EFA89F638599E9 /* Figtree-LICENSE.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

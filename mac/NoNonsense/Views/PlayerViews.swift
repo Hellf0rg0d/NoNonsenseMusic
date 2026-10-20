@@ -45,10 +45,10 @@ struct PlayerBar: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 5) {
-                            Text(track.title).textStyle(size: 14, weight: .semibold).lineLimit(1)
+                            Text(track.title).textStyle(.body, weight: .medium).lineLimit(1)
                             if track.isExplicit { ExplicitBadge() }
                         }
-                        ArtistLinks(artists: track.artists).textStyle(size: 12.5).foregroundStyle(.secondary)
+                        ArtistLinks(artists: track.artists).textStyle(.subheadline).foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -406,15 +406,15 @@ struct NowPlayingView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(track.title).tracking(-0.5).textStyle(size: 26, weight: .bold).lineLimit(1)
+                        Text(track.title).textStyle(.largeTitle, weight: .bold).lineLimit(1)
                         if track.isExplicit { ExplicitBadge() }
                     }
                     ArtistLinks(artists: track.artists) { player.showNowPlaying = false }
-                        .textStyle(size: 17, weight: .medium)
+                        .textStyle(.title3, weight: .medium)
                         .foregroundStyle(.tint)
                         .padding(.top, 3)
                     CopyMenu(track: track)
-                        .textStyle(size: 13)
+                        .textStyle(.body)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)                       // under a small cover it wrapped ("JioSaavn · AAC / 320 kbps")
                         .padding(.top, 4)
@@ -467,12 +467,11 @@ struct NowPlayingView: View {
 
             VStack(spacing: 1) {
                 Text("NOW PLAYING")
-                    .tracking(1.6)
-                    .textStyle(size: 10.5, weight: .bold)
+                    .textStyle(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .selfTestFrame("nowPlaying.title")
                 if let album = track.albumTitle {
-                    Text(album).textStyle(size: 13, weight: .semibold).foregroundStyle(.primary.opacity(0.85)).lineLimit(1)
+                    Text(album).textStyle(.body, weight: .semibold).foregroundStyle(.primary.opacity(0.85)).lineLimit(1)
                 }
             }
             .padding(.horizontal, 12)
@@ -503,7 +502,7 @@ struct NowPlayingView: View {
         return Button { panelRaw = panel.toggling(which).rawValue } label: {
             HStack(spacing: 6) {
                 Image(systemName: symbol).font(.system(size: 13, weight: .semibold))
-                Text(title).textStyle(size: 13, weight: .semibold)
+                Text(title).textStyle(.body, weight: .semibold)
             }
             .foregroundStyle(on ? Color(nsColor: .windowBackgroundColor) : Color.primary.opacity(0.85))
             .padding(.horizontal, 14).padding(.vertical, 8)
@@ -866,7 +865,7 @@ final class LyricLinesView: NSView {
         let scale = window?.backingScaleFactor ?? 2
         var y: CGFloat = 0
         for (i, line) in lines.enumerated() {
-            let attributes: [NSAttributedString.Key: Any] = [.font: font, .kern: LyricsFont.tracking,
+            let attributes: [NSAttributedString.Key: Any] = [.font: font,
                                                              .foregroundColor: noted.contains(i) ? noteColour : colour]
             let text = NSAttributedString(string: line.text.isEmpty ? "♪" : line.text, attributes: attributes)
             // measured by CoreText, which CATextLayer draws with. TextKit measured Devanagari lines shorter (24 pt a row
@@ -1129,33 +1128,16 @@ extension View {
     }
 }
 
-/// The lyrics' face (15 Oct, as in the Windows app): Figtree ExtraBold, an open geometric font in the manner of
-/// Spotify's, set as Spotify sets its lyrics: extra bold, large, tightly spaced. Its own line height is 1.2 times its
-/// size (ascender 950 + descender 250 per 1000), the one wanted, so nothing sets a line height. Bundled
-/// (Fonts/Figtree-ExtraBold.ttf, SIL Open Font License beside it) and registered for this app alone the first time
-/// lyrics are drawn; the system's heavy font if it cannot be.
+/// The lyrics' face: the system's, bold, as the rest of the app (Figtree ExtraBold, as in the Windows app, 15-20 Oct, did
+/// not read as a Mac app).
 enum LyricsFont {
-    static let size: CGFloat = 24                   // × Settings › Appearance › Text size
-    static let tracking: CGFloat = -0.6
-    static let name = "Figtree-ExtraBold"
-
-    /// Registers the face, once, the first time it is asked for; false: it is missing (then the system's is used).
-    private static let available: Bool = {
-        if let url = Bundle.main.url(forResource: LyricsFont.name, withExtension: "ttf") {
-            _ = CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        }
-        return NSFont(name: LyricsFont.name, size: LyricsFont.size) != nil
-    }()
+    static let size: CGFloat = 21                   // × Settings › Appearance › Text size
 
     /// For the timed lines' layers.
-    static func nsFont(size: CGFloat) -> NSFont {
-        (available ? NSFont(name: name, size: size) : nil) ?? .systemFont(ofSize: size, weight: .heavy)
-    }
+    static func nsFont(size: CGFloat) -> NSFont { .systemFont(ofSize: size, weight: .bold) }
 
     /// For plain and translated lyrics.
-    static func font(size: CGFloat) -> Font {
-        available ? .custom(name, fixedSize: size) : .system(size: size, weight: .heavy)
-    }
+    static func font(size: CGFloat) -> Font { .system(size: size, weight: .bold) }
 }
 
 extension View {
@@ -1167,7 +1149,7 @@ private struct LyricsText: ViewModifier {
     @Environment(\.textScale) private var scale
 
     func body(content: Content) -> some View {
-        content.font(LyricsFont.font(size: LyricsFont.size * scale)).tracking(LyricsFont.tracking)
+        content.font(LyricsFont.font(size: LyricsFont.size * scale))
     }
 }
 

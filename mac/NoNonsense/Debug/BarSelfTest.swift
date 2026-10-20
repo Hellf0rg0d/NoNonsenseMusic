@@ -7,7 +7,7 @@ import SwiftUI
 /// 720 to 960 pt wide: nothing overflows, its buttons keep their order, the volume goes only after Lyrics, all five fit
 /// at 940, and there is no "…" among them. Now Playing alone, with Lyrics and with Up Next: the song (and the panel)
 /// centred in the window within 1 pt, the panel exactly as tall as the song, "NOW PLAYING" centred on the window, the
-/// pills switching the panel and hiding it. The timed lyrics in Figtree ExtraBold 24, each line as tall as CoreText
+/// pills switching the panel and hiding it. The timed lyrics in the system's bold, each line as tall as CoreText
 /// measures it, a noted line in the accent. The cover at 86% while paused, springing to full size to play. With
 /// NN_SELFTEST_VISIBLE=1 and NN_SELFTEST_SNAP=<folder>: pictures of the bar at 1180 and 900 pt and of Now Playing with
 /// each panel. Your settings are borrowed and put back.
@@ -186,9 +186,8 @@ extension SelfTest {
             measure(.lyrics)
             windowShot("nowplaying-lyrics")
 
-            // the timed lines (Lyrics shows): Figtree ExtraBold at 24 pt, tracked -0.6, each layer as tall as CoreText
+            // the timed lines (Lyrics shows): the system's bold at LyricsFont.size, each layer as tall as CoreText
             // measures its text, the noted line in the accent
-            check("Figtree ExtraBold is registered for the app", NSFont(name: LyricsFont.name, size: 24) != nil)
             if let view = descendants(of: root).compactMap({ $0 as? LyricLinesView }).first, let top = view.layer {
                 func layers(_ layer: CALayer) -> [CALayer] { [layer] + (layer.sublayers ?? []).flatMap(layers) }
                 let texts = layers(top).compactMap { $0 as? CATextLayer }
@@ -197,9 +196,9 @@ extension SelfTest {
                 let fonts = drawn.compactMap { $0.1.attribute(.font, at: 0, effectiveRange: nil) as? NSFont }
                 let face = fonts.first.map { "\($0.fontName) \($0.pointSize)" } ?? "-"
                 report("bar2: \(texts.count) lyric lines, \(drawn.count) drawn so far; first font \(face)")
-                check("the timed lines are drawn in Figtree ExtraBold 24", !drawn.isEmpty && fonts.count == drawn.count
-                      && fonts.allSatisfy { $0.fontName == LyricsFont.name && $0.pointSize == 24 })
-                check("… tracked -0.6", drawn.allSatisfy { ($0.1.attribute(.kern, at: 0, effectiveRange: nil) as? NSNumber)?.doubleValue == -0.6 })
+                let system = NSFont.systemFont(ofSize: LyricsFont.size, weight: .bold)
+                check("the timed lines are drawn in the system's bold, \(Int(LyricsFont.size)) pt", !drawn.isEmpty && fonts.count == drawn.count
+                      && fonts.allSatisfy { $0.fontName == system.fontName && $0.pointSize == LyricsFont.size })
                 let measured = drawn.map { layer, text in
                     let room = CGSize(width: layer.bounds.width, height: .greatestFiniteMagnitude)
                     return ceil(CTFramesetterSuggestFrameSizeWithConstraints(CTFramesetterCreateWithAttributedString(text), CFRange(), nil,

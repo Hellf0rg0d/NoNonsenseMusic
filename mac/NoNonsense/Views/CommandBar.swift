@@ -449,7 +449,7 @@ private struct KeyChip: View {
 
     var body: some View {
         Text(keys)
-            .textStyle(size: 11, weight: .semibold)
+            .textStyle(.caption, weight: .semibold)
             .foregroundStyle(.secondary)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .overlay { RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.primary.opacity(0.16)) }
@@ -510,7 +510,7 @@ private struct CommandList: View {
                 ScrollView { rows(shown, chosen: chosen) }
             }
             Text(hint)
-                .textStyle(size: 11.5)
+                .textStyle(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .padding(EdgeInsets(top: 8, leading: 14, bottom: 6, trailing: 14))
@@ -562,13 +562,12 @@ private struct CommandList: View {
                 switch line {
                 case .heading(let text):
                     Text(text)
-                        .textStyle(size: 11.5, weight: .bold)
-                        .tracking(1.2)
+                        .textStyle(.caption, weight: .semibold)
                         .foregroundStyle(.secondary)
                         .padding(EdgeInsets(top: 10, leading: 14, bottom: 4, trailing: 14))
                 case .searching:
                     Text("Searching…")
-                        .textStyle(size: 13)
+                        .textStyle(.body)
                         .foregroundStyle(.secondary)
                         .padding(EdgeInsets(top: 6, leading: 14, bottom: 10, trailing: 14))
                 case .row(let index, let entry):
@@ -597,7 +596,7 @@ private struct CommandRow: View {
             picture.padding(.trailing, 12)
             words.frame(maxWidth: .infinity, alignment: .leading)
             if let keys = entry.keys { KeyChip(keys: keys).padding(.leading, 10) }
-            if entry.isAll { Image(systemName: "arrow.right").textStyle(size: 13).foregroundStyle(.secondary) }
+            if entry.isAll { Image(systemName: "arrow.right").textStyle(.body).foregroundStyle(.secondary) }
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background {
@@ -627,14 +626,14 @@ private struct CommandRow: View {
     @ViewBuilder private var words: some View {
         if let song = entry.song {
             VStack(alignment: .leading, spacing: 1) {
-                Text(song.title).textStyle(size: 14, weight: .semibold).lineLimit(1)
-                Text(song.artistLine).textStyle(size: 12.5).foregroundStyle(.secondary).lineLimit(1)
+                Text(song.title).textStyle(.body, weight: .medium).lineLimit(1)
+                Text(song.artistLine).textStyle(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(entry.title).textStyle(size: 14, weight: .semibold).lineLimit(1).layoutPriority(1)
+                Text(entry.title).textStyle(.body, weight: .medium).lineLimit(1).layoutPriority(1)
                 if let detail = entry.detail {
-                    Text(detail).textStyle(size: 12.5).foregroundStyle(.secondary).lineLimit(1)
+                    Text(detail).textStyle(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
         }

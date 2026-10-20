@@ -15,8 +15,7 @@ struct JamButton: View {
                 Text("Jam").selfTestFrame("jam.title")
                 if jam.inJam {
                     Text("LIVE")
-                        .tracking(0.8)
-                        .textStyle(size: 10.5, weight: .heavy)
+                        .textStyle(.caption, weight: .semibold)
                         .padding(.horizontal, 7).padding(.vertical, 2)
                         .background(.tint.opacity(0.2), in: .capsule)
                         #if DEBUG
@@ -25,7 +24,7 @@ struct JamButton: View {
                         #endif
                 }
             }
-            .textStyle(size: 14, weight: .semibold)
+            .textStyle(.body, weight: .medium)
             .foregroundStyle(jam.inJam ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
         }
         .help(jam.inJam ? "Jam" : "Start or Join a Jam")

@@ -25,8 +25,7 @@ struct HomeView: View {
                 // one quiet line, then the song playing: the song is the page's headline, not the greeting
                 VStack(alignment: .leading, spacing: 18) {
                     Text(Self.greeting(hour: Calendar.current.component(.hour, from: .now), name: account.user?.username))
-                        .tracking(-0.3)
-                        .textStyle(size: 22, weight: .semibold)
+                        .textStyle(.title2, weight: .bold)
                         .foregroundStyle(.primary.opacity(0.85))
                     NowHero()
                         .selfTestFrame("home.hero")
@@ -83,7 +82,7 @@ struct HomeView: View {
                                         @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: gap) {
             HStack(alignment: .firstTextBaseline) {
-                Text(title).tracking(-0.3).textStyle(size: 22, weight: .bold)
+                Text(title).textStyle(.title2, weight: .bold)
                 Spacer()
                 Button { open(seeAll) } label: {
                     HStack(spacing: 4) {
@@ -92,7 +91,7 @@ struct HomeView: View {
                     }
                 }
                 .buttonStyle(.quiet)
-                .textStyle(size: 14, weight: .medium)
+                .textStyle(.body, weight: .medium)
                 .foregroundStyle(.primary.opacity(0.7))
             }
             content()
@@ -383,8 +382,8 @@ private struct LibraryTile<Picture: View>: View {
         HStack(spacing: 14) {
             picture()
             VStack(alignment: .leading, spacing: 2) {
-                Text(name).textStyle(size: 14.5, weight: .semibold).lineLimit(1)
-                Text(detail).textStyle(size: 12.5).foregroundStyle(.primary.opacity(0.55)).lineLimit(1)
+                Text(name).textStyle(.body, weight: .medium).lineLimit(1)
+                Text(detail).textStyle(.subheadline).foregroundStyle(.primary.opacity(0.55)).lineLimit(1)
             }
             Spacer(minLength: 0)
         }
@@ -534,8 +533,8 @@ private struct CompactSongFace: View {
                     .opacity(hovering || current ? 1 : 0)
                 }
             VStack(alignment: .leading, spacing: 2) {
-                Text(track.title).textStyle(size: 14, weight: .medium).lineLimit(1)
-                Text(track.artistLine).textStyle(size: 12).foregroundStyle(.primary.opacity(0.66)).lineLimit(1)
+                Text(track.title).textStyle(.body, weight: .medium).lineLimit(1)
+                Text(track.artistLine).textStyle(.subheadline).foregroundStyle(.primary.opacity(0.66)).lineLimit(1)
             }
             Spacer(minLength: 4)
         }

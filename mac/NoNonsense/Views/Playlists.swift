@@ -122,8 +122,8 @@ struct PlaylistView: View {
                 .selfTestFrame("playlist.cover")
             VStack(alignment: .leading, spacing: 4) {
                 Text(detail.summary.isAlbum ? "Album" : "Playlist")
-                    .tracking(1.4).textStyle(size: 11, weight: .bold).textCase(.uppercase).foregroundStyle(.secondary)
-                Text(detail.name).tracking(-0.5).textStyle(size: 32, weight: .bold).lineLimit(2)
+                    .textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                Text(detail.name).textStyle(size: 34, weight: .bold).lineLimit(2)
                 Text(Self.stats(count: detail.items.count, seconds: detail.duration))
                     .textStyle(.body)
                     .foregroundStyle(.secondary)

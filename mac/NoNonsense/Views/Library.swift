@@ -12,7 +12,7 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                Text("Library").tracking(-1).textStyle(size: 40, weight: .bold).selfTestFrame("library.title")
+                Text("Library").textStyle(size: 34, weight: .bold).selfTestFrame("library.title")
                 section("Collections") {
                     ForEach(SidebarItem.collections(downloads)) { item in
                         CollectionCard(item: item, count: item.songCount(library: library, downloads: downloads), side: cardSize) {
@@ -40,7 +40,7 @@ struct LibraryView: View {
     /// A heading over cards that wrap onto new lines, as on Home.
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).tracking(-0.3).textStyle(size: 22, weight: .bold)
+            Text(title).textStyle(.title2, weight: .bold)
             FlowLayout(spacing: 22, lineSpacing: 22) { content() }
         }
     }

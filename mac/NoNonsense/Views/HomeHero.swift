@@ -89,16 +89,14 @@ private struct NowCard: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(label)
-                    .tracking(2)
-                    .textStyle(size: 11.5, weight: .bold)
+                    .textStyle(.caption, weight: .semibold)
                     .foregroundStyle(theme.color(.buttons) ?? .accentColor)    // Settings › Colours › Buttons
                 Text(track.title)
-                    .tracking(-1.2)
-                    .textStyle(size: 42, weight: .heavy)
+                    .textStyle(.largeTitle, weight: .bold)
                     .lineLimit(1)
                     .padding(.top, 6)
                 Text(track.artistLine)
-                    .textStyle(size: 16)
+                    .textStyle(.title3)
                     .foregroundStyle(.primary.opacity(0.65))
                     .lineLimit(1)
                     .padding(.top, 2)
@@ -156,7 +154,7 @@ private struct UpNextCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Up Next")
-                    .textStyle(size: 15, weight: .semibold)
+                    .textStyle(.body, weight: .medium)
                     .foregroundStyle(.primary.opacity(0.85))
                     .padding(.leading, 4)
                 Spacer()
@@ -165,7 +163,7 @@ private struct UpNextCard: View {
                     player.showNowPlaying = true
                 }
                 .buttonStyle(.quiet)
-                .textStyle(size: 14, weight: .medium)
+                .textStyle(.body, weight: .medium)
                 .foregroundStyle(.primary.opacity(0.7))
                 .padding(.trailing, 12)                            // over the songs' lengths
                 .help("Open Up Next")
@@ -192,13 +190,13 @@ private struct UpNextLine: View {
         HStack(spacing: 12) {
             ArtworkView(url: track.image, size: 40, radius: 6)
             VStack(alignment: .leading, spacing: 0) {
-                Text(track.title).textStyle(size: 14, weight: .semibold).lineLimit(1)
-                Text(track.artistLine).textStyle(size: 12.5).foregroundStyle(.primary.opacity(0.55)).lineLimit(1)
+                Text(track.title).textStyle(.body, weight: .medium).lineLimit(1)
+                Text(track.artistLine).textStyle(.subheadline).foregroundStyle(.primary.opacity(0.55)).lineLimit(1)
             }
             Spacer(minLength: 8)
             Text(formatTime(Double(track.duration)))
                 .monospacedDigit()
-                .textStyle(size: 12.5)
+                .textStyle(.subheadline)
                 .foregroundStyle(.primary.opacity(0.5))
         }
         .padding(.horizontal, 4)
@@ -232,16 +230,14 @@ private struct ResumeCard: View {
                 .accessibilityLabel("Play \(track.title)")
             VStack(alignment: .leading, spacing: 0) {
                 Text("PICK UP WHERE YOU LEFT OFF")
-                    .tracking(2)
-                    .textStyle(size: 11.5, weight: .bold)
+                    .textStyle(.caption, weight: .semibold)
                     .foregroundStyle(.primary.opacity(0.55))
                 Text(track.title)
-                    .tracking(-0.6)
-                    .textStyle(size: 26, weight: .heavy)
+                    .textStyle(.largeTitle, weight: .bold)
                     .lineLimit(1)
                     .padding(.top, 6)
                 Text(track.artistLine)
-                    .textStyle(size: 14.5)
+                    .textStyle(.body)
                     .foregroundStyle(.primary.opacity(0.65))
                     .lineLimit(1)
             }

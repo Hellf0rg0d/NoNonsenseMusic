@@ -99,7 +99,7 @@ struct SidebarView: View {
                 .scaledToFit()
                 .frame(height: 20)
                 .accessibilityHidden(true)
-            Text("NoNonsenseMusic").tracking(-0.2).textStyle(size: 14.5, weight: .bold).lineLimit(1)
+            Text("NoNonsenseMusic").textStyle(.body, weight: .medium).lineLimit(1)
         }
         .foregroundStyle(.primary)
         .padding(.bottom, 10)
@@ -113,7 +113,7 @@ struct SidebarView: View {
             Divider()
             HStack(spacing: 10) {
                 Avatar(name: name, size: 34)
-                Text(name).textStyle(size: 14, weight: .semibold).lineLimit(1)
+                Text(name).textStyle(.body, weight: .medium).lineLimit(1)
                 Spacer(minLength: 4)
                 SettingsLink { Image(systemName: "gearshape").font(.title3) }
                     .buttonStyle(.quiet)
@@ -163,8 +163,8 @@ private struct PictureRow<Picture: View>: View {
                 .clipShape(.rect(cornerRadius: 8, style: .continuous))
                 .selfTestFrame("sidebar.icon:\(name)")
             VStack(alignment: .leading, spacing: 1) {
-                Text(name).textStyle(size: 13.5, weight: .semibold).lineLimit(1).selfTestFrame("sidebar.title:\(name)")
-                Text(detail).textStyle(size: 12).foregroundStyle(.secondary).lineLimit(1)
+                Text(name).textStyle(.body, weight: .semibold).lineLimit(1).selfTestFrame("sidebar.title:\(name)")
+                Text(detail).textStyle(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
         }
         .padding(.vertical, 2)
@@ -477,7 +477,7 @@ struct SongListView: View {
     private func header(_ tracks: [Track]) -> some View {
         HStack(alignment: .bottom, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title).tracking(-0.6).textStyle(size: 32, weight: .bold)         // as the Windows app's (15 Oct)
+                Text(item.title).textStyle(size: 34, weight: .bold)
                 Text(item == .downloads ? "\(Self.count(tracks.count)) · \(formatBytes(downloads.totalBytes)) on this Mac" : Self.count(tracks.count))
                     .textStyle(.body).foregroundStyle(.secondary)
             }

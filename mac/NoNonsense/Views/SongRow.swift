@@ -189,7 +189,7 @@ private struct SongRowLine: View {
         ZStack {
             Text(String(number))
                 .monospacedDigit()
-                .textStyle(size: 15, weight: .semibold)
+                .textStyle(.body, weight: .medium)
                 .foregroundStyle(.primary.opacity(0.42))
                 .opacity(current || hovering ? 0 : 1)
             Image(systemName: "play.fill")

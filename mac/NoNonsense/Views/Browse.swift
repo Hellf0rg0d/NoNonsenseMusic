@@ -88,8 +88,8 @@ struct ArtistView: View {
                     .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
                     .selfTestFrame("artist.picture")
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Artist").tracking(1.4).textStyle(size: 11, weight: .bold).textCase(.uppercase).foregroundStyle(.secondary)
-                    Text(artist.name).tracking(-0.5).textStyle(size: 36, weight: .bold).lineLimit(2).padding(.top, 4)
+                    Text("Artist").textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                    Text(artist.name).textStyle(size: 34, weight: .bold).lineLimit(2).padding(.top, 4)
                     if let listeners = artist.monthlyListeners ?? artist.followers {
                         Text("\(listeners.formatted(.number.notation(.compactName))) \(artist.monthlyListeners != nil ? "monthly listeners" : "followers")")
                             .textStyle(.body).foregroundStyle(.secondary).padding(.top, 6)
@@ -179,11 +179,11 @@ struct AlbumView: View {
                     .shadow(color: .black.opacity(0.25), radius: 18, y: 10)
                     .selfTestFrame("album.cover")
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Album").tracking(1.4).textStyle(size: 11, weight: .bold).textCase(.uppercase).foregroundStyle(.secondary)
-                    Text(album.title).tracking(-0.5).textStyle(size: 34, weight: .bold).lineLimit(2).padding(.top, 4)
-                    ArtistLinks(artists: album.artists).textStyle(size: 20, weight: .medium).foregroundStyle(.tint).padding(.top, 4)
+                    Text("Album").textStyle(.caption, weight: .semibold).textCase(.uppercase).foregroundStyle(.secondary)
+                    Text(album.title).textStyle(size: 34, weight: .bold).lineLimit(2).padding(.top, 4)
+                    ArtistLinks(artists: album.artists).textStyle(.title3, weight: .medium).foregroundStyle(.tint).padding(.top, 4)
                     Text(Self.facts(year: album.year, songs: tracks.count, minutes: minutes))
-                        .tracking(0.6).textStyle(size: 11.5, weight: .semibold).foregroundStyle(.secondary).padding(.top, 6)
+                        .textStyle(.caption, weight: .semibold).foregroundStyle(.secondary).padding(.top, 6)
                     HStack(spacing: 10) {
                         PlayShuffleButtons(tracks: tracks)
                         Button {
