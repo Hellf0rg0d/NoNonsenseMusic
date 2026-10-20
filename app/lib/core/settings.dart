@@ -95,8 +95,9 @@ class Look extends ThemeExtension<Look> {
   });
 
   /// A phone's: the bars without blur, as a blur is drawn again with every frame anything under it moves (battery,
-  /// #29).
-  static const phone = Look(barBlur: 0);
+  /// #29), and so mostly filled in: with neither, the songs scrolling under the player bar read through its own title
+  /// (20 Oct). The Mac's rule: the less blur, the more fill.
+  static const phone = Look(barBlur: 0, barSolid: 0.85);
 
   static final Look defaults = Platform.isAndroid ? phone : const Look();
 

@@ -94,7 +94,8 @@ void main() {
       expect((look.barBlur, look.solid(0.88)), (1, 0.88), reason: 'the bar as it was: blurred, its tint at 88%');
       expect([Look.strong(look.artStrength, 0.55), Look.strong(look.nowPlayingColour, 0.78), look.cardSize], [closeTo(0.55, 1e-9), closeTo(0.78, 1e-9), 148],
           reason: 'the cover as strong as before, behind the window and in Now Playing');
-      expect((Look.phone.barBlur, Look.phone.copyWith(barBlur: 1)), (0, const Look()), reason: "a phone's bars only lose the blur");
+      expect((Look.phone.barBlur, Look.phone.barSolid, Look.phone.copyWith(barBlur: 1, barSolid: 0)), (0, 0.85, const Look()),
+          reason: "a phone's bars lose the blur and are filled in instead, nothing else");
     });
 
     test('every option is kept, and only what changed is written', () async {
@@ -203,7 +204,7 @@ void main() {
       final (settings, _) = await app(tester, const Shell(), size: const Size(400, 800), look: Look.phone);
       Iterable<GlassSurface> bars() => tester.widgetList<GlassSurface>(find.byType(GlassSurface)).where((g) => g.radius == 22 || g.radius == 28);
       expect(bars().length, 2, reason: 'the player bar and the tabs');
-      expect(bars().every((g) => g.blur == 0 && g.solid == 0), isTrue);
+      expect(bars().every((g) => g.blur == 0 && g.solid == 0.85), isTrue, reason: 'no blur, so mostly filled in: readable over songs');
       expect(find.byType(BackdropFilter), findsNothing, reason: 'nothing blurred on a phone by default');
       await settings.setLook(settings.look.copyWith(barBlur: 1, barSolid: 0.5));
       await shown(tester);
