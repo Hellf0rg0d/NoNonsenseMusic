@@ -21,6 +21,7 @@ enum Destination: Hashable {
 /// Downloads, your playlists and those shared with you, each a picture with its name and how many songs. Who is signed
 /// in, and Settings, at the bottom. Search is not here: it is the command bar's, at the top of the page.
 struct SidebarView: View {
+    @AppStorage(Shown.sidebarLogo.key) private var showLogo = Shown.sidebarLogo.on
     @Binding var selection: Destination?
     @Environment(LibraryStore.self) private var library
     @Environment(DownloadStore.self) private var downloads
@@ -38,7 +39,7 @@ struct SidebarView: View {
         // rows did this before, but it competed with the list's own click and ate clicks on a row's text (11 Oct)
         List(selection: Binding(get: { Navigator.shared.path.isEmpty ? selection : nil },
                                 set: { if let picked = $0 { selection = picked; Navigator.shared.path = [] } })) {
-            brand                                                   // no tag: not a place, never selected
+            if showLogo { brand }                                   // no tag: not a place, never selected
             ForEach(Self.places) { item in
                 Label {
                     Text(item.title).selfTestFrame("sidebar.title:\(item.title)").selfTestFrame("sidebar.place:\(item.title)")

@@ -11,6 +11,11 @@ struct HomeView: View {
     @Environment(Player.self) private var player
     @Environment(Account.self) private var account
     @AppStorage("cardSize") private var cardSize = Double(Look.cardSize)
+    @AppStorage(Shown.greeting.key) private var showGreeting = Shown.greeting.on
+    @AppStorage(Shown.nowPlayingCard.key) private var showNowPlaying = Shown.nowPlayingCard.on
+    @AppStorage(Shown.jumpBackIn.key) private var showJumpBackIn = Shown.jumpBackIn.on
+    @AppStorage(Shown.homeLibrary.key) private var showLibrary = Shown.homeLibrary.on
+    @AppStorage(Shown.homeLiked.key) private var showLiked = Shown.homeLiked.on
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var appeared = false
 
@@ -24,11 +29,15 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // one quiet line, then the song playing: the song is the page's headline, not the greeting
                 VStack(alignment: .leading, spacing: 18) {
-                    Text(Self.greeting(hour: Calendar.current.component(.hour, from: .now), name: account.user?.username))
-                        .textStyle(.title2, weight: .bold)
-                        .foregroundStyle(.primary.opacity(0.85))
-                    NowHero()
-                        .selfTestFrame("home.hero")
+                    if showGreeting {
+                        Text(Self.greeting(hour: Calendar.current.component(.hour, from: .now), name: account.user?.username))
+                            .textStyle(.title2, weight: .bold)
+                            .foregroundStyle(.primary.opacity(0.85))
+                    }
+                    if showNowPlaying {
+                        NowHero()
+                            .selfTestFrame("home.hero")
+                    }
                 }
                 .padding(.bottom, 28)
                 .appear(appeared, order: 0, reduceMotion: reduceMotion)
@@ -44,7 +53,7 @@ struct HomeView: View {
                     .padding(.bottom, 32)
                     .appear(appeared, order: 1, reduceMotion: reduceMotion)
                 }
-                if !library.recent.isEmpty {
+                if showJumpBackIn, !library.recent.isEmpty {
                     section("Jump Back In", seeAll: .section(.recent)) {
                         RecentShelf(tracks: Array(library.recent.prefix(20)), side: cardSize) { player.play(library.recent, startAt: $0) }
                     }
@@ -52,10 +61,12 @@ struct HomeView: View {
                     .appear(appeared, order: 1, reduceMotion: reduceMotion)
                 }
                 // always there, with Liked Songs at least (even with no songs yet), as in the Windows app
-                section("Your Library", seeAll: .section(.library), gap: 10) { LibraryGrid(open: open) }
-                    .padding(.bottom, 32)
-                    .appear(appeared, order: 2, reduceMotion: reduceMotion)
-                if !library.liked.isEmpty {
+                if showLibrary {
+                    section("Your Library", seeAll: .section(.library), gap: 10) { LibraryGrid(open: open) }
+                        .padding(.bottom, 32)
+                        .appear(appeared, order: 2, reduceMotion: reduceMotion)
+                }
+                if showLiked, !library.liked.isEmpty {
                     section("Liked Songs", seeAll: .section(.liked)) { likedRows }
                         .appear(appeared, order: 3, reduceMotion: reduceMotion)
                 }

@@ -3,6 +3,7 @@ import SwiftUI
 /// The main window: glass sidebar, the selected screen over the artwork backdrop, the floating player,
 /// and Now Playing on top when open.
 struct RootView: View {
+    @AppStorage(Shown.jamButton.key) private var showJam = Shown.jamButton.on
     @Environment(Player.self) private var player
     @Environment(LibraryStore.self) private var library
     @Environment(ServerLauncher.self) private var server
@@ -69,11 +70,13 @@ struct RootView: View {
                     if now != .section(.search), !searchQuery.isEmpty { searchQuery = "" }   // Search from the sidebar starts empty
                 }
                 .toolbar {
+                    if showJam {
                     ToolbarItem(placement: .primaryAction) {
                         JamButton()
                             #if DEBUG
                             .selfTestToolbarItem("toolbar.jam")
                             #endif
+                    }
                     }
                     ToolbarItem(placement: .primaryAction) {
                         NotificationsButton()

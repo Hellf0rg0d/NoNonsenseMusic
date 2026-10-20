@@ -1,5 +1,37 @@
 import SwiftUI
 
+/// Parts of the window you can turn off (Settings › Appearance › Show), all on by default: the look as built. Views read
+/// `@AppStorage(Shown.x.key)` with `Shown.x.on`.
+enum Shown: String, CaseIterable, Identifiable {
+    case greeting, nowPlayingCard, upNextCard, jumpBackIn, homeLibrary, homeLiked, songSource, trackNumbers, jamButton, sidebarLogo
+
+    var id: String { rawValue }
+    var key: String { "show." + rawValue }
+    var on: Bool { true }
+
+    var label: String {
+        switch self {
+        case .greeting: "Greeting"
+        case .nowPlayingCard: "Now Playing"
+        case .upNextCard: "Up Next beside it"
+        case .jumpBackIn: "Jump Back In"
+        case .homeLibrary: "Your Library"
+        case .homeLiked: "Liked Songs"
+        case .songSource: "Where each song plays from"
+        case .trackNumbers: "Track numbers on albums"
+        case .jamButton: "Jam in the toolbar"
+        case .sidebarLogo: "Logo in the sidebar"
+        }
+    }
+
+    /// The groups Settings shows them in.
+    static let groups: [(String, [Shown])] = [
+        ("Home", [.greeting, .nowPlayingCard, .upNextCard, .jumpBackIn, .homeLibrary, .homeLiked]),
+        ("Lists", [.songSource, .trackNumbers]),
+        ("Window", [.jamButton, .sidebarLogo]),
+    ]
+}
+
 /// The look's defaults, in one place: the window and Settings must agree on them.
 enum Look {
     static let windowOpacity = 0.5      // half see-through
@@ -131,6 +163,7 @@ private struct AppearanceSettings: View {
     // which sections are open, remembered; Colours (seven rows) starts closed
     @AppStorage("settings.open.window") private var openWindow = true
     @AppStorage("settings.open.sizes") private var openSizes = true
+    @AppStorage("settings.open.show") private var openShow = true
     @AppStorage("settings.open.colours") private var openColours = false
     @AppStorage("settings.open.surfaces") private var openSurfaces = true
     @AppStorage("settings.surfacePart") private var part = SurfacePart.main
@@ -244,6 +277,18 @@ private struct AppearanceSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("Sizes")
+            }
+
+            Section(isExpanded: $openShow) {
+                ForEach(Shown.groups, id: \.0) { group, parts in
+                    LabeledContent(group) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(parts) { ShownToggle(part: $0) }
+                        }
+                    }
+                }
+            } header: {
+                Text("Show")
             }
 
             Section(isExpanded: $openColours) {
@@ -1014,4 +1059,17 @@ struct HexColorControl: View {
         .onAppear { draft = hex }
         .onChange(of: hex) { _, new in draft = new }
     }
+}
+
+/// One Settings › Appearance › Show switch.
+private struct ShownToggle: View {
+    let part: Shown
+    @AppStorage private var isOn: Bool
+
+    init(part: Shown) {
+        self.part = part
+        _isOn = AppStorage(wrappedValue: part.on, part.key)
+    }
+
+    var body: some View { Toggle(part.label, isOn: $isOn) }
 }

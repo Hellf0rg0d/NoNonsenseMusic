@@ -6,6 +6,7 @@ import SwiftUI
 /// song plays the one moving part is the time line, which is Core Animation and changes its text once a second
 /// itself (PlaybackTimeline).
 struct NowHero: View {
+    @AppStorage(Shown.upNextCard.key) private var showUpNext = Shown.upNextCard.on
     @Environment(Player.self) private var player
     @Environment(LibraryStore.self) private var library
 
@@ -14,7 +15,7 @@ struct NowHero: View {
         let _ = SelfTest.drew("home.hero")
         #endif
         if let current = player.current {
-            let next = Array(player.upNext.prefix(3))
+            let next = showUpNext ? Array(player.upNext.prefix(3)) : []
             if next.isEmpty {
                 NowCard(track: current)
             } else {

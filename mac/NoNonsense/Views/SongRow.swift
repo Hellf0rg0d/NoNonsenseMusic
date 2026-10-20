@@ -92,11 +92,14 @@ private struct SongRowLine: View {
     @Environment(ThemeStore.self) private var theme
     @Environment(DownloadStore.self) private var downloads
     @State private var hovering = false
+    @AppStorage(Shown.songSource.key) private var showSource = Shown.songSource.on
+    @AppStorage(Shown.trackNumbers.key) private var showNumbers = Shown.trackNumbers.on
 
     /// Settings › Colours › Playing song; System is your Mac's accent.
     private var highlight: Color { theme.color(.playing) ?? .accentColor }
 
     var body: some View {
+        let number = showNumbers ? number : nil          // Settings › Appearance › Show › Track numbers on albums
         let current = player.current.map { $0.isSameSong(as: track) } ?? false
         // an album's playing song: its whole row filled in the playing colour, as Apple Music marks it (15 Oct, as in
         // the Windows app). Other rows keep the hover shade alone
@@ -144,7 +147,9 @@ private struct SongRowLine: View {
 
             Spacer(minLength: 12)
 
-            if track.listings.count == 1 {
+            if !showSource {
+                // Settings › Appearance › Show › Where each song plays from: off
+            } else if track.listings.count == 1 {
                 // one copy: where it plays from, in the place "N listings" takes for songs found on several sources
                 Text(track.best.sourceName)
                     .textStyle(.caption)
