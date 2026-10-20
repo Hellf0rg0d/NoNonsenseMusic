@@ -1,5 +1,8 @@
 # The Windows app: built and tested on a real Windows machine on every push that touches app/ (a Windows app can only
-# be built on Windows). The zip under "Artifacts" on the run's page is the app: unzip, run NoNonsenseMusic.exe.
+# be built on Windows), and packed here for a release: NoNonsenseMusic-Setup.exe (windows/installer.iss) and
+# NoNonsenseMusic-Windows.zip, both under "Artifacts" on the run's page. Packed on Windows: a zip made on a Mac carried
+# a "._" twin of every file (macOS's metadata), and a friend ran ._NoNonsenseMusic.exe ("This app can't run on your PC",
+# 20 Oct).
 name: Windows app
 
 on:
@@ -24,7 +27,32 @@ jobs:
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build windows --release
+      # the app and every plugin load these three (msvcp140, vcruntime140, vcruntime140_1; ucrtbase is part of Windows
+      # 10 and 11): beside the app, a PC without Microsoft's Visual C++ Redistributable runs it too
+      - name: The Visual C++ runtime beside the app
+        shell: pwsh
+        run: |
+          foreach ($dll in "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll") {
+            Copy-Item "$env:WINDIR\System32\$dll" build/windows/x64/runner/Release/
+          }
+      - name: The installer and the zip
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
+          $build = (Resolve-Path build/windows/x64/runner/Release).Path
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc /Qp "/DAppVersion=$version" "/DSourceDir=$build" windows/installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force build/zip | Out-Null
+          Copy-Item -Recurse $build build/zip/NoNonsenseMusic
+          Compress-Archive -Path build/zip/NoNonsenseMusic -DestinationPath build/installer/NoNonsenseMusic-Windows.zip
+          Get-ChildItem build/installer | Format-Table Name, Length
       - uses: actions/upload-artifact@v4
         with:
           name: NoNonsenseMusic-windows
           path: app/build/windows/x64/runner/Release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NoNonsenseMusic-windows-release
+          path: app/build/installer/
