@@ -472,7 +472,7 @@ private struct PlaybackSettings: View {
 enum LyricsFetch: String, CaseIterable, Identifiable {
     case songStart, onOpen
     var id: String { rawValue }
-    var label: String { self == .songStart ? "When a song starts, and the next song's too" : "Only when I open Lyrics" }
+    var label: String { self == .songStart ? "Ahead of time, so they're ready when I open them" : "Only when I open Lyrics" }
 }
 
 private struct LyricsSettings: View {
@@ -484,7 +484,7 @@ private struct LyricsSettings: View {
     var body: some View {
         Form {
             Section {
-                Picker("Fetch lyrics", selection: $fetch) {
+                Picker("Load lyrics", selection: $fetch) {
                     ForEach(LyricsFetch.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.radioGroup)
@@ -495,7 +495,7 @@ private struct LyricsSettings: View {
                     Text(String(format: "%.1f s: the light and the scroll move together", motion)).foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("Fetching when a song starts has the lyrics ready when you open them. Downloaded songs keep their lyrics offline.")
+                Text("Ahead of time loads them as a song starts, and the next song's too. Downloaded songs keep theirs offline.")
                     .foregroundStyle(.secondary)
             }
             Section {

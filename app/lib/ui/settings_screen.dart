@@ -219,11 +219,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         heading('Storage'),
         const StorageSettings(),
         heading('Lyrics'),
+        // the question the two answers below are for: without it, "When a song starts" read as lyrics showing by
+        // themselves (20 Oct). As on the Mac (Settings › Lyrics › Load lyrics)
+        const ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text('Load lyrics'),
+          subtitle: Text("Ahead of time loads them as a song starts, and the next song's too. Downloaded songs keep theirs offline."),
+        ),
         RadioGroup<bool>(
           groupValue: s.settings.lyricsEarly,
           onChanged: (v) { if (v != null) s.settings.setLyricsEarly(v); },
           child: const Column(children: [
-            RadioListTile<bool>(value: true, title: Text("When a song starts, and the next song's too")),
+            RadioListTile<bool>(value: true, title: Text("Ahead of time, so they're ready when I open them")),
             RadioListTile<bool>(value: false, title: Text('Only when I open Lyrics')),
           ]),
         ),
