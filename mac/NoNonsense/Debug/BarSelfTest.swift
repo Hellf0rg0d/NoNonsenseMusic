@@ -40,7 +40,7 @@ extension SelfTest {
             UserDefaults.standard.set(NowPlayingPanel.none.rawValue, forKey: "nowPlayingPanel")
             UserDefaults.standard.set(false, forKey: "autoplay")                   // Up Next stays as made here
             UserDefaults.standard.set(true, forKey: "geniusNotes")
-            UserDefaults.standard.removeObject(forKey: "textScale")               // the lyrics at 24 pt
+            UserDefaults.standard.removeObject(forKey: "textScale")               // the lyrics at LyricsFont.size
             if !player.isMuted { player.toggleMute() }
 
             // made-up songs, and lyrics for the first: timed, one line long enough to wrap, one with a Genius note
@@ -208,8 +208,12 @@ extension SelfTest {
                       zip(drawn, measured).allSatisfy { abs($0.0.bounds.height - $1) < 0.5 })
                 if strings.count > 4, let noted = strings[2], let plain = strings[4], let wrapped = strings[3] {
                     let row = texts[4].bounds.height
-                    check("a one-row line is the face's own 1.2 × 24 high (+2)", abs(row - (24 * 1.2 + 2)) <= 1.2, String(format: "%.1f pt", row))
-                    check("the long line wraps, and its layer holds every row", texts[3].bounds.height >= 2 * 24 * 1.2 && !wrapped.string.isEmpty,
+                    // one line of the face: its ascender, descender and leading (CoreText's line), as drawn
+                    let face = LyricsFont.nsFont(size: LyricsFont.size)
+                    let line = face.ascender - face.descender + face.leading
+                    check("a one-row line is the face's own line high (+2)", abs(row - (line + 2)) <= 1.2,
+                          String(format: "%.1f pt, the face's line %.1f", row, line))
+                    check("the long line wraps, and its layer holds every row", texts[3].bounds.height >= 2 * line && !wrapped.string.isEmpty,
                           String(format: "%.1f pt", texts[3].bounds.height))
                     let colour = { (text: NSAttributedString) in text.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor }
                     let underlined = noted.attribute(.underlineStyle, at: 0, effectiveRange: nil) != nil

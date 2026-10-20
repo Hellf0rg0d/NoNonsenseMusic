@@ -664,7 +664,6 @@ class _ResumeCard extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('PICK UP AGAIN', // one line on a phone too (it took two, 20 Oct)
-                
                 style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, letterSpacing: 2, color: ink.withValues(alpha: 0.55))),
             const SizedBox(height: 6),
             Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis,
