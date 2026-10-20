@@ -137,14 +137,28 @@ extension SelfTest {
                     self.end_headers()
                     with open('tone.m4a', 'rb') as f: f.seek(start); self.wfile.write(f.read(end - start + 1))
                 def log_message(self, *a): pass
-            http.server.ThreadingHTTPServer(('127.0.0.1', 8798), H).serve_forever()
+            s = http.server.ThreadingHTTPServer(('127.0.0.1', 8798), H)
+            open('ready', 'w').close()
+            s.serve_forever()
             """]
             // its output nowhere: holding the app's output pipe, a server left running kept the test from ever ending
             // (8 Oct). Stopped before the app quits, below: NSApp.terminate skips a `defer`
             server.standardOutput = FileHandle.nullDevice
             server.standardError = FileHandle.nullDevice
             try? server.run()
-            try? await Task.sleep(for: .seconds(1))
+            // waited for until it listens ("ready" is written once the port is bound), never for a fixed time: the test
+            // slept 1 s, and on GitHub's Mac runner Python often took longer to start, so the loader's first request
+            // found no server. Its two retries (0.4 s, 0.8 s, for a dropped connection mid-song) hid that up to 2.2 s,
+            // as 1–2 s "to sound" on a local file (here: 0.2 s); past it, the item failed with "Could not connect to
+            // the server", about two runs in three since 13 Oct (20 Oct, reproduced by delaying the server's start)
+            let launched = Date()
+            while !FileManager.default.fileExists(atPath: dir.appending(path: "ready").path), server.isRunning,
+                  Date().timeIntervalSince(launched) < 30 {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            let listening = FileManager.default.fileExists(atPath: dir.appending(path: "ready").path)
+            check("the test server listens", listening, server.isRunning ? "nothing in 30 s" : "Python stopped: is port 8798 taken?")
+            if listening { report(String(format: "loader: test server up in %.0f ms", Date().timeIntervalSince(launched) * 1000)) }
 
             let toneKey = "selftest:tone-\(UUID().uuidString)"
             let probe = AVPlayer()
@@ -158,12 +172,18 @@ extension SelfTest {
                 if probe.currentTime().seconds > 0.05 { heard = Date().timeIntervalSince(start) }
                 try? await Task.sleep(for: .milliseconds(10))
             }
-            check("plays through the loader", heard != nil, "no sound in 5 s")
-            if let heard { report(String(format: "loader: play → sound %.0f ms (a local file; YouTube adds the network)", heard * 1000)) }
-            _ = await probe.seek(to: CMTime(seconds: 100, preferredTimescale: 600))
-            probe.play()
-            try? await Task.sleep(for: .seconds(1.5))
-            check("a seek near the end plays on from there", probe.currentTime().seconds > 100, String(format: "%.1f s", probe.currentTime().seconds))
+            check("plays through the loader", heard != nil, "no sound in 5 s\(probe.currentItem?.error.map { ": \($0.localizedDescription)" } ?? "")")
+            if let heard {
+                report(String(format: "loader: play → sound %.0f ms (a local file; YouTube adds the network)", heard * 1000))
+                // only on an item that played: on a failed one Apple's seek never returns, and the test hung until
+                // the step's alarm, leaving this server and the app's test server running (20 Oct)
+                _ = await probe.seek(to: CMTime(seconds: 100, preferredTimescale: 600))
+                probe.play()
+                try? await Task.sleep(for: .seconds(1.5))
+                check("a seek near the end plays on from there", probe.currentTime().seconds > 100, String(format: "%.1f s", probe.currentTime().seconds))
+            } else {
+                check("a seek near the end plays on from there", false, "not tried: nothing played")
+            }
             probe.pause()
             let asked = ((try? String(contentsOf: dir.appending(path: "ranges.log"), encoding: .utf8)) ?? "").split(separator: "\n").map(String.init)
             report("loader: \(asked.count) requests: \(asked.prefix(8).joined(separator: ", "))\(asked.count > 8 ? ", …" : "")")
