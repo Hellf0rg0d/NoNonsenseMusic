@@ -104,12 +104,26 @@ The Mac app is written in SwiftUI and follows the platform closely.
 - Pinch out on the player bar to open Now Playing, and pinch in to close it.
 - On a Force Touch trackpad, scrubbing, reordering a playlist and errors give haptic feedback.
 - The window's transparency can be adjusted, and its background takes its colours from the current cover.
+- Two looks: Classic, which follows the Mac's own apps, and New, the redesign. Settings › Appearance › Look.
 - Lyrics are translated on the device for the languages Apple supports.
 - Media keys and Control Center control playback.
 - Keyboard shortcuts cover playback, volume, search and lyrics.
 - What you are listening to can be shown on your Discord profile.
 - Settings › Footprint shows the CPU and memory the app is using.
 - Started from the repository, the app starts the server itself when none is running.
+
+## On Windows and Android
+
+The Windows and Android app is written in Flutter, from one codebase. In a wide window it has a sidebar and a command bar (Ctrl+K); on a phone it has four tabs: Home, Search, Library and Friends.
+
+<img src=".github/screenshots/wide.png" alt="The wide layout, as on Windows (pictured on an Android tablet)" width="760">
+
+<p>
+<img src=".github/screenshots/phone-home.png" alt="Home on Android" width="200">
+<img src=".github/screenshots/phone-search.png" alt="Search on Android" width="200">
+<img src=".github/screenshots/phone-playing.png" alt="Now Playing on Android" width="200">
+<img src=".github/screenshots/phone-library.png" alt="Library on Android" width="200">
+</p>
 
 ## Privacy
 
