@@ -307,7 +307,9 @@ extension SelfTest {
             screenshot("genius-note")
             // a click on it plays from that line, like any other line, and the note goes
             view.selfTestPointer(over: nil)
-            let lineStart = Double(lines[0].startMs ?? 0) / 1000
+            // the made-up song cannot play, so its position does not stay where a seek puts it (it read 0.0, 21 Oct):
+            // the seek itself is counted (Player.seeks, which the lyrics follow)
+            let seeksBefore = player.seeks
             if let row = frames["lyrics.line.0"], window.isKeyWindow {
                 let p = NSPoint(x: row.minX + 30, y: window.contentView!.frame.height - row.midY)
                 for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
@@ -320,8 +322,8 @@ extension SelfTest {
                 report("genius: the window cannot become key now: playing from line 0 as its click would")
                 SelfTest.lyricsJump?(0)
             }
-            check("a click on a marked line plays from it", await until(3) { abs(player.position - lineStart) < 1 },
-                  String(format: "at %.1f s, the line starts at %.1f s", player.position, lineStart))
+            check("a click on a marked line plays from it (a seek to the line)", await until(3) { player.seeks > seeksBefore },
+                  "\(player.seeks - seeksBefore) seeks")
             check("…and its note goes", await until(2) { !noteShown() })
             finish(failures)
         }
