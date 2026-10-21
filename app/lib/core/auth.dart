@@ -180,10 +180,17 @@ class Auth extends ChangeNotifier {
     } on ApiError catch (e) {
       unreachable = false;
       return e.toString();
-    } catch (_) {
-      unreachable = true;
-      return "Can't connect to the server.";
+    } catch (e) {
+      return _failed(e);
     }
+  }
+
+  /// Says why a sign-in got no usable answer, and marks the server unreachable only when the network was the reason.
+  /// Anything else went wrong here, after the server answered, and shows its own words.
+  String _failed(Object e) {
+    final why = whyNoAnswer(e);
+    unreachable = why != null;
+    return why ?? 'Something went wrong in the app: $e';
   }
 
   /// The recovery codes dialog was closed.
@@ -206,9 +213,8 @@ class Auth extends ChangeNotifier {
     } on ApiError catch (e) {
       unreachable = false;
       return e.toString();
-    } catch (_) {
-      unreachable = true;
-      return "Can't connect to the server.";
+    } catch (e) {
+      return _failed(e);
     }
   }
 

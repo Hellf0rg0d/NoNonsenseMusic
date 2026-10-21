@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -517,6 +519,20 @@ class ApiError implements Exception {
   @override
   String toString() => detail ?? 'The server answered $status.';
 }
+
+/// Why a request got no answer from the server, in words to show, or null when the network was not the reason. Each
+/// failure has its own words (21 Oct): all of them were "Can't connect to the server.", and a laptop that could not
+/// make an account could not tell an address its network cannot find from a certificate it does not trust.
+String? whyNoAnswer(Object e) => switch (e) {
+  TimeoutException() => "The server didn't answer in time.",
+  SocketException(:final message) when message.startsWith('Failed host lookup') =>
+    "Can't find the server. Check its address.",
+  HandshakeException() when '$e'.contains('CERTIFICATE_VERIFY_FAILED') =>
+    "This device doesn't trust the server's certificate. Check its date and time.",
+  TlsException() => "Can't make a secure connection to the server.",
+  SocketException() || http.ClientException() => "Can't connect to the server.",
+  _ => null,
+};
 
 // ---- Genius notes (experimental): POST /genius. Notes only, never Genius's lyrics ----
 
