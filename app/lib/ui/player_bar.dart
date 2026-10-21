@@ -20,6 +20,9 @@ import 'waiting.dart';
 /// The floating player bar: the current song on the left, the transport controls and the progress line in the
 /// centre, and the Lyrics / Up Next panels and the volume on the right. Hidden while no song plays. Tapping
 /// the song opens Now Playing.
+///
+/// On a computer the centre is the bar's own middle (21 Oct): the song and the buttons take equal sides. The buttons'
+/// side was the wider one, which put Play 77 points left of the middle at full width.
 class PlayerBar extends StatelessWidget {
   const PlayerBar({super.key});
 
@@ -134,7 +137,6 @@ class PlayerBar extends StatelessWidget {
               : Row(
                   children: [
                     Expanded(
-                      flex: 4,
                       child: MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: GestureDetector(
@@ -184,7 +186,7 @@ class PlayerBar extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     SizedBox(
                       width: 320,
                       child: Column(
@@ -196,15 +198,16 @@ class PlayerBar extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     // In a narrow window the volume folds away before the panels, as on the Mac.
                     Expanded(
-                      flex: 7,
                       child: LayoutBuilder(
                         // The controls the room has, kept in order of need: like, the volume, Up Next, Lyrics, then the
                         // full-screen button (the cover opens Now Playing too).
-                        // Measured: like and each button 48, the volume 122 after a gap of 6. The volume used to fold
-                        // away first, at a guessed 245 when the four take 272: between the two the row overflowed (15 Oct)
+                        // Measured: like 48, each button 40, the volume 108 after a gap of 6: 282 of the 285 a side has
+                        // at full width (21 Oct; the buttons kept a finger's 48 and the slider 84, 320 in all). The
+                        // volume used to fold away first, at a guessed 245 when the four take 272: between the two the
+                        // row overflowed (15 Oct)
                         builder: (context, box) {
                           var room = box.maxWidth;
                           bool fits(double width) {
@@ -212,7 +215,7 @@ class PlayerBar extends StatelessWidget {
                             room -= width;
                             return true;
                           }
-                          final like = fits(48), volume = fits(6 + 122), upNext = fits(48), lyrics = fits(48), full = fits(48);
+                          final like = fits(48), volume = fits(6 + 108), upNext = fits(40), lyrics = fits(40), full = fits(40);
                           return Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -293,6 +296,8 @@ class _Toggle extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
     tooltip: tip,
     iconSize: 18,
+    // a pointer's target, the button as drawn: a finger's 48 left the centred bar no room for the buttons (21 Oct)
+    style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
     onPressed: onTap,
     icon: Icon(icon),
   );

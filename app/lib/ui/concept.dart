@@ -287,7 +287,8 @@ class _AppleVolumeState extends State<AppleVolume> {
                 ),
               ),
             );
-            return widget.compact ? SizedBox(width: 84, child: slider) : Expanded(child: slider);
+            // the player bar's: 70, so its buttons fit beside the centred controls (21 Oct; was 84)
+            return widget.compact ? SizedBox(width: 70, child: slider) : Expanded(child: slider);
           }),
           // the bar has room for one speaker, as Apple's mini player; Now Playing has both ends
           if (!widget.compact) const SizedBox(width: 6),

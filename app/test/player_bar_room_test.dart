@@ -1,5 +1,6 @@
-// UI v2 (15 Oct): the computer's player bar at every width: no overflow, the controls kept in order of need (like,
-// the volume, Up Next, Lyrics, full screen), every one of them at full width, and frosted glass that nothing fades.
+// UI v2 (15 Oct): the computer's player bar at every width: no overflow, Play in the bar's middle (21 Oct), the
+// controls kept in order of need (like, the volume, Up Next, Lyrics, full screen), every one of them at full width,
+// and frosted glass that nothing fades.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nononsense/core/auth.dart';
@@ -38,10 +39,12 @@ Future<Player> bar(WidgetTester tester, double width) async {
 }
 
 void main() {
-  testWidgets('no width overflows it, and the volume outlasts the buttons', (tester) async {
+  testWidgets('no width overflows it, Play is in its middle, and the volume outlasts the buttons', (tester) async {
     for (var width = 720.0; width <= 960; width += 20) {
       final p = await bar(tester, width);
       expect(tester.takeException(), isNull, reason: 'at $width');
+      final play = tester.getCenter(find.byTooltip('Play').first).dx;
+      expect(play, moreOrLessEquals(tester.getCenter(find.byType(PlayerBar)).dx), reason: 'at $width');
       // the volume goes only after Lyrics has gone
       if (find.byType(AppleVolume).evaluate().isEmpty) expect(find.byTooltip('Lyrics'), findsNothing, reason: 'at $width');
       await tester.pump(const Duration(seconds: 2));
