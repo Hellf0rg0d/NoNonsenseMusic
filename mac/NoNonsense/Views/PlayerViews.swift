@@ -758,8 +758,10 @@ struct TimedLyricsView: View {
             }
         }
         // starts again on play, pause, a stall and its end (`position` is re-anchored) and every seek: the sleep
-        // below is never left counting from an old time
-        .task(id: [player.isPlaying && !player.isBuffering ? 1.0 : 0.0, player.position, Double(player.seeks)]) {
+        // below is never left counting from an old time. And on Now Playing opening or closing: closed, it is kept
+        // hidden, and its lines were lit one by one for the rest of the session with no one to see them (21 Oct)
+        .task(id: [player.isPlaying && !player.isBuffering ? 1.0 : 0.0, player.position, Double(player.seeks),
+                   player.showNowPlaying ? 1 : 0]) {
             await follow()
         }
         #if DEBUG
@@ -782,6 +784,7 @@ struct TimedLyricsView: View {
         while !Task.isCancelled {
             let now = light()
             guard player.isPlaying, !player.isBuffering else { return }   // paused or stalled: the clock is still
+            guard player.showNowPlaying else { return }                   // closed: lit again when it opens
             let next = (current ?? -1) + 1
             guard next < lyrics.lines.count else { return }               // the last line is lit: nothing left to wait for
             let due = Double(lyrics.lines[next].startMs ?? 0) / 1000 - now

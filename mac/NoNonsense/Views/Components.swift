@@ -761,10 +761,12 @@ struct PlayingSpeaker: View {
     var color: Color? = nil                      // the bars' colour (shape styles cannot reach a layer); nil: white
     @AppStorage("animatedSpeaker") private var animated = Look.animatedSpeaker
     @Environment(Player.self) private var player
+    @Environment(\.pageCovered) private var covered
 
     var body: some View {
-        // still while Now Playing covers the lists: its blur re-blurs the whole window whenever anything under it moves
-        if playing && animated && !player.showNowPlaying {
+        // still while Now Playing covers the lists: its blur re-blurs the whole window whenever anything under it moves.
+        // Still under a page too (an artist's over Home): its bars went on moving where no one could see them (21 Oct)
+        if playing && animated && !player.showNowPlaying && !covered {
             EqualizerBars(color: NSColor(color ?? .white)).frame(width: 12, height: 11)
         } else {
             Image(systemName: playing ? "speaker.wave.2.fill" : "play.fill").font(font).foregroundStyle(style)

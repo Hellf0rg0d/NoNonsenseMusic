@@ -35,12 +35,14 @@ actor AudioCache {
         return url
     }
 
-    /// A whole song, fetched: kept, then the oldest removed past the limit.
-    func store(_ data: Data, for key: String) {
-        guard Self.limit > 0, !data.isEmpty else { return }
+    /// A whole song, fetched: kept, then the oldest removed past the limit. True when its file is here afterwards.
+    @discardableResult
+    func store(_ data: Data, for key: String) -> Bool {
+        guard Self.limit > 0, !data.isEmpty else { return false }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try? data.write(to: path(for: key), options: .atomic)
         evict()
+        return FileManager.default.fileExists(atPath: path(for: key).path)
     }
 
     /// A cached file that would not play: gone, so the next play fetches it again.
@@ -151,12 +153,18 @@ actor AudioDownload {
     private func run() async {
         var size = BoundedRangeLoader.firstRange
         var retries = 0
+        // the whole song's room at once, when its length is known: grown 1 MB at a time, the buffer was copied as it
+        // doubled and could end up to twice the song
+        if let length { data.reserveCapacity(length) }
         while !Task.isCancelled {
             let from = data.count
             if let length, from >= length { break }
             do {
                 let piece = try await Self.fetch(link, from: from, to: from + size - 1)
-                if length == nil { length = piece.total }
+                if length == nil, let total = piece.total {
+                    length = total
+                    data.reserveCapacity(total)
+                }
                 if piece.data.isEmpty { break }
                 data.append(piece.data)
                 retries = 0
@@ -174,8 +182,9 @@ actor AudioDownload {
             size = BoundedRangeLoader.range
         }
         finished = true
-        if caches, failure == nil, !Task.isCancelled, let length, data.count >= length {
-            await AudioCache.shared.store(data, for: key)
+        if caches, failure == nil, !Task.isCancelled, let length, data.count >= length,
+           await AudioCache.shared.store(data, for: key) {
+            await AudioDownloads.shared.stored(self)
         }
         wake()
     }
@@ -207,6 +216,21 @@ actor AudioDownloads {
     /// The song playing: never the one stopped to make room.
     private var playing: String?
 
+    /// Fetches whose whole song is now a file in the cache: it plays from the file from then on (Player.load), so
+    /// their copy in memory goes once their song is not the one playing (the loader still reads that one). Each kept
+    /// its whole song in memory until three newer ones pushed it out: 10 to 20 MB, an hour-long mix 60 MB (21 Oct).
+    private var saved: Set<ObjectIdentifier> = []
+
+    func stored(_ download: AudioDownload) {
+        saved.insert(ObjectIdentifier(download))
+        dropSaved()
+    }
+
+    private func dropSaved() {
+        recent.removeAll { $0.key != playing && saved.contains(ObjectIdentifier($0)) }
+        saved = saved.filter { id in recent.contains { ObjectIdentifier($0) == id } }   // an id outlives its object
+    }
+
     func download(_ key: String, link: URL) async -> AudioDownload {
         // the same song by the same link: the one already fetching. One that failed is dropped: reusing it failed the
         // retry at once, with the same link (JioSaavn's never change)
@@ -227,7 +251,10 @@ actor AudioDownloads {
     }
 
     /// The player started this song: it keeps its fetch while others come and go.
-    func play(_ key: String) { playing = key }
+    func play(_ key: String) {
+        playing = key
+        dropSaved()
+    }
 
     /// Returns when this song's fetch is done, at once when none is running (it played from a file, or never streamed).
     func finished(_ key: String) async {

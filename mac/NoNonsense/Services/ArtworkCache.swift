@@ -19,12 +19,17 @@ final class ArtworkCache {
     var keptCover: ((URL) -> URL?)?
     private var grids: [URL: [Color]] = [:]
 
-    /// Three sizes, each twice the points it is shown at (a Retina screen): up to 128 pt (lists, the bar) at 256 px,
-    /// about 0.25 MB; up to 256 pt (cards, an album's header) at 512 px, 1 MB; larger (Now Playing) at up to 1,200 px.
+    /// Five sizes, each twice the points it is shown at (a Retina screen): up to 32 pt (a playlist's 2 × 2 cells, the
+    /// command bar) at 64 px, 16 KB; up to 64 pt (song rows, Up Next, the bar) at 128 px, 64 KB; up to 128 pt at 256 px,
+    /// 0.25 MB; up to 256 pt (cards, an album's header) at 512 px, 1 MB; larger (Now Playing) at up to 1,200 px.
     /// Every cover used to be decoded at full size, even for a 44 pt row (7 Oct: the app held 185 MB). Cards went to the
     /// 1,200 px size; covers are smaller than that (measured 13 Oct: JioSaavn 500 px, YouTube Music 544 px, a video's
     /// thumbnail 720 × 404), so 512 px halves a thumbnail card (1.16 → 0.59 MB) and trims a YouTube Music one (#12).
-    private static func pixels(for points: CGFloat) -> Int { points <= 128 ? 256 : points <= 256 ? 512 : 1200 }
+    /// Rows and cells shared the 256 px size until 21 Oct: a 300-song list held about 75 MB of covers, and a playlist's
+    /// 2 × 2 icon about 1 MB.
+    private static func pixels(for points: CGFloat) -> Int {
+        points <= 32 ? 64 : points <= 64 ? 128 : points <= 128 ? 256 : points <= 256 ? 512 : 1200
+    }
     private static func key(_ url: URL, _ pixels: Int) -> String { "\(pixels)|\(url.absoluteString)" }
 
     /// The cover's URL asking its host for `pixels`. The server sends every image at its largest (1,200 px from Google's

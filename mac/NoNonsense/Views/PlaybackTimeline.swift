@@ -188,6 +188,18 @@ final class TimelineLayersView: NSView {
         restart()
     }
 
+    // hidden with a view that holds it (Now Playing, kept after it closes): the line stops, and starts from the song's
+    // moment when it shows again
+    override func viewDidHide() {
+        super.viewDidHide()
+        restart()
+    }
+
+    override func viewDidUnhide() {
+        super.viewDidUnhide()
+        restart()
+    }
+
     @objc private func visibilityChanged(_ note: Notification) {
         guard (note.object as? NSWindow) === window else { return }
         restart()
@@ -203,7 +215,9 @@ final class TimelineLayersView: NSView {
         CATransaction.begin(); CATransaction.setDisableActions(true)
         played.removeAnimation(forKey: "progress")
         played.transform = CATransform3DMakeScale(fraction, 1, 1)
-        if running && shown == nil && duration > time {
+        // only where it can be seen: a minimised window, or Now Playing closed and kept hidden, played the line to the
+        // song's end for no one (21 Oct). restart() runs again when it shows
+        if running && shown == nil && duration > time && visible {
             let grow = CABasicAnimation(keyPath: "transform.scale.x")
             grow.fromValue = fraction
             grow.toValue = 1.0

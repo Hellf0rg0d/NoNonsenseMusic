@@ -530,6 +530,9 @@ final class Player {
             // played before: its file, from this Mac's cache; no link and no network (TICKETS 0b, 8 Oct)
             if let cached = await AudioCache.shared.file(for: listing.key) {
                 guard mine == loads else { return }
+                // told here too: the last song's fetch, its song now a file, lets its copy in memory go
+                await AudioDownloads.shared.play(listing.key)
+                guard mine == loads else { return }
                 resolving = false
                 attach(AVPlayerItem(url: cached), for: listing)
                 return
@@ -843,9 +846,11 @@ final class Player {
     private func loadArtwork(_ track: Track) {
         guard let url = track.image else { return }
         Task {
-            // from ArtworkCache: decoded once and shared with Now Playing's cover (one download, not two). Only the
-            // playing song's is kept: the dictionary used to hold every cover played since launch
-            guard let image = await ArtworkCache.shared.image(for: url, size: 600) else { return }
+            // from ArtworkCache, at 512 px: macOS shows it small (Control Center, the lock screen). At Now Playing's
+            // 1,200 px every song played left a 5.8 MB picture in the cache, and about 15 songs filled it, pushing the
+            // lists' covers out (21 Oct); Now Playing fetches its own large one when it opens. Only the playing song's
+            // is kept: the dictionary used to hold every cover played since launch
+            guard let image = await ArtworkCache.shared.image(for: url, size: 256) else { return }
             // @Sendable: macOS asks for the image from its own background queue (this crashed on 5 Oct
             // when the closure was inferred main-thread-only)
             artwork = [track.id: MPMediaItemArtwork(boundsSize: image.size) { @Sendable _ in image }]
