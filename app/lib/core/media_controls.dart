@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 
+import 'cover_image.dart';
 import 'player.dart';
 
 /// Exposes playback to the system's media controls. On Windows, the System Media Transport Controls (SMTC): the media
@@ -84,7 +85,10 @@ class MediaControls {
     }
     if (_shown != t.id) {
       _shown = t.id;
-      smtc.updateMetadata(MusicMetadata(title: t.title, artist: t.artistLine, album: t.best.album ?? '', albumArtist: t.artistLine, thumbnail: t.image));
+      // the overlay shows the cover at about 100 points: 300 px of it, not the 1200 px the server names (about 40 KB
+      // fetched a song, not 300 KB; 21 Oct)
+      final cover = t.image == null ? null : sizedImage(t.image!, 300);
+      smtc.updateMetadata(MusicMetadata(title: t.title, artist: t.artistLine, album: t.best.album ?? '', albumArtist: t.artistLine, thumbnail: cover));
     }
     if (_playing != player.isPlaying) {
       _playing = player.isPlaying;
