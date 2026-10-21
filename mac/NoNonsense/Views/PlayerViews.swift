@@ -1160,6 +1160,9 @@ final class LyricLinesView: NSView {
     /// a real pointer.
     func selfTestPointer(over index: Int?) { setHovered(index) }
 
+    /// Showing each line's translation under it (a translation shown timed), or the lyrics alone.
+    var selfTestTranslated: Bool { translations != nil }
+
     /// Self-tests measure where each line is: window points from the top, as SwiftUI's global frames are.
     private func recordFrames() {
         guard let height = window?.contentView?.frame.height else { return }

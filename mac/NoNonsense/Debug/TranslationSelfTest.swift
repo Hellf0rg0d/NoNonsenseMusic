@@ -193,9 +193,12 @@ extension SelfTest {
                 lyrics.give(Lyrics(lyricsSource: "lrclib", synced: true, lines: found), notes: nil, for: track)
                 return track
             }
-            @MainActor func timedShown() -> Bool {
-                NSApp.windows.compactMap { $0.contentView?.superview }.flatMap { descendants(of: $0) }.contains { $0 is LyricLinesView }
+            // the timed lines on screen, and whether they carry translations: a translation shows timed too (21 Oct), so
+            // the timed view alone no longer tells the lyrics from their translation
+            @MainActor func timedLines() -> [LyricLinesView] {
+                NSApp.windows.compactMap { $0.contentView?.superview }.flatMap { descendants(of: $0) }.compactMap { $0 as? LyricLinesView }
             }
+            @MainActor func lyricsAlone() -> Bool { let lines = timedLines(); return !lines.isEmpty && lines.allSatisfy { !$0.selfTestTranslated } }
             let first = madeUp("Spanish", sung(es, translations: en))
             let firstIn = { (target: Locale.Language) in LyricsTranslations.Key(song: first.id, target: target) }
             player.play([first])                                       // a made-up song: it cannot play, and stays the song
@@ -205,12 +208,12 @@ extension SelfTest {
                       && store.credits[firstIn(english)] == "Translation from the lyrics",
                   "shown “\(lyricsShown)”, credit \(store.credits[firstIn(english)] ?? "none")")
             windowShot("translateinto-provided-english")
-            let timedWhileTranslated = timedShown()
+            let aloneWhileTranslated = lyricsAlone()
             lyricsShown = ""
             UserDefaults.standard.set("es", forKey: "translateInto")
             try? await Task.sleep(for: .seconds(1.5))
-            check("…into Spanish, their own language: the lyrics themselves, nothing translated", !timedWhileTranslated && timedShown() && lyricsShown == "",
-                  "timed lyrics \(timedWhileTranslated) → \(timedShown()), shown “\(lyricsShown)”")
+            check("…into Spanish, their own language: the lyrics themselves, nothing translated", !aloneWhileTranslated && lyricsAlone() && lyricsShown == "",
+                  "lyrics alone \(aloneWhileTranslated) → \(lyricsAlone()), shown “\(lyricsShown)”")
             // a Hindi translation of this song kept from before (as if made earlier): shown for Hindi, without asking
             store.store(hi, for: firstIn(hindi), credit: "Translated on this Mac")
             UserDefaults.standard.set("hi", forKey: "translateInto")

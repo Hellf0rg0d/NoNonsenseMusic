@@ -1672,8 +1672,12 @@ extension SelfTest {
                 if abs(fixed.top - before.top) < 0.02 {
                     report("fullscreen: the screenshots do not show the app (no Screen Recording here?): the strip is not judged")
                 } else {
-                    check("the top strip is not black (brighter than as before, and near the window's middle)",
-                          fixed.top > before.top + 0.1 && abs(fixed.top - fixed.middle) < 0.35)
+                    // the strip itself, not black. Compared with the see-through picture it said nothing on CI: there the
+                    // desktop behind a see-through toolbar is white, not the black of a real screen, and the runner draws
+                    // no window content (its middle 0.00), so "brighter than before, near the middle" failed a grey strip
+                    // (0.75, 21 Oct). Near the middle only where the middle was drawn
+                    check("the top strip is not black", fixed.top > 0.25 && (fixed.middle < 0.02 || abs(fixed.top - fixed.middle) < 0.35),
+                          String(format: "top %.2f, middle %.2f", fixed.top, fixed.middle))
                 }
             }
 
