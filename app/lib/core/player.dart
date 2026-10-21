@@ -682,6 +682,9 @@ class Player extends ChangeNotifier implements JamPlayer {
     notifyListeners();
   }
 
+  /// Lets the audio go before the window closes (main.dart), while the engine can still hear the native player go.
+  Future<void> release() => _audio.dispose();
+
   @override
   void dispose() {
     for (final s in _subs) {

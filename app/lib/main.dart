@@ -3,6 +3,7 @@
 // font.
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -48,6 +49,13 @@ Future<void> main() async {
   if (Platform.isWindows) await Window.initialize();
   await MediaControls.initialize(); // Windows' media keys, Android's media session: each platform's own, nothing elsewhere
   final player = Player();
+  // Closing the window: the audio goes first, while the engine still runs. Left to the engine's own shutdown,
+  // just_audio_windows unset its channel's handler after the engine had gone, and every close ended in a crash in
+  // flutter_windows.dll (FlutterDesktopMessengerSetCallback; seen from 18 Oct, found 21 Oct).
+  AppLifecycleListener(onExitRequested: () async {
+    await player.release();
+    return AppExitResponse.exit;
+  });
   player.currentId.addListener(() => accent.follow(player.current?.image));
   final library = Library()..playlistChanged = player.playlistChanged;
   await Presence.shared.load(); // The Discord status is off by default; it follows the player from here.
