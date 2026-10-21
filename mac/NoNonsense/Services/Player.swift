@@ -530,9 +530,6 @@ final class Player {
             // played before: its file, from this Mac's cache; no link and no network (TICKETS 0b, 8 Oct)
             if let cached = await AudioCache.shared.file(for: listing.key) {
                 guard mine == loads else { return }
-                // told here too: the last song's fetch, its song now a file, lets its copy in memory go
-                await AudioDownloads.shared.play(listing.key)
-                guard mine == loads else { return }
                 resolving = false
                 attach(AVPlayerItem(url: cached), for: listing)
                 return

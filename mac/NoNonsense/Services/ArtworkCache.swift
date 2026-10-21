@@ -120,7 +120,7 @@ final class ArtworkCache {
     #if DEBUG
     /// Self-tests: a made-up cover for `url`, at every size, so nothing is fetched (#20: no internet needed).
     func keepForSelfTest(_ image: NSImage, for url: URL) {
-        for pixels in [256, 512, 1200] {
+        for pixels in [64, 128, 256, 512, 1200] {                     // every size pixels(for:) gives
             images.setObject(image, forKey: Self.key(url, pixels) as NSString, cost: Int(image.size.width * image.size.height) * 4)
         }
         grids[url] = nil

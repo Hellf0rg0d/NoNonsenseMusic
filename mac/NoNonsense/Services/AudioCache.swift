@@ -83,6 +83,10 @@ actor AudioDownload {
     /// False for a download to Downloads: the file goes there, not into the cache too (one copy on disk).
     nonisolated let caches: Bool
     private var data = Data()
+    /// The song's file in the cache once it is there: ranges are read from it and the copy in memory goes. Each fetch
+    /// kept its whole song in memory until three newer ones pushed it out: 10 to 20 MB, an hour-long mix 60 MB (21 Oct).
+    /// Held open, it reads on even if the cache lets the file go meanwhile.
+    private var file: FileHandle?
     private var length: Int?
     private var finished = false
     private var failure: Error?
@@ -141,6 +145,11 @@ actor AudioDownload {
     func bytes(_ from: Int, _ to: Int) async throws -> Data {
         start()
         while true {
+            if let file, let length {
+                guard from < length else { return Data() }
+                try file.seek(toOffset: UInt64(from))
+                return try file.read(upToCount: min(to + 1, length) - from) ?? Data()
+            }
             if data.count > from { return data.subdata(in: from ..< min(to + 1, data.count)) }
             if let failure { throw failure }
             if finished || Task.isCancelled { return Data() }
@@ -183,8 +192,10 @@ actor AudioDownload {
         }
         finished = true
         if caches, failure == nil, !Task.isCancelled, let length, data.count >= length,
-           await AudioCache.shared.store(data, for: key) {
-            await AudioDownloads.shared.stored(self)
+           await AudioCache.shared.store(data, for: key),
+           let stored = try? FileHandle(forReadingFrom: AudioCache.shared.path(for: key)) {
+            file = stored
+            data = Data()
         }
         wake()
     }
@@ -216,21 +227,6 @@ actor AudioDownloads {
     /// The song playing: never the one stopped to make room.
     private var playing: String?
 
-    /// Fetches whose whole song is now a file in the cache: it plays from the file from then on (Player.load), so
-    /// their copy in memory goes once their song is not the one playing (the loader still reads that one). Each kept
-    /// its whole song in memory until three newer ones pushed it out: 10 to 20 MB, an hour-long mix 60 MB (21 Oct).
-    private var saved: Set<ObjectIdentifier> = []
-
-    func stored(_ download: AudioDownload) {
-        saved.insert(ObjectIdentifier(download))
-        dropSaved()
-    }
-
-    private func dropSaved() {
-        recent.removeAll { $0.key != playing && saved.contains(ObjectIdentifier($0)) }
-        saved = saved.filter { id in recent.contains { ObjectIdentifier($0) == id } }   // an id outlives its object
-    }
-
     func download(_ key: String, link: URL) async -> AudioDownload {
         // the same song by the same link: the one already fetching. One that failed is dropped: reusing it failed the
         // retry at once, with the same link (JioSaavn's never change)
@@ -251,10 +247,7 @@ actor AudioDownloads {
     }
 
     /// The player started this song: it keeps its fetch while others come and go.
-    func play(_ key: String) {
-        playing = key
-        dropSaved()
-    }
+    func play(_ key: String) { playing = key }
 
     /// Returns when this song's fetch is done, at once when none is running (it played from a file, or never streamed).
     func finished(_ key: String) async {
