@@ -329,14 +329,47 @@ void main() {
   });
 
   group('the pane', () {
+    final track = Track(const Listing(source: 'jiosaavn', id: 'song', title: 'Made-Up Song', artists: ['Kai'], duration: 200), const []);
     Future<void> show(WidgetTester tester, LyricsTranslations t, List<LyricLine> lines) => tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: SizedBox(width: 340, child: TranslatedLyrics(lines: lines, songId: 'song', translations: t)))));
+        home: Scaffold(
+            body: SizedBox(width: 340, child: TranslatedLyrics(lyrics: Lyrics(null, false, lines), track: track, translations: t)))));
+
+    testWidgets('timed lyrics stay timed once translated: each line as sung, small, over its translation', (tester) async {
+      Api.client = MockClient((_) async => http.Response('[[["Hello\\n","Hola\\n"],["Bye","Adios"]],null,"es"]', 200));
+      final t = LyricsTranslations(language: () => 'en');
+      final lines = [LyricLine(0, 'Hola'), LyricLine(2000, ''), LyricLine(4000, 'Adios')];
+      await t.translate(track.id, lines);
+      SharedPreferences.setMockInitialValues({});
+      final settings = Settings();
+      await settings.load();
+      final player = Player();
+      addTearDown(player.dispose);
+      await tester.pumpWidget(Scope(
+        player: player,
+        library: Library(),
+        lyrics: LyricsStore(),
+        settings: settings,
+        auth: Auth(store: MemoryTokenStore()),
+        child: MaterialApp(
+            home: Scaffold(
+                body: SizedBox(width: 340, height: 600,
+                    child: TranslatedLyrics(lyrics: Lyrics(null, true, lines), track: track, translations: t)))),
+      ));
+      await tester.pump();
+      expect(find.byType(ListView), findsOneWidget);
+      // the timed list (one row per line, gaps included), not the still one: each translation under its line
+      expect(find.text('Hola'), findsOneWidget);
+      expect(find.text('Hello'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Hello')).dy, greaterThan(tester.getTopLeft(find.text('Hola')).dy));
+      expect(tester.getSize(find.text('Hola')).height, lessThan(tester.getSize(find.text('Hello')).height));
+      expect(find.text('♪').evaluate().length + find.text('').evaluate().length, greaterThan(0), reason: 'the gap keeps its row');
+    });
 
     testWidgets('each line shows with its translation under it, and a gap is left out', (tester) async {
       Api.client = MockClient((_) async => http.Response('[[["Hello\\n","Hola\\n"],["Bye","Adios"]],null,"es"]', 200));
       final t = LyricsTranslations(language: () => 'en');
       final lines = [line('Hola'), line(''), line('Adios')];
-      await t.translate('song', lines);
+      await t.translate(track.id, lines);
       await show(tester, t, lines);
       expect(find.text('Hola'), findsOneWidget);
       expect(find.text('Hello'), findsOneWidget);
@@ -348,7 +381,7 @@ void main() {
       Api.client = MockClient((_) async => http.Response('', 500));
       final t = LyricsTranslations(language: () => 'en');
       final lines = [line('Hola')];
-      await t.translate('song', lines);
+      await t.translate(track.id, lines);
       await show(tester, t, lines);
       expect(find.text("Couldn't translate these lyrics"), findsOneWidget);
     });

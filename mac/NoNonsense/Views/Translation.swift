@@ -23,20 +23,30 @@ final class LyricsTranslations {
     /// Who translated it, shown under the translation.
     private(set) var credits: [Key: String] = [:]
 
-    /// Song id → the language its lyrics are written in (nil inside: unclear), worked out once per song.
+    /// Song id → the language its lyrics are written in (nil inside: unsure), worked out once per song.
     @ObservationIgnored private var languages: [String: Locale.Language?] = [:]
+    /// Songs Google found already written in the language asked for: nothing to translate.
+    private(set) var alreadyIn: Set<Key> = []
 
-    /// The song's language when it is not `target`; nil when it is, or when it is unclear.
+    /// The song's language when this Mac is sure of it and it is not `target`; nil when it is, or when unsure.
     func foreignLanguage(of song: String, lines: [LyricLine], to target: Locale.Language) -> Locale.Language? {
-        let language: Locale.Language?
-        if let known = languages[song] {
-            language = known
-        } else {
-            language = Self.language(of: lines.map(\.text))
-            languages[song] = language
-        }
-        return language.flatMap { Self.same($0, target) ? nil : $0 }
+        language(of: song, lines: lines).flatMap { Self.same($0, target) ? nil : $0 }
     }
+
+    /// The song's language when this Mac is sure of it; nil when unsure (Google is asked instead, and says).
+    func language(of song: String, lines: [LyricLine]) -> Locale.Language? {
+        if let known = languages[song] { return known }
+        let language = Self.language(of: lines.map(\.text))
+        languages[song] = language
+        return language
+    }
+
+    /// Nothing to translate: the lyrics are already in the key's language, as this Mac is sure or Google said.
+    func isAlready(_ key: Key, lines: [LyricLine]) -> Bool {
+        alreadyIn.contains(key) || language(of: key.song, lines: lines).map { Self.same($0, key.target) } == true
+    }
+
+    func markAlready(_ key: Key) { alreadyIn.insert(key) }
 
     func store(_ translated: [String], for key: Key, credit: String) {
         lines[key] = translated
@@ -47,10 +57,16 @@ final class LyricsTranslations {
     func retry(_ key: Key) { failed.remove(key) }
 
     /// The language `texts` are written in; nil when it is unclear.
+    /// The language of `texts` when Apple's recognizer is at least this sure. Hindi and Punjabi written in English
+    /// letters read as Indonesian (52% and 62% sure, 20 Oct), which hid Translate or translated them as Indonesian;
+    /// lyrics in their own script, and Spanish, read at 100%.
+    static let sure = 0.9
+
     static func language(of texts: [String]) -> Locale.Language? {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(texts.prefix(40).joined(separator: "\n"))
-        guard let found = recognizer.dominantLanguage, found != .undetermined else { return nil }
+        guard let (found, likely) = recognizer.languageHypotheses(withMaximum: 1).first, found != .undetermined,
+              likely >= sure else { return nil }
         return Locale.Language(identifier: found.rawValue)
     }
 
@@ -88,17 +104,31 @@ final class LyricsTranslations {
 /// system's prompt to download the language. One view per song and language (its configuration is per pair).
 struct TranslatedLyricsView: View {
     let songID: String
-    let lyrics: [LyricLine]
-    /// The lyrics' language, and the one to translate them into (Settings › Lyrics › Translate into).
-    let language: Locale.Language
+    let found: Lyrics
+    /// The lyrics' language (nil: this Mac is unsure, and Google is asked), and the one to translate them into
+    /// (Settings › Lyrics › Translate into).
+    let language: Locale.Language?
     let target: Locale.Language
+    /// For timed lyrics, translated as they are shown: the panel showing, and the Genius notes by line.
+    var active = true
+    var notes: [Int: GeniusNote] = [:]
+    var notesURL: String?
+    @Environment(Player.self) private var player
+    private var lyrics: [LyricLine] { found.lines }
     @State private var configuration: TranslationSession.Configuration?
     private var store: LyricsTranslations { .shared }
     private var key: LyricsTranslations.Key { .init(song: songID, target: target) }
 
     var body: some View {
         Group {
-            if let translated = store.lines[key] {
+            if let translated = store.lines[key], found.synced {
+                // timed lyrics stay timed once translated: the line being sung lit and followed, a click plays from it,
+                // each line's translation under it (20 Oct, as in the Windows app). Its credit is in the panel's header
+                TimedLyricsView(lyrics: found, startLine: found.line(at: player.livePosition + 0.1), active: active,
+                                notes: notes, notesURL: notesURL, translations: translated)
+                    .selfTestFrame("lyrics.translation")
+                    .selfTestShown("translation")
+            } else if let translated = store.lines[key] {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(Array(zip(lyrics.indices, translated)), id: \.0) { i, line in
@@ -154,6 +184,8 @@ struct TranslatedLyricsView: View {
             store.store(provided, for: key, credit: "Translation from the lyrics")
             return
         }
+        // this Mac unsure of the lyrics' language (Hindi in English letters): Google tells it, and translates
+        guard let language else { await online(); return }
         // on this Mac when it has the pair of languages (or can download it: the system asks); otherwise, for pairs
         // Apple's framework does not translate (from Punjabi, among others), Google's public translation service
         switch await LanguageAvailability().status(from: language, to: target) {
@@ -164,13 +196,24 @@ struct TranslatedLyricsView: View {
             } else {
                 // macOS 15 can reach an installed language only through .translationTask, which hung inside Now
                 // Playing (10 Oct): the online translation instead, credited
-                await finish(try? await OnlineTranslation.translate(texts, to: target), credit: "Translated by Google")
+                await online()
             }
         case .supported:
             configuration = TranslationSession.Configuration(source: language, target: target)
         default:
-            await finish(try? await OnlineTranslation.translate(texts, to: target), credit: "Translated by Google")
+            await online()
         }
+    }
+
+    /// Google's translation, which also says what the lyrics were written in: already the language asked for, there is
+    /// nothing to translate, and the panel says so.
+    private func online() async {
+        let answer = try? await OnlineTranslation.translate(texts, to: target)
+        if let source = answer?.source, source.split(separator: "-").first == OnlineTranslation.code(for: target)?.split(separator: "-").first {
+            store.markAlready(key)
+            return
+        }
+        await finish(answer?.lines, credit: "Translated by Google")
     }
 
     private func finish(_ answers: [(Int, String)]?, credit: String) async {
@@ -200,12 +243,13 @@ extension TranslatedLyricsView {
 enum OnlineTranslation {
     private static let session = URLSession(configuration: .ephemeral)
 
-    nonisolated static func translate(_ texts: [(Int, String)], to target: Locale.Language) async throws -> [(Int, String)] {
+    /// Each line's translation, and the language Google found the lines written in ("hi"), when it says.
+    nonisolated static func translate(_ texts: [(Int, String)], to target: Locale.Language) async throws -> (lines: [(Int, String)], source: String?) {
         guard let code = Self.code(for: target),
-              var parts = URLComponents(string: "https://translate.googleapis.com/translate_a/single") else { return [] }
+              var parts = URLComponents(string: "https://translate.googleapis.com/translate_a/single") else { return ([], nil) }
         parts.queryItems = [URLQueryItem(name: "client", value: "gtx"), URLQueryItem(name: "sl", value: "auto"),
                             URLQueryItem(name: "tl", value: code), URLQueryItem(name: "dt", value: "t")]
-        guard let url = parts.url else { return [] }
+        guard let url = parts.url else { return ([], nil) }
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded;charset=utf-8", forHTTPHeaderField: "Content-Type")
@@ -214,12 +258,14 @@ enum OnlineTranslation {
         request.httpBody = form.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B").data(using: .utf8)
         let (data, response) = try await session.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        // [[["translated", "original", …], …], …]: the translated pieces, joined, are the lines again
-        guard let reply = try JSONSerialization.jsonObject(with: data) as? [Any], let chunks = reply.first as? [Any] else { return [] }
+        // [[["translated", "original", …], …], null, "hi", …]: the translated pieces, joined, are the lines again; the
+        // third item is the language they were written in
+        guard let reply = try JSONSerialization.jsonObject(with: data) as? [Any], let chunks = reply.first as? [Any] else { return ([], nil) }
+        let source = reply.count > 2 ? reply[2] as? String : nil
         let joined = chunks.compactMap { ($0 as? [Any])?.first as? String }.joined()
         let lines = joined.components(separatedBy: "\n")
         guard lines.count == texts.count else { throw URLError(.cannotParseResponse) }   // lines that no longer line up
-        return zip(texts, lines).map { ($0.0, $1.trimmingCharacters(in: .whitespaces)) }
+        return (zip(texts, lines).map { ($0.0, $1.trimmingCharacters(in: .whitespaces)) }, source)
     }
 
     /// `language` as Google's endpoint takes it: "es", "hi"; Chinese as "zh-CN" or "zh-TW" by its script. Google reads a

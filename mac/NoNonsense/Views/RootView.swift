@@ -141,7 +141,10 @@ struct RootView: View {
             // see-through title bar: the backdrop shows under it, and lists fade softly as they scroll beneath it. In
             // full screen macOS draws the toolbar in a window of its own, over nothing: it gets its own background
             // there, as in Apple's apps (black before, 8 Oct)
-            .toolbarBackgroundVisibility(WindowMode.shared.fullScreen ? .visible : .hidden, for: .windowToolbar)
+            // but not under Now Playing: the toolbar's window stays above it in full screen, and its background was the grey
+            // band across the top of Now Playing (20 Oct; hiding the buttons and .onHover below had left the background on)
+            .toolbarBackgroundVisibility(WindowMode.shared.fullScreen && !(player.showNowPlaying && player.current != nil) ? .visible : .hidden,
+                                         for: .windowToolbar)
             // content scrolled under the see-through title bar: a blurred strip behind it, as in Messages and WhatsApp
             .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { titleBarHeight = $0 }
             .overlay {

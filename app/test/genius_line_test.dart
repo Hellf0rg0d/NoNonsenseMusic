@@ -10,12 +10,12 @@ import 'package:nononsense/ui/lyrics_panel.dart';
 
 const note = GeniusNote('Roll up all my ones', 'Yebba is spending everything she has left on the night.', verified: true);
 
-Widget lines({VoidCallback? onPlay}) => MaterialApp(
+Widget lines({VoidCallback? onPlay, VoidCallback? onTap}) => MaterialApp(
       theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange, brightness: Brightness.dark)),
       home: Scaffold(
         body: Column(children: [
           NotedLyricLine(text: 'Roll up all my ones, take my chances', note: note, url: 'https://genius.com/x', onPlay: onPlay,
-              style: const TextStyle(color: Colors.white)),
+              onTap: onTap, style: const TextStyle(color: Colors.white)),
           const NotedLyricLine(text: 'Hit another blunt', style: TextStyle(color: Colors.white)),
         ]),
       ),
@@ -57,12 +57,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(note.text), findsOneWidget);
     expect(find.ancestor(of: find.text(note.text), matching: find.byType(GlassCard)), findsOneWidget);
-    await mouse.moveTo(tester.getCenter(find.text('Hit another blunt')));
+    await mouse.moveTo(const Offset(790, 590));                         // away (the next line is under the card)
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text(note.text), findsOneWidget, reason: 'a moment to move into the card');
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
     expect(find.text(note.text), findsNothing);
   });
 
-  testWidgets('a click opens the whole note in a glass window', (tester) async {
+  testWidgets('the pointer can move from the line into the card, and it stays', variant: TargetPlatformVariant.only(TargetPlatform.windows), (tester) async {
+    await tester.pumpWidget(lines());
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.text('Roll up all my ones, take my chances')));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    await mouse.moveTo(tester.getCenter(find.text(note.text)));        // off the line, into the card
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text(note.text), findsOneWidget);
+    await mouse.moveTo(const Offset(790, 590));                         // out of both
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.text(note.text), findsNothing);
+  });
+
+  testWidgets('with a mouse, a click on a noted line in timed lyrics plays from it', variant: TargetPlatformVariant.only(TargetPlatform.windows), (tester) async {
+    var played = false;
+    await tester.pumpWidget(lines(onTap: () => played = true));
+    await tester.tap(find.text('Roll up all my ones, take my chances'));
+    await tester.pumpAndSettle();
+    expect(played, isTrue);
+    expect(find.text('Play from here'), findsNothing, reason: 'no note window opens');
+  });
+
+  // a phone (no pointer to rest), or untimed lyrics (nothing to play from): a tap opens the note
+  testWidgets('a tap opens the whole note in a glass window', (tester) async {
     var played = false;
     await tester.pumpWidget(lines(onPlay: () => played = true));
     await tester.tap(find.text('Roll up all my ones, take my chances'));

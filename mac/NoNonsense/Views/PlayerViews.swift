@@ -566,25 +566,30 @@ struct LyricsPanel: View {
     @AppStorage("lyricsTranslated") private var translating = false  // stays on for the next foreign song
     @AppStorage("translateInto") private var translateInto = ""       // Settings › Lyrics › Translate into; "" the Mac's own
 
-    /// The lyrics' language when they are found and not in `target`.
-    private func foreign(_ state: LyricsStore.State?, track: Track, target: Locale.Language) -> Locale.Language? {
-        guard case .found(let found) = state, !found.lines.isEmpty else { return nil }
-        return LyricsTranslations.shared.foreignLanguage(of: track.id, lines: found.lines, to: target)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let track = player.current {
                 let state = lyrics.state(for: track)
                 let notes = genius ? lyrics.notes[track.id] : nil
                 let target = LyricsTranslations.target(translateInto)
-                let language = foreign(state, track: track, target: target)
-                header(state, notes: notes, language: language)
+                let key = LyricsTranslations.Key(song: track.id, target: target)
+                let translations = LyricsTranslations.shared
+                // any lyrics can be translated (English into Hindi too): Translate shows for all of them, unless they are
+                // already in the language chosen, as this Mac is sure or Google said (20 Oct, as in the Windows app)
+                let lines: Lyrics? = if case .found(let found) = state, !found.lines.isEmpty { found } else { nil }
+                let already = lines.map { translations.isAlready(key, lines: $0.lines) } ?? false
+                let translated = translating && !already && lines != nil
+                // Translate for any lyrics; with it on, the language menu always shows, saying "Already in English" when
+                // there is nothing to translate into it, so another language is one pick away (English into Hindi, 20 Oct)
+                header(state, notes: notes, canTranslate: lines != nil, already: lines != nil && already && translating,
+                       credit: translated ? translations.credits[key] : nil)
                 Group {
-                    if translating, let language, case .found(let found) = state {
+                    if translated, let found = lines {
                         // one view per song and language: another language chosen translates the song again
-                        TranslatedLyricsView(songID: track.id, lyrics: found.lines, language: language, target: target)
-                            .id(LyricsTranslations.Key(song: track.id, target: target))
+                        TranslatedLyricsView(songID: track.id, found: found,
+                                             language: translations.language(of: track.id, lines: found.lines), target: target,
+                                             active: shown, notes: notes?.byLine(found.lines) ?? [:], notesURL: notes?.url)
+                            .id(key)
                     } else {
                         content(state, track: track, notes: notes)
                     }
@@ -601,12 +606,19 @@ struct LyricsPanel: View {
         .selfTestFrame("lyrics.panel")              // the glass is Now Playing's, shared with Up Next
     }
 
-    private func header(_ state: LyricsStore.State?, notes: GeniusNotes?, language: Locale.Language?) -> some View {
+    /// The language translated into, by its own name ("English", "हिन्दी"): the one chosen, else this Mac's.
+    private var targetName: String {
+        if let chosen = LyricsTranslations.choices.first(where: { $0.id == translateInto }) { return chosen.name }
+        let code = Locale.current.language.languageCode?.identifier ?? "en"
+        return Locale(identifier: code).localizedString(forLanguageCode: code)?.capitalized ?? "your language"
+    }
+
+    private func header(_ state: LyricsStore.State?, notes: GeniusNotes?, canTranslate: Bool, already: Bool, credit: String?) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Lyrics").textStyle(.headline)
             Spacer()
-            // lyrics in another language: their translation, made on this Mac
-            if language != nil {
+            // their translation, made on this Mac or by Google
+            if canTranslate {
                 Button { translating.toggle() } label: {
                     Image(systemName: "character.bubble")
                         .symbolVariant(translating ? .fill : .none)
@@ -626,17 +638,21 @@ struct LyricsPanel: View {
                         }
                         .pickerStyle(.inline)
                     } label: {
-                        Text(LyricsTranslations.choices.first { $0.id == translateInto }?.name ?? "System language")
+                        Text(already ? "Already in \(targetName)" : targetName)
                     }
+                    // a pop-up button, as in Finder and Settings: as a quiet caption beside "from LRCLIB" nothing said it
+                    // could be clicked (21 Oct)
                     .menuStyle(.button)
-                    .buttonStyle(.quiet)
-                    .textStyle(.caption)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .fixedSize()
                     .help("Translate into")
                 }
             }
-            if case .found(let found) = state, let source = found.sourceName {
+            // translated, who translated them ("Translated on this Mac"); else where the lyrics are from
+            if let credit {
+                Text(credit).textStyle(.caption).foregroundStyle(.secondary).lineLimit(1)
+            } else if case .found(let found) = state, let source = found.sourceName {
                 Text(found.synced ? "from \(source)" : "from \(source) · not timed")
                     .textStyle(.caption).foregroundStyle(.secondary)
             }
@@ -696,7 +712,7 @@ struct LyricsPanel: View {
 /// second for nothing (audit, 7 Oct): now one wake per line. The lines themselves are Core Animation layers
 /// (LyricLinesView): a line change was a SwiftUI scroll and fade, redrawn by the app up to 120 times a second for the
 /// whole change; with a line every second or so that never stopped: 30–40% of a core (measured 7 Oct, Fake_Opps).
-private struct TimedLyricsView: View {
+struct TimedLyricsView: View {
     let lyrics: Lyrics
     @Environment(Player.self) private var player
     @Environment(\.textScale) private var textScale
@@ -706,31 +722,39 @@ private struct TimedLyricsView: View {
     @Environment(\.colorScheme) private var scheme
     @State private var current: Int?
     let active: Bool                                   // false while hidden behind Up Next: the lines ignore the mouse
-    let notes: [Int: GeniusNote]                       // Genius notes by line: those lines are in the accent; a click opens one
+    let notes: [Int: GeniusNote]                       // Genius notes by line: in the accent; resting on one shows its note
     let notesURL: String?
+    /// Translated: each line's translation, shown under it ("" for none).
+    var translations: [String]?
     @State private var openNote: NoteAnchor?
+    @State private var noteHover = NoteHover()
 
-    init(lyrics: Lyrics, startLine: Int?, active: Bool = true, notes: [Int: GeniusNote] = [:], notesURL: String? = nil) {
+    init(lyrics: Lyrics, startLine: Int?, active: Bool = true, notes: [Int: GeniusNote] = [:], notesURL: String? = nil,
+         translations: [String]? = nil) {
         self.lyrics = lyrics
         self.active = active
         self.notes = notes
         self.notesURL = notesURL
+        self.translations = translations
         _current = State(initialValue: startLine)
     }
 
     var body: some View {
         // the noted lines take the accent (Settings › Colours › Buttons; System is your Mac's), readable on the cover's
         // colours (#20)
-        LyricLines(lines: lyrics.lines, current: current, motion: motion, fontSize: LyricsFont.size * textScale, feedback: feedback,
-                   active: active, noted: Set(notes.keys),
+        LyricLines(lines: lyrics.lines, translations: translations, current: current, motion: motion,
+                   fontSize: LyricsFont.size * textScale, feedback: feedback, active: active, noted: Set(notes.keys),
                    accent: NowPlayingInk.shared.readable(theme.color(.buttons), dark: scheme == .dark),
-                   openNote: { openNote = NoteAnchor(line: $0, rect: $1) }) {
+                   pointerOver: { pointer(over: $0) }) {
             jump(to: $0)
         }
-        // a noted line's click opens its note beside it instead of playing from it: Play from Here is in the note
+        // resting on a noted line opens its note beside it, which you can move into and scroll; a click plays from the
+        // line like any other (21 Oct). An overlay card drawn in the panel (20 Oct) ignored where it was put and sat at
+        // the lyrics' top corner, on see-through glass
         .popover(item: $openNote, attachmentAnchor: .rect(.rect(openNote?.rect ?? .zero)), arrowEdge: .leading) { anchor in
             if let note = notes[anchor.line] {
-                GeniusNoteCard(note: note, url: notesURL) { openNote = nil; jump(to: anchor.line) }
+                GeniusNoteCard(note: note, url: notesURL, play: { jump(to: anchor.line) },
+                               hovering: { inside in noteHover.card(inside) { openNote = nil } })
             }
         }
         // starts again on play, pause, a stall and its end (`position` is re-anchored) and every seek: the sleep
@@ -742,6 +766,15 @@ private struct TimedLyricsView: View {
         .onChange(of: current, initial: true) { _, line in SelfTest.lyricsCurrent = line }
         .onAppear { SelfTest.lyricsJump = { jump(to: $0) } }              // the click, when a click cannot reach
         #endif
+    }
+
+    /// The pointer is over this line (with its frame), or over none: a noted line's note opens after a short rest, so
+    /// moving across the lyrics does not open one on every line it passes; leaving closes it unless the pointer went
+    /// into it.
+    private func pointer(over line: (Int, CGRect)?) {
+        guard let (index, rect) = line, notes[index] != nil else { noteHover.left { openNote = nil }; return }
+        guard openNote?.line != index else { noteHover.stay(); return }
+        noteHover.rest { openNote = NoteAnchor(line: index, rect: rect) }
     }
 
     /// Lights the line, then, while the song plays, sleeps until the next line is due. Nothing runs between lines.
@@ -764,8 +797,10 @@ private struct TimedLyricsView: View {
         return now
     }
 
-    /// Click a line: play from where it starts.
+    /// Click a line: play from where it starts (a note open over it goes).
     private func jump(to index: Int) {
+        noteHover.cancel()
+        openNote = nil
         guard lyrics.lines.indices.contains(index), let ms = lyrics.lines[index].startMs else { return }
         player.seek(to: Double(ms) / 1000)
         if !player.isPlaying { player.togglePlayPause() }
@@ -782,6 +817,7 @@ struct NoteAnchor: Identifiable {
 /// The timed lines, as a view SwiftUI hands to AppKit.
 private struct LyricLines: NSViewRepresentable {
     let lines: [LyricLine]
+    var translations: [String]?
     let current: Int?                                              // nil: before the first line
     let motion: Double
     let fontSize: CGFloat
@@ -789,16 +825,16 @@ private struct LyricLines: NSViewRepresentable {
     let active: Bool
     var noted: Set<Int> = []                                       // lines with a Genius note: in the accent
     let accent: Color
-    var openNote: (Int, CGRect) -> Void = { _, _ in }
+    var pointerOver: ((Int, CGRect)?) -> Void = { _ in }
     let jump: (Int) -> Void
 
     func makeNSView(context: Context) -> LyricLinesView { LyricLinesView() }
 
     func updateNSView(_ view: LyricLinesView, context: Context) {
         view.active = active
-        view.openNote = openNote
-        view.update(lines: lines, current: current, motion: motion, fontSize: fontSize, feedback: feedback, noted: noted,
-                    accent: accent, jump: jump)
+        view.pointerOver = pointerOver
+        view.update(lines: lines, translations: translations, current: current, motion: motion, fontSize: fontSize,
+                    feedback: feedback, noted: noted, accent: accent, jump: jump)
     }
 }
 
@@ -814,9 +850,11 @@ final class LyricLinesView: NSView {
     private var tops: [CGFloat] = []               // each line's top, measured down from the strip's top
     private var heights: [CGFloat] = []
     private var lines: [LyricLine] = []
+    private var translations: [String]?            // translated: each line's translation, drawn under it
     private(set) var noted: Set<Int> = []          // lines with a Genius note: in the accent colour, a click opens it
     private var accent = Color.accentColor         // the noted lines' colour
-    var openNote: (Int, CGRect) -> Void = { _, _ in }
+    /// The line the pointer is over and its frame (top-left origin, as SwiftUI counts), or nil: for a note's preview.
+    var pointerOver: ((Int, CGRect)?) -> Void = { _ in }
     private var current: Int?
     private var motion = Look.lyricsMotion
     private var fontSize = LyricsFont.size
@@ -849,14 +887,16 @@ final class LyricLinesView: NSView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    func update(lines: [LyricLine], current: Int?, motion: Double, fontSize: CGFloat, feedback: Bool, noted: Set<Int> = [],
-                accent: Color, jump: @escaping (Int) -> Void) {
+    func update(lines: [LyricLine], translations: [String]? = nil, current: Int?, motion: Double, fontSize: CGFloat, feedback: Bool,
+                noted: Set<Int> = [], accent: Color, jump: @escaping (Int) -> Void) {
         self.motion = motion
         self.feedback = feedback
         self.jump = jump
         // notes arrive after the lyrics, and the song's colour (the accent) after the song
-        if lines != self.lines || fontSize != self.fontSize || noted != self.noted || accent != self.accent {
+        if lines != self.lines || translations != self.translations || fontSize != self.fontSize || noted != self.noted
+            || accent != self.accent {
             self.lines = lines
+            self.translations = translations
             self.noted = noted
             self.accent = accent
             self.fontSize = fontSize
@@ -892,7 +932,15 @@ final class LyricLinesView: NSView {
         for (i, line) in lines.enumerated() {
             let attributes: [NSAttributedString.Key: Any] = [.font: font,
                                                              .foregroundColor: noted.contains(i) ? noteColour : colour]
-            let text = NSAttributedString(string: line.text.isEmpty ? "♪" : line.text, attributes: attributes)
+            var text = NSAttributedString(string: line.text.isEmpty ? "♪" : line.text, attributes: attributes)
+            // translated: the line as sung, small and quiet, and its translation under it in the lyrics' face. One layer
+            // for both, so the two light, scroll and take a click together
+            if let translations, translations.indices.contains(i), !translations[i].isEmpty, !line.text.isEmpty {
+                let both = NSMutableAttributedString(string: line.text + "\n", attributes: [
+                    .font: NSFont.systemFont(ofSize: round(fontSize * 0.62)), .foregroundColor: resolved(.secondaryLabelColor)])
+                both.append(NSAttributedString(string: translations[i], attributes: attributes))
+                text = both
+            }
             // measured by CoreText, which CATextLayer draws with. TextKit measured Devanagari lines shorter (24 pt a row
             // against 33), and a CATextLayer whose wrapped text does not fit its height draws one unwrapped, clipped row
             let height = ceil(CTFramesetterSuggestFrameSizeWithConstraints(
@@ -1037,20 +1085,20 @@ final class LyricLinesView: NSView {
             offset = moving.position.y - bounds.height                  // stop the follow where it is, then scroll from there
             strip.removeAnimation(forKey: "follow")
         }
+        setHovered(nil)                                              // the lines move: no preview left behind
         let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 12
         offset = clamped(offset - delta)
         place(animated: false)
     }
 
-    override func mouseDown(with event: NSEvent) { pressed = line(at: convert(event.locationInWindow, from: nil)) }
+    override func mouseDown(with event: NSEvent) {
+        pressed = line(at: convert(event.locationInWindow, from: nil))
+        pointerOver(nil)                                             // a click: no note opens on the way
+    }
 
     override func mouseUp(with event: NSEvent) {
         defer { pressed = nil }
         guard let i = line(at: convert(event.locationInWindow, from: nil)), i == pressed else { return }
-        if noted.contains(i) {                                      // its note opens beside it (Play from Here is in it)
-            openNote(i, CGRect(x: Self.inset, y: tops[i] - offset, width: strip.bounds.width, height: heights[i]))
-            return
-        }
         followAgainAt = .distantPast                                // follow from the clicked line at once
         jump(i)
     }
@@ -1070,6 +1118,8 @@ final class LyricLinesView: NSView {
     private func setHovered(_ index: Int?) {
         guard index != hovered else { return }
         hovered = index
+        pointerOver(index.flatMap { i in tops.indices.contains(i)
+            ? (i, CGRect(x: Self.inset, y: tops[i] - offset, width: strip.bounds.width, height: heights[i])) : nil })
         still {
             guard feedback, let i = index, texts.indices.contains(i) else { hover.isHidden = true; return }
             hover.frame = texts[i].frame.insetBy(dx: -6, dy: -6)
@@ -1103,6 +1153,10 @@ final class LyricLinesView: NSView {
     }
 
     #if DEBUG
+    /// The pointer arriving on line `index` (nil: leaving the lines), as the tracking area reports it: CI cannot move
+    /// a real pointer.
+    func selfTestPointer(over index: Int?) { setHovered(index) }
+
     /// Self-tests measure where each line is: window points from the top, as SwiftUI's global frames are.
     private func recordFrames() {
         guard let height = window?.contentView?.frame.height else { return }
@@ -1366,12 +1420,14 @@ private struct UpNextRow: View {
 
 // MARK: - Genius notes (experimental, 8 Oct)
 
-/// A plain lyric line with a Genius note: in the accent colour (15 Oct: it was underlined); a click opens the note.
+/// A plain lyric line with a Genius note, in the accent colour: resting on it, or a click (plain lyrics have no times to
+/// play from), opens its note beside it, which you can move into and scroll.
 private struct NotedLine: View {
     let text: String
     let note: GeniusNote
     let url: String?
     @State private var open = false
+    @State private var noteHover = NoteHover()
 
     var body: some View {
         Text(text)
@@ -1379,17 +1435,66 @@ private struct NotedLine: View {
             .foregroundStyle(.tint)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
-            .onTapGesture { open = true }
-            .popover(isPresented: $open, arrowEdge: .leading) { GeniusNoteCard(note: note, url: url) }
+            .onTapGesture { noteHover.cancel(); open = true }
+            .onHover { inside in
+                if inside { noteHover.rest { open = true } } else { noteHover.left { open = false } }
+            }
+            .popover(isPresented: $open, arrowEdge: .leading) {
+                GeniusNoteCard(note: note, url: url, hovering: { inside in noteHover.card(inside) { open = false } })
+            }
     }
 }
 
-/// One Genius note, in a glass popover beside its line: the note, then the credit, and Play from Here for timed lyrics
-/// (the click that opened it did not play from the line).
+/// When a Genius note opens and closes for the pointer: after a short rest on its line (moving across the lyrics opens
+/// nothing), and shut a moment after the pointer leaves both the line and the note (time to move from one into the
+/// other).
+@MainActor
+final class NoteHover {
+    private var opening: Task<Void, Never>?
+    private var closing: Task<Void, Never>?
+    private var inCard = false
+
+    /// Resting on a noted line: `open` after 280 ms, unless the pointer moves on first.
+    func rest(_ open: @escaping () -> Void) {
+        closing?.cancel()
+        opening?.cancel()
+        opening = Task { try? await Task.sleep(for: .milliseconds(280)); if !Task.isCancelled { open() } }
+    }
+
+    /// Back on the line whose note is open: it stays.
+    func stay() { closing?.cancel() }
+
+    /// Off the line: `close` in a moment, unless the pointer is in the note by then.
+    func left(_ close: @escaping () -> Void) {
+        opening?.cancel()
+        closing?.cancel()
+        closing = Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            if !Task.isCancelled, !inCard { close() }
+        }
+    }
+
+    /// The pointer went into the note (it stays) or out of it (`close` in a moment).
+    func card(_ inside: Bool, close: @escaping () -> Void) {
+        inCard = inside
+        if inside { closing?.cancel() } else { left(close) }
+    }
+
+    func cancel() {
+        opening?.cancel()
+        closing?.cancel()
+        inCard = false
+    }
+}
+
+/// One Genius note, in a popover beside its line: the note (scrolling when long), then the credit, and Play from Here
+/// for timed lyrics.
 struct GeniusNoteCard: View {
     let note: GeniusNote
     let url: String?
     var play: (() -> Void)?
+    /// The pointer went into the card or out of it: it stays open while the pointer is in it.
+    var hovering: ((Bool) -> Void)?
     @Environment(\.textScale) private var textScale
 
     private static let width: CGFloat = 340
@@ -1426,6 +1531,7 @@ struct GeniusNoteCard: View {
         }
         .padding(Self.padding)
         .frame(width: Self.width)
+        .onHover { hovering?($0) }
     }
 }
 

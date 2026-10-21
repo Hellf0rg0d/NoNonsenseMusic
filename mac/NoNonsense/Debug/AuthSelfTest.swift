@@ -296,7 +296,18 @@ extension SelfTest {
 
             NSApp.activate(); window.makeKeyAndOrderFront(nil)
             try? await Task.sleep(for: .seconds(0.5))
-            let before = player.position
+            func noteShown() -> Bool { NSApp.windows.contains { $0.isVisible && String(describing: type(of: $0)).contains("Popover") } }
+            @MainActor func until(_ seconds: Double, _ done: () -> Bool) async -> Bool {
+                for _ in 0..<Int(seconds * 10) { if done() { return true }; try? await Task.sleep(for: .milliseconds(100)) }
+                return done()
+            }
+            // resting on a marked line opens its note (21 Oct); the pointer's arrival, as the tracking area reports it
+            view.selfTestPointer(over: 0)
+            check("resting on a marked line opens its note", await until(3) { noteShown() })
+            screenshot("genius-note")
+            // a click on it plays from that line, like any other line, and the note goes
+            view.selfTestPointer(over: nil)
+            let lineStart = Double(lines[0].startMs ?? 0) / 1000
             if let row = frames["lyrics.line.0"], window.isKeyWindow {
                 let p = NSPoint(x: row.minX + 30, y: window.contentView!.frame.height - row.midY)
                 for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
@@ -306,15 +317,12 @@ extension SelfTest {
                     }
                 }
             } else {
-                report("genius: the window cannot become key now: opening line 0's note as its click would")
-                view.openNote(0, .zero)
+                report("genius: the window cannot become key now: playing from line 0 as its click would")
+                SelfTest.lyricsJump?(0)
             }
-            try? await Task.sleep(for: .seconds(1))
-            let popover = NSApp.windows.contains { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }
-            check("a click on a marked line opens its note", popover)
-            check("…and does not play from that line", abs(player.position - before) < 0.5,
-                  String(format: "%.1f s → %.1f s", before, player.position))
-            screenshot("genius-note")
+            check("a click on a marked line plays from it", await until(3) { abs(player.position - lineStart) < 1 },
+                  String(format: "at %.1f s, the line starts at %.1f s", player.position, lineStart))
+            check("…and its note goes", await until(2) { !noteShown() })
             finish(failures)
         }
     }

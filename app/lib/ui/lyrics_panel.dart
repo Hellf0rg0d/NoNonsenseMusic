@@ -6,6 +6,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import '../core/api.dart';
 import '../core/models.dart';
 import '../core/player.dart';
+import '../core/settings.dart';
 import '../core/translation.dart';
 import 'concept.dart';
 import 'in_front.dart';
@@ -59,16 +60,17 @@ class LyricsPanel extends StatelessWidget {
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
                 ),
               ),
-              if (already)
-                Padding(padding: const EdgeInsets.only(left: 8), child: Text('Already in your language', style: theme.textTheme.bodySmall))
-              else
-                IconButton(
-                  tooltip: translating ? 'Show the Lyrics' : 'Translate',
-                  isSelected: translating,
+              // Translate for any lyrics; with it on, the language menu always shows, saying "Already in …" when there
+              // is nothing to translate into it, so another language is one pick away (English into Hindi, 20 Oct)
+              IconButton(
+                  tooltip: s.settings.translateLyrics ? 'Show the Lyrics' : 'Translate',
+                  isSelected: s.settings.translateLyrics,
                   icon: const Icon(FluentIcons.translate_24_regular, size: 18),
                   selectedIcon: Icon(FluentIcons.translate_24_filled, size: 18, color: theme.colorScheme.primary),
                   onPressed: () => s.settings.setTranslateLyrics(!s.settings.translateLyrics),
                 ),
+              // the language, changeable here as well as in Settings › Lyrics (20 Oct, as on the Mac)
+              if (s.settings.translateLyrics) _TranslateInto(settings: s.settings, already: already),
               if (about != null && !about.isEmpty)
                 IconButton(
                   tooltip: 'About This Song',
@@ -79,7 +81,7 @@ class LyricsPanel extends StatelessWidget {
           ),
           Expanded(
             child: translating
-                ? TranslatedLyrics(lines: found.lines, songId: t.id, translations: translations)
+                ? TranslatedLyrics(lyrics: found, track: t, translations: translations, notes: notes, notesUrl: genius?.url)
                 : found.synced
                     ? _Timed(key: ValueKey(t.id), track: t, lyrics: found, notes: notes, notesUrl: genius?.url)
                     : _Plain(found, notes: notes, notesUrl: genius?.url),
@@ -94,10 +96,16 @@ class LyricsPanel extends StatelessWidget {
 /// The lyrics with each line's translation under it. Asked for when the pane opens for a song: "Translating…"
 /// meanwhile, "Couldn't translate these lyrics" with a way to try again when it fails.
 class TranslatedLyrics extends StatelessWidget {
-  final List<LyricLine> lines;
-  final String songId;
+  final Lyrics lyrics;
+  final Track track;
   final LyricsTranslations translations;
-  const TranslatedLyrics({super.key, required this.lines, required this.songId, required this.translations});
+  final Map<int, GeniusNote> notes;
+  final String? notesUrl;
+  const TranslatedLyrics(
+      {super.key, required this.lyrics, required this.track, required this.translations, this.notes = const {}, this.notesUrl});
+
+  List<LyricLine> get lines => lyrics.lines;
+  String get songId => track.id;
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +124,12 @@ class TranslatedLyrics extends StatelessWidget {
       }
       return centered([Text('Translating…', style: muted)]);
     }
+    // timed lyrics stay timed once translated: the line being sung lit and followed, a tap plays from it, each line's
+    // translation under it (20 Oct)
+    if (lyrics.synced) {
+      return _Timed(key: ValueKey(('translated', songId)), track: track, lyrics: lyrics, notes: notes, notesUrl: notesUrl,
+          translations: done);
+    }
     final shown = [for (final (i, l) in lines.indexed) if (l.text.isNotEmpty && i < done.length) i];
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 12),
@@ -131,6 +145,45 @@ class TranslatedLyrics extends StatelessWidget {
           ]),
         );
       },
+    );
+  }
+}
+
+/// Translate into, in the Lyrics pane while a translation shows: the language's name, a menu of the others.
+class _TranslateInto extends StatelessWidget {
+  final Settings settings;
+  final bool already; // the lyrics are in the language chosen: "Already in …"
+  const _TranslateInto({required this.settings, this.already = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final chosen = settings.translateInto;
+    final language = LyricsTranslations.languages[chosen];
+    final name = already ? 'Already in ${language ?? 'your language'}' : language ?? 'System language';
+    return PopupMenuButton<String>(
+      tooltip: 'Translate into',
+      initialValue: chosen,
+      onSelected: settings.setTranslateInto,
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: '', child: Text('System language')),
+        const PopupMenuDivider(),
+        for (final MapEntry(key: code, value: language) in LyricsTranslations.languages.entries)
+          PopupMenuItem(value: code, child: Text(language)),
+      ],
+      // a pill with an edge, so it reads as something to click: as plain text beside "from LRCLIB" it did not (21 Oct)
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 4, 6, 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: theme.colorScheme.onSurface.withValues(alpha: 0.22)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(name, style: theme.textTheme.bodySmall),
+          const SizedBox(width: 2),
+          const Icon(Icons.expand_more, size: 16),
+        ]),
+      ),
     );
   }
 }
@@ -158,7 +211,8 @@ class _Timed extends StatefulWidget {
   final Lyrics lyrics;
   final Map<int, GeniusNote> notes;
   final String? notesUrl;
-  const _Timed({super.key, required this.track, required this.lyrics, this.notes = const {}, this.notesUrl});
+  final List<String>? translations; // translated: each line's translation, shown under the line as sung
+  const _Timed({super.key, required this.track, required this.lyrics, this.notes = const {}, this.notesUrl, this.translations});
   @override
   State<_Timed> createState() => _TimedState();
 }
@@ -238,16 +292,23 @@ class _TimedState extends State<_Timed> {
     final base = DefaultTextStyle.of(context).style.merge(theme.textTheme.titleMedium?.merge(lyricsStyle));
     final direction = Directionality.of(context);
     final scaler = MediaQuery.textScalerOf(context);
+    final translated = widget.translations;
+    String translation(int i) => translated != null && i < translated.length && widget.lyrics.lines[i].text.isNotEmpty ? translated[i] : '';
+    final original = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: NowPlayingInk.secondary));
     // separate paint layer: a line change repaints the lyrics only, not the page
     return RepaintBoundary(child: LayoutBuilder(builder: (context, box) {
       // each line wraps at the width it is drawn at (the list's width less the 6 px either side)
       final width = (box.maxWidth - 12).clamp(40.0, double.infinity);
-      final key = (width, base, direction, scaler);
+      final key = (width, base, direction, scaler, translated);
       final first = _layout == null;
       if (key != _layoutKey) {
         _layoutKey = key;
-        _layout = LyricLayout.measure([for (final l in widget.lyrics.lines) l.text],
-            style: base, width: width, direction: direction, scaler: scaler);
+        final lines = widget.lyrics.lines;
+        _layout = translated == null
+            ? LyricLayout.measure([for (final l in lines) l.text], style: base, width: width, direction: direction, scaler: scaler)
+            : LyricLayout.measure([for (final (i, l) in lines.indexed) translation(i).isEmpty ? l.text : translation(i)],
+                style: base, width: width, direction: direction, scaler: scaler,
+                above: [for (final (i, l) in lines.indexed) translation(i).isEmpty ? '' : l.text], aboveStyle: original);
       }
       final layout = _layout!;
       if (first) WidgetsBinding.instance.addPostFrameCallback((_) => _center(_lit, jump: true));
@@ -263,8 +324,18 @@ class _TimedState extends State<_Timed> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               // a line with a note opens it rather than playing from it: "Play from here" lives inside the note
-              child: NotedLyricLine(text: line.text, note: widget.notes[i], url: widget.notesUrl, onTap: play, onPlay: play,
-                  style: base.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: i == _lit ? 1 : NowPlayingInk.unlit))),
+              child: () {
+                final lit = base.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: i == _lit ? 1 : NowPlayingInk.unlit));
+                final over = translation(i);
+                final shown = NotedLyricLine(text: over.isEmpty ? line.text : over, note: widget.notes[i], url: widget.notesUrl,
+                    onTap: play, onPlay: play, style: lit);
+                if (over.isEmpty) return shown;
+                return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(line.text, style: original),
+                  const SizedBox(height: LyricLayout.aboveGap),
+                  shown,
+                ]);
+              }(),
             ),
           );
         },
@@ -295,31 +366,51 @@ class NotedLyricLine extends StatefulWidget {
 class _NotedLyricLineState extends State<NotedLyricLine> {
   final _card = OverlayPortalController();
   final _link = LayerLink();
-  Timer? _wait;
-  bool _below = true; // the card opens below the line, or above it in the lower half of the window
+  Timer? _wait, _closing;
+  bool _inCard = false; // the pointer is in the card: it stays open
+  bool _below = true; // the card opens under the line, or over it when there is no room under it
+  static const _cardRoom = 300.0; // the tallest card: the note, scrolling past this, and its credit
 
   void _enter() {
     if (widget.note == null || isTouchDevice) return;
+    _closing?.cancel();
+    if (_card.isShowing) return;
     _wait?.cancel();
     // a short rest first: moving the pointer across the lyrics does not flash a card on every line it passes
     _wait = Timer(const Duration(milliseconds: 280), () {
       if (!mounted) return;
       final box = context.findRenderObject() as RenderBox?;
       if (box != null && box.hasSize) {
-        _below = box.localToGlobal(box.size.center(Offset.zero)).dy < MediaQuery.sizeOf(context).height / 2;
+        // under the line when the card fits there, else over it: by halves, the lines under the lit one (in the
+        // middle) all opened theirs over them, up on the pane's header (20 Oct)
+        final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+        _below = bottom + 8 + _cardRoom <= MediaQuery.sizeOf(context).height;
       }
       _card.show();
     });
   }
 
+  /// Off the line, or out of the card: it closes a moment later, unless the pointer went into the card (or back) by
+  /// then. Time to move from the line into the card, which you can scroll (21 Oct, as on the Mac).
   void _leave() {
     _wait?.cancel();
+    _closing?.cancel();
+    _closing = Timer(const Duration(milliseconds: 250), () {
+      if (mounted && !_inCard && _card.isShowing) _card.hide();
+    });
+  }
+
+  void _close() {
+    _wait?.cancel();
+    _closing?.cancel();
+    _inCard = false;
     if (_card.isShowing) _card.hide();
   }
 
   @override
   void dispose() {
     _wait?.cancel();
+    _closing?.cancel();
     super.dispose();
   }
 
@@ -332,13 +423,21 @@ class _NotedLyricLineState extends State<NotedLyricLine> {
     // the line's own brightness (the line being sung is the brightest), never fainter than can be read
     final shown = Text(widget.text,
         style: note == null ? widget.style : style.copyWith(color: accent.withValues(alpha: (style.color?.a ?? 1).clamp(0.6, 1.0))));
+    // with a mouse, resting on a noted line shows its note and a click plays from the line like any other (21 Oct);
+    // on a touch screen there is no resting, and untimed lyrics have nothing to play from: a tap opens the note
+    final play = widget.onTap;
     final tap = note == null
-        ? widget.onTap
-        : () {
-            _leave();
-            showGeniusNote(context, note, widget.url, onPlay: widget.onPlay);
-          };
-    // a hand over a noted line, as over a link: it opens its note (Flutter gives a tappable widget the arrow on a computer)
+        ? play
+        : (play != null && !isTouchDevice)
+            ? () {
+                _close();
+                play();
+              }
+            : () {
+                _close();
+                showGeniusNote(context, note, widget.url, onPlay: widget.onPlay);
+              };
+    // a hand over a noted line, as over a link (Flutter gives a tappable widget the arrow on a computer)
     final line = InkWell(borderRadius: BorderRadius.circular(8), mouseCursor: note == null ? null : SystemMouseCursors.click, onTap: tap, child: shown);
     if (note == null) return line;
     return CompositedTransformTarget(
@@ -354,7 +453,18 @@ class _NotedLyricLineState extends State<NotedLyricLine> {
             targetAnchor: _below ? Alignment.bottomLeft : Alignment.topLeft,
             followerAnchor: _below ? Alignment.topLeft : Alignment.bottomLeft,
             offset: Offset(0, _below ? 8 : -8),
-            child: IgnorePointer(child: _NoteCard(note: note)),
+            // the pointer can move into the card and scroll it; it stays open while the pointer is in it
+            child: MouseRegion(
+              onEnter: (_) {
+                _inCard = true;
+                _closing?.cancel();
+              },
+              onExit: (_) {
+                _inCard = false;
+                _leave();
+              },
+              child: _NoteCard(note: note),
+            ),
           ),
         ),
         child: MouseRegion(onEnter: (_) => _enter(), onExit: (_) => _leave(), child: line),
@@ -363,7 +473,7 @@ class _NotedLyricLineState extends State<NotedLyricLine> {
   }
 }
 
-/// The note shown on hover: its first lines, on glass, coming in once.
+/// The note shown on hover, on glass, coming in once: all of it, scrolling when long.
 class _NoteCard extends StatelessWidget {
   final GeniusNote note;
   const _NoteCard({required this.note});
@@ -387,9 +497,13 @@ class _NoteCard extends StatelessWidget {
       child: Material(
         type: MaterialType.transparency,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(note.text, maxLines: 7, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodyMedium?.copyWith(height: 1.4)),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240),
+            child: SingleChildScrollView(
+                child: Text(note.text, style: theme.textTheme.bodyMedium?.copyWith(height: 1.4))),
+          ),
           const SizedBox(height: 8),
-          Text(note.verified ? 'Genius · verified by the artist · click for all of it' : 'Genius · click for all of it',
+          Text(note.verified ? 'Genius · verified by the artist' : 'Genius',
               style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: NowPlayingInk.secondary))),
         ]),
       ),

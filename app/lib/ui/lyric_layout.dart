@@ -13,6 +13,9 @@ class LyricLayout {
   /// Space above and below a line's text.
   static const gap = 7.0;
 
+  /// Space between a translated line's original, above, and its translation.
+  static const aboveGap = 3.0;
+
   final List<double> extents;
   final List<double> offsets;
   const LyricLayout._(this.extents, this.offsets);
@@ -24,16 +27,26 @@ class LyricLayout {
     required double width,
     required TextDirection direction,
     required TextScaler scaler,
+    List<String>? above,
+    TextStyle? aboveStyle,
   }) {
     final extents = <double>[];
     final offsets = <double>[];
     var at = 0.0;
     final painter = TextPainter(textDirection: direction, textScaler: scaler);
-    for (final line in lines) {
+    for (final (i, line) in lines.indexed) {
       painter
         ..text = TextSpan(text: line.isEmpty ? ' ' : line, style: style)
         ..layout(maxWidth: width);
-      final h = painter.height + 2 * gap;
+      var h = painter.height + 2 * gap;
+      // translated lyrics: the line as sung, small, over its translation (aboveGap between them)
+      final over = above != null && i < above.length ? above[i] : '';
+      if (over.isNotEmpty) {
+        painter
+          ..text = TextSpan(text: over, style: aboveStyle ?? style)
+          ..layout(maxWidth: width);
+        h += painter.height + aboveGap;
+      }
       offsets.add(at);
       extents.add(h < minExtent ? minExtent : h);
       at += extents.last;
