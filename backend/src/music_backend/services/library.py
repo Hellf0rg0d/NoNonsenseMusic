@@ -3,6 +3,7 @@
 Song IDs are assigned lazily: search results have no IDs. When the user likes or plays a song, the
 app sends that song's listings, and resolve_song finds the stored song they belong to, or creates it.
 """
+import json
 import logging
 from types import SimpleNamespace
 from typing import Literal
@@ -13,7 +14,7 @@ from psycopg import AsyncConnection
 
 from music_backend.services import notifications
 from music_backend.services.served import ServedListings
-from music_backend.services.matching import Vocabulary, normalise, pick_best, pick_cover, same_recording, words_of
+from music_backend.services.matching import Vocabulary, core_title, normalise, pick_best, pick_cover, same_recording, words_of
 from music_backend.models import (EventType, LibrarySong, Listing, Member, Notification,
                                   PlaylistMetadata, PlaylistItem, Song)
 
@@ -72,43 +73,51 @@ async def resolve_song(conn: AsyncConnection, listings: list[Listing]) -> UUID:
     Resolution runs in three steps:
     1. Exact identity: whether any of these listings is already linked to a song (safe to check all
        of them, because identity cannot chain the way similarity can).
-    2. Otherwise similarity, but only against songs with the same normalised title (indexed),
-       because same_recording requires equal titles anyway.
+    2. Otherwise similarity, but only against songs with the same core title (indexed), because
+       same_recording requires equal core titles anyway.
     3. Otherwise a new song, whose frozen identity is the first listing (the group's centre).
+
+    Two stored songs found in step 1 or 2 that are the same recording become one: the newer is merged into the oldest
+    (merge_songs). ZEZE was stored twice before songs were found by core title (24 Oct).
 
     Each listing is linked only if it is the same recording as the song's frozen identity, so the
     centre never drifts across searches (200 -> 204 -> 208 -> ...).
     """
     first = listings[0]
     async with conn.transaction():
-        await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [normalise(first.title)])
-        linked = await (await conn.execute(
-            """SELECT DISTINCT s.id, s.created_at
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [core_title(first.title)])
+        songs = [SimpleNamespace(**r) for r in await (await conn.execute(
+            """SELECT DISTINCT s.id, s.title, s.artists, s.duration, s.created_at
                  FROM listings l
                  JOIN songs s ON s.id = l.song_id
                  JOIN unnest(%s::text[], %s::text[]) AS k(source, source_id)
                    ON (l.source, l.source_id) = (k.source, k.source_id)
                 ORDER BY s.created_at""",
             [[l.source for l in listings], [l.id for l in listings]],
-        )).fetchall()
-
-        song_id = linked[0]["id"] if linked else None
-        if len(linked) > 1:
-            # 200 s and 204 s can sit in two stored songs; merging them is not built yet
-            logger.warning("listings span %d stored songs %s; using the oldest", len(linked), [r["id"] for r in linked])
-
-        if song_id is None:
+        )).fetchall()]
+        why = "its copies were on both"
+        if not songs:
+            # normalised_title too: a song stored before migrations/0007 has no core title until the next start
             candidates = await (await conn.execute(
-                "SELECT id, title, artists, duration FROM songs WHERE normalised_title = %s ORDER BY created_at",
-                [normalise(first.title)],
+                """SELECT id, title, artists, duration FROM songs WHERE core_title = %s OR normalised_title = %s
+                    ORDER BY created_at""",
+                [core_title(first.title), normalise(first.title)],
             )).fetchall()
-            song_id = next((c["id"] for c in candidates if same_recording(SimpleNamespace(**c), first)), None)
+            songs = [c for c in (SimpleNamespace(**r) for r in candidates) if same_recording(c, first)]
+            why = "both are the same recording as a new copy"
+
+        song_id = songs[0].id if songs else None
+        for other in songs[1:]:
+            if same_recording(songs[0], other):
+                await merge_songs(conn, other.id, song_id, why)
+            else:                                 # 200 s and 208 s, each 4 s from a copy of 204 s: not one recording
+                logger.warning("listings span songs %s and %s, not one recording; using the oldest", song_id, other.id)
 
         if song_id is None:
             song_id = (await (await conn.execute(
-                """INSERT INTO songs (title, artists, duration, normalised_title, image)
-                   VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-                [first.title, first.artists, first.duration, normalise(first.title),
+                """INSERT INTO songs (title, artists, duration, normalised_title, core_title, image)
+                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                [first.title, first.artists, first.duration, normalise(first.title), core_title(first.title),
                  pick_cover([l for l in listings if same_recording(first, l)])],
             )).fetchone())["id"]
 
@@ -146,14 +155,94 @@ async def resolve_song(conn: AsyncConnection, listings: list[Listing]) -> UUID:
     return song_id
 
 
+async def merge_songs(conn: AsyncConnection, from_id: UUID, into_id: UUID, why: str) -> None:
+    """Make one song of two that are the same recording: from_id's copies, likes, plays and playlist entries move to
+    into_id, and the merge is recorded (song_merges) with the song as it was and what moved, so split_song can undo it.
+    A like both songs had stays once, with into_id's time."""
+    async with conn.transaction():
+        song = await (await conn.execute("SELECT to_jsonb(s) AS row FROM songs s WHERE id = %s FOR UPDATE",
+                                         [from_id])).fetchone()
+        if song is None:
+            return
+        moved = {
+            "listings": [[r["source"], r["source_id"]] for r in await (await conn.execute(
+                "UPDATE listings SET song_id = %s WHERE song_id = %s RETURNING source, source_id", [into_id, from_id],
+            )).fetchall()],
+            "likes": [{"user": str(r["user_id"]), "at": r["liked_at"].isoformat(), "kept": r["kept"]}
+                      for r in await (await conn.execute(
+                """SELECT user_id, liked_at, EXISTS (SELECT 1 FROM likes k WHERE k.user_id = l.user_id AND k.song_id = %s) AS kept
+                     FROM likes l WHERE song_id = %s""", [into_id, from_id])).fetchall()],
+            "events": [r["id"] for r in await (await conn.execute(
+                "UPDATE events SET song_id = %s WHERE song_id = %s RETURNING id", [into_id, from_id])).fetchall()],
+            "items": [str(r["id"]) for r in await (await conn.execute(
+                "UPDATE playlist_items SET song_id = %s WHERE song_id = %s RETURNING id", [into_id, from_id])).fetchall()],
+            # songs merged into this one before: they lead on to into_id now
+            "merges": [str(r["from_id"]) for r in await (await conn.execute(
+                "UPDATE song_merges SET into_id = %s WHERE into_id = %s RETURNING from_id", [into_id, from_id])).fetchall()],
+        }
+        await conn.execute("""INSERT INTO likes (user_id, song_id, liked_at)
+                              SELECT user_id, %s, liked_at FROM likes WHERE song_id = %s ON CONFLICT DO NOTHING""",
+                           [into_id, from_id])
+        await conn.execute("""INSERT INTO song_merges (from_id, into_id, why, song, moved) VALUES (%s, %s, %s, %s::jsonb, %s::jsonb)""",
+                           [from_id, into_id, why, json.dumps(song["row"]), json.dumps(moved)])
+        await conn.execute("DELETE FROM songs WHERE id = %s", [from_id])      # its likes go with it: copied above
+    logger.info("songs: %s merged into %s (%s): %d copies", from_id, into_id, why, len(moved["listings"]))
+
+
+async def split_song(conn: AsyncConnection, from_id: UUID) -> bool:
+    """Undo merge_songs: the song back as it was, with what moved from it. Returns whether there was such a merge."""
+    async with conn.transaction():
+        merge = await (await conn.execute("SELECT * FROM song_merges WHERE from_id = %s FOR UPDATE", [from_id])).fetchone()
+        if merge is None:
+            return False
+        moved, into_id = merge["moved"], merge["into_id"]
+        await conn.execute("INSERT INTO songs SELECT * FROM jsonb_populate_record(NULL::songs, %s::jsonb)",
+                           [json.dumps(merge["song"])])
+        keys = moved["listings"]
+        await conn.execute(
+            """UPDATE listings l SET song_id = %s FROM unnest(%s::text[], %s::text[]) AS k(source, source_id)
+                WHERE (l.source, l.source_id) = (k.source, k.source_id)""",
+            [from_id, [k[0] for k in keys], [k[1] for k in keys]])
+        await conn.execute("UPDATE events SET song_id = %s WHERE id = ANY(%s::bigint[])", [from_id, moved["events"]])
+        await conn.execute("UPDATE playlist_items SET song_id = %s WHERE id = ANY(%s::uuid[])", [from_id, moved["items"]])
+        await conn.execute("UPDATE song_merges SET into_id = %s WHERE from_id = ANY(%s::uuid[])", [from_id, moved["merges"]])
+        for like in moved["likes"]:
+            await conn.execute("INSERT INTO likes (user_id, song_id, liked_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                               [like["user"], from_id, like["at"]])
+            if not like["kept"]:                  # liked only as the merged song: not a like of into_id's own
+                await conn.execute("DELETE FROM likes WHERE user_id = %s AND song_id = %s", [like["user"], into_id])
+        await conn.execute("DELETE FROM song_merges WHERE from_id = %s", [from_id])
+    logger.info("songs: %s split from %s again", from_id, into_id)
+    return True
+
+
+async def fill_core_titles(conn: AsyncConnection) -> int:
+    """At start: give the songs stored before migrations/0007 their core titles. Returns how many (all of them the
+    first time, then none)."""
+    rows = await (await conn.execute("SELECT id, title FROM songs WHERE core_title IS NULL")).fetchall()
+    if rows:
+        async with conn.transaction():
+            await conn.execute("SET LOCAL statement_timeout = 0")    # once, at start: may outlast a request's 10 s
+            await conn.execute("CREATE TEMP TABLE new_cores (id uuid, core_title text) ON COMMIT DROP")
+            async with conn.cursor().copy("COPY new_cores FROM STDIN") as copy:
+                for r in rows:
+                    await copy.write_row((r["id"], core_title(r["title"])))
+            await conn.execute("UPDATE songs s SET core_title = n.core_title FROM new_cores n WHERE s.id = n.id")
+            await conn.execute("ANALYZE songs")
+    return len(rows)
+
+
 async def like(conn: AsyncConnection, user_id: UUID, song_id: UUID) -> None:
     # liking twice is a no-op: (user_id, song_id) is the primary key
     await conn.execute("INSERT INTO likes (user_id, song_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", [user_id, song_id])
 
 
 async def unlike(conn: AsyncConnection, user_id: UUID, song_id: UUID) -> bool:
-    """Return whether the user had liked the song (and now has not)."""
-    return (await conn.execute("DELETE FROM likes WHERE user_id = %s AND song_id = %s", [user_id, song_id])).rowcount > 0
+    """Return whether the user had liked the song (and now has not). A merged song's id unlikes the song it is now."""
+    return (await conn.execute(
+        """DELETE FROM likes WHERE user_id = %s
+             AND song_id IN (%s, (SELECT into_id FROM song_merges WHERE from_id = %s))""",
+        [user_id, song_id, song_id])).rowcount > 0
 
 
 async def record_event(conn: AsyncConnection, user_id: UUID, song_id: UUID, event_type: EventType, position: int) -> None:

@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI):
     async with pool.connection() as conn:
         if filled := await library.load_words(conn):              # the words a search finds your songs by (#26)
             logger.info("search: words given to %d stored copies", filled)
+        if filled := await library.fill_core_titles(conn):        # what songs are found by (migrations/0007)
+            logger.info("songs: core titles given to %d stored songs", filled)
     app.state.pool = pool
     app.state.limits = ratelimit.Limiter()                        # rate limits (core/ratelimit.py): counts in memory
     app.state.served = served.ServedListings()                    # what search etc. returned: the only copies stored

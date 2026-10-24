@@ -70,9 +70,39 @@ def artists_match(a: list[str], b: list[str]) -> bool:
                 return True
     return False
 
+# the words that join a credit, in no one's name: "(feat. Offset & Travis Scott)", "(feat. Travis Scott and Offset)"
+CREDIT_JOINERS = frozenset({"feat", "ft", "featuring", "and", "with"})
+
+
+@lru_cache(maxsize=16384)
+def core_title(title: str) -> str:
+    """A title without who it features, normalised: "ZEZE (feat. Offset & Travis Scott)" -> "zeze". What songs are
+    looked up by (songs.core_title)."""
+    return normalise(_FEATURED.sub("", title)) or normalise(title)        # a title that is only "(feat. …)" is its own
+
+
+@lru_cache(maxsize=16384)
+def _credit(title: str, artists: tuple[str, ...]) -> frozenset[str]:
+    featured = " ".join(m.group(0) for m in _FEATURED.finditer(title))
+    return frozenset(normalise(" ".join([featured, *artists])).split()) - CREDIT_JOINERS
+
+
+def credit(listing) -> frozenset[str]:
+    """Every word of everyone a copy credits, in its artists or in its title's "(feat. …)", in any order."""
+    return _credit(listing.title, tuple(listing.artists))
+
+
 def same_recording(a : Listing, b : Listing) -> bool:
-    """Return True when two listings share a normalised title, matching artists and a close duration."""
-    return normalise(a.title) == normalise(b.title) and artists_match(a.artists, b.artists) and abs(a.duration - b.duration) <= DURATION_TOLERANCE
+    """Return True when two listings are the same recording: close durations and matching artists, and either equal
+    titles or equal core titles crediting the same people. ZEZE is "(feat. Travis Scott & Offset)" on JioSaavn and
+    "(feat. Offset & Travis Scott)" on YouTube Music, by "Kodak Black" on both (24 Oct). A song and its version with
+    someone more ("Despacito" and "Despacito (feat. Justin Bieber)") credit different people, and stay apart."""
+    if abs(a.duration - b.duration) > DURATION_TOLERANCE or not artists_match(a.artists, b.artists):
+        return False
+    if normalise(a.title) == normalise(b.title):
+        return True
+    core = core_title(a.title)
+    return bool(core) and core == core_title(b.title) and credit(a) == credit(b)
 
 
 # Official videos drift ~1 min from the album cut (Blinding Lights: 4:23 video vs 3:20 song), so plain
