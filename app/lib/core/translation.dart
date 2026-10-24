@@ -16,15 +16,20 @@ class TranslateReply {
   /// Reads the reply of `translate_a/single?client=gtx&dt=t`: a list whose first element is a list of chunks
   /// `[translated, original, ...]` and whose element 2 is the detected language. Throws a [FormatException] for any
   /// other shape, so a changed reply shows as a failure instead of as wrong text.
-  factory TranslateReply.parse(String body) {
+  ///
+  /// [romanized]: asked with `dt=rm` too, the text is the translation in Latin letters instead, from the chunk
+  /// `[null, null, romanized, ...]` that ends the list, line breaks kept (Hinglish, 24 Oct).
+  factory TranslateReply.parse(String body, {bool romanized = false}) {
     final Object? reply = jsonDecode(body);
     if (reply is! List || reply.isEmpty || reply.first is! List) throw const FormatException('no chunks');
     final out = StringBuffer();
     for (final chunk in reply.first as List) {
       if (chunk is! List || chunk.isEmpty) throw const FormatException('a chunk is not a list');
       final part = chunk.first;
-      if (part is String) out.write(part);
+      if (!romanized && part is String) out.write(part);
+      if (romanized && part == null && chunk.length > 2 && chunk[2] is String) out.write(chunk[2]);
     }
+    if (romanized && out.isEmpty) throw const FormatException('no romanized text');
     final language = reply.length > 2 && reply[2] is String ? reply[2] as String : null;
     return TranslateReply(out.toString(), language);
   }
@@ -89,7 +94,7 @@ class LyricsTranslations extends ChangeNotifier {
     notifyListeners();
     try {
       final reply = await (ask ?? GoogleTranslate.ask)([for (final i in spoken) lines[i].text.trim()].join('\n'), target);
-      if (sameLanguage(reply.language, target)) {
+      if (alreadyIn(reply.language, spoken.map((i) => lines[i].text).join('\n'), target)) {
         _sameLanguage.add(key);
       } else {
         final each = reply.splitInto(spoken.length);
@@ -119,6 +124,7 @@ class LyricsTranslations extends ChangeNotifier {
   /// letters are in the script of [target] (an English or Spanish reader with translations written in Hindi gets a
   /// request instead). Between two languages in one script, the uploader's translation is trusted.
   static List<String>? providedTranslations(List<LyricLine> lines, String target) {
+    if (target == hinglish) return null; // an uploader's translation in Latin letters is mostly English
     final given = [for (final l in lines) l.translation?.trim() ?? ''];
     if (!given.any((t) => t.isNotEmpty)) return null;
     return inScript(given.join('\n'), target) ? given : null;
@@ -136,7 +142,7 @@ class LyricsTranslations extends ChangeNotifier {
     return letters > 0 && inTarget * 10 >= letters * 8;
   }
 
-  static String _scriptPattern(String language) => switch (language.split('-').first) {
+  static String _scriptPattern(String language) => language == hinglish ? r'\p{Script=Latin}' : switch (language.split('-').first) {
         'hi' || 'mr' || 'ne' || 'sa' => r'\p{Script=Devanagari}',
         'bn' || 'as' => r'\p{Script=Bengali}',
         'ta' => r'\p{Script=Tamil}',
@@ -156,6 +162,11 @@ class LyricsTranslations extends ChangeNotifier {
         _ => r'\p{Script=Latin}',
       };
 
+  /// Whether lyrics Google found written in [detected] need no translating into [target]: the same language, or, for
+  /// Hinglish, Hindi already in Latin letters (Google answers "hi" for Hindi in either script).
+  static bool alreadyIn(String? detected, String text, String target) =>
+      target == hinglish ? sameLanguage(detected, 'hi') && inScript(text, hinglish) : sameLanguage(detected, target);
+
   /// Whether the language Google detected is the one asked for: 'zh-CN' and 'zh' match, and so do the two codes
   /// Google uses for Hebrew.
   static bool sameLanguage(String? detected, String target) {
@@ -167,15 +178,20 @@ class LyricsTranslations extends ChangeNotifier {
     return detected != null && base(detected) == base(target);
   }
 
+  /// Hindi in Latin letters, as most people text it: Google's Hindi translation romanized ([GoogleTranslate.ask]), and
+  /// Hindi lyrics in Devanagari romanized. Its code says the script (BCP 47); Google is asked for "hi".
+  static const hinglish = 'hi-Latn';
+
   /// Settings › Lyrics › Translate into: the languages offered besides the device's own, by Google's code, with their
   /// own names, in the order of those names. Those Apple's on-device translation also takes, so the Mac app offers the
-  /// same list (#19); not all of Google's 240.
+  /// same list (#19); not all of Google's 240. Hinglish the Mac translates through Google only.
   static const languages = {
     'id': 'Bahasa Indonesia',
     'de': 'Deutsch',
     'en': 'English',
     'es': 'Español',
     'fr': 'Français',
+    hinglish: 'Hinglish',
     'it': 'Italiano',
     'nl': 'Nederlands',
     'pl': 'Polski',
@@ -210,14 +226,16 @@ class GoogleTranslate {
   /// Longest encoded question sent in the address; longer ones go in a form body, which has no such limit.
   static const maxQueryLength = 1800;
 
-  /// Translates [text] (lines joined by line breaks) into [target], detecting the source language.
+  /// Translates [text] (lines joined by line breaks) into [target], detecting the source language. Hinglish is Hindi,
+  /// romanized (`dt=rm`).
   static Future<TranslateReply> ask(String text, String target) async {
-    final fixed = {'client': 'gtx', 'sl': 'auto', 'tl': target, 'dt': 't'};
+    final romanized = target == LyricsTranslations.hinglish;
+    final fixed = {'client': 'gtx', 'sl': 'auto', 'tl': romanized ? 'hi' : target, 'dt': romanized ? ['t', 'rm'] : 't'};
     final http = Api.client;
     final response = Uri.encodeQueryComponent(text).length <= maxQueryLength
         ? await http.get(Uri.parse(_endpoint).replace(queryParameters: {...fixed, 'q': text})).timeout(_wait)
         : await http.post(Uri.parse(_endpoint).replace(queryParameters: fixed), body: {'q': text}).timeout(_wait);
     if (response.statusCode != 200) throw FormatException('translate answered ${response.statusCode}');
-    return TranslateReply.parse(utf8.decode(response.bodyBytes));
+    return TranslateReply.parse(utf8.decode(response.bodyBytes), romanized: romanized);
   }
 }

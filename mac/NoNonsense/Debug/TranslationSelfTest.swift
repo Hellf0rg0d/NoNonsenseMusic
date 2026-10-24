@@ -137,13 +137,20 @@ extension SelfTest {
             check("Google's code: traditional Chinese zh-TW, simplified zh-CN, any other language alone", wrongCodes.isEmpty,
                   wrongCodes.map { "\($0.key) → \(OnlineTranslation.code(for: Locale.Language(identifier: $0.key)) ?? "nil")" }.joined(separator: ", "))
             var statuses: [String] = [], unsupported: [String] = []
-            for (id, name) in LyricsTranslations.choices {
+            for (id, name) in LyricsTranslations.choices where !LyricsTranslations.googleOnly.contains(id) {
                 let status = await LanguageAvailability().status(from: id == "en" ? spanish : english, to: Locale.Language(identifier: id))
                 statuses.append("\(id) \(status == .installed ? "installed" : status == .supported ? "supported" : "unsupported")")
                 if status == .unsupported { unsupported.append("\(name) (\(id))") }
             }
             report("translateinto: from English (Spanish for English) on this Mac: \(statuses.joined(separator: ", "))")
-            check("each language offered is one Apple's framework translates", unsupported.isEmpty, unsupported.joined(separator: ", "))
+            check("each language offered, Hinglish aside (Google's only), is one Apple's framework translates", unsupported.isEmpty,
+                  unsupported.joined(separator: ", "))
+            let hinglish = Locale.Language(identifier: OnlineTranslation.hinglish)
+            check("Hinglish: not Hindi in Devanagari; Hindi lyrics already in Latin letters need nothing, in Devanagari a romanizing",
+                  !LyricsTranslations.same(hindi, hinglish) && LyricsTranslations.same(hinglish, hinglish)
+                      && OnlineTranslation.alreadyIn("hi", ["har raat jab shahar sota hai"], target: hinglish)
+                      && !OnlineTranslation.alreadyIn("hi", hi, target: hinglish) && !OnlineTranslation.alreadyIn("en", en, target: hinglish)
+                      && OnlineTranslation.alreadyIn("hi-IN", hi, target: hindi))
             let apple = await Task.detached { await LanguageAvailability().supportedLanguages }.value   // made and asked off the main actor
             report("translateinto: Apple's framework translates \(apple.count): \(apple.map(\.minimalIdentifier).sorted().joined(separator: " "))")
             check("the uploader's translation is used only in the chosen language: English into English, not into Hindi",

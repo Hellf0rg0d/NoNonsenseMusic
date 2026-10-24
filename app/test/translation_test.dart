@@ -69,6 +69,37 @@ void main() {
 
     http.Response ok(String body) => http.Response.bytes(utf8.encode(body), 200);
 
+    // Google's reply asked with dt=t and dt=rm (24 Oct, made-up lines): the translation's chunks, then [null, null,
+    // romanized translation, romanized original]
+    const hinglishReply = '[[["हर रात जब शहर सोता है\\n","every night when the city sleeps\\n",null,null],'
+        '["मैं अकेला चलता हूँ","I walk alone",null,null],'
+        '[null,null,"har raat jab shahar sota hai\\nmain akela chalta hun"]],null,"en"]';
+
+    test('Hinglish: Google is asked for Hindi in Latin letters, and those lines show', () async {
+      answer((_) => ok(hinglishReply));
+      final t = LyricsTranslations(language: () => LyricsTranslations.hinglish);
+      await t.translate('song', [line('every night when the city sleeps'), line(''), line('I walk alone')]);
+      final url = asked.single.url;
+      expect(url.queryParameters['tl'], 'hi');
+      expect(url.queryParametersAll['dt'], ['t', 'rm']);
+      expect(t.linesOf('song'), ['har raat jab shahar sota hai', '', 'main akela chalta hun']);
+    });
+
+    test('Hinglish: Hindi lyrics in Devanagari are romanized; Hindi already in Latin letters is already Hinglish', () async {
+      answer((_) => ok('[[["हर रात","हर रात",null,null],[null,null,"har raat","har raat"]],null,"hi"]'));
+      final t = LyricsTranslations(language: () => LyricsTranslations.hinglish);
+      await t.translate('devanagari', [line('हर रात')]);
+      expect(t.linesOf('devanagari'), ['har raat']);
+      expect(t.inReadersLanguage('devanagari'), isFalse);
+      answer((_) => ok('[[["har raat","har raat",null,null],[null,null,"har raat","har raat"]],null,"hi"]'));
+      await t.translate('latin', [line('har raat')]);
+      expect(t.inReadersLanguage('latin'), isTrue);
+    });
+
+    test('Hinglish never takes the uploader\'s translation: in Latin letters, it is mostly English', () {
+      expect(LyricsTranslations.providedTranslations([line('हर रात', translation: 'every night')], LyricsTranslations.hinglish), isNull);
+    });
+
     test('one request for the whole song: every non-empty line, joined by line breaks, to the device language', () async {
       answer((_) => ok(sampleReply));
       final t = LyricsTranslations(language: () => 'en');

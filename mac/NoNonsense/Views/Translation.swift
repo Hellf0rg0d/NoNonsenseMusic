@@ -70,8 +70,11 @@ final class LyricsTranslations {
         return Locale.Language(identifier: found.rawValue)
     }
 
-    /// The same language, whatever the script or region: simplified and traditional Chinese are one.
-    static func same(_ language: Locale.Language, _ other: Locale.Language) -> Bool { language.languageCode == other.languageCode }
+    /// The same language, whatever the script or region: simplified and traditional Chinese are one. Hinglish is Hindi
+    /// in Latin letters, so it is not Hindi in Devanagari: the lyrics need romanizing.
+    static func same(_ language: Locale.Language, _ other: Locale.Language) -> Bool {
+        OnlineTranslation.isHinglish(language) == OnlineTranslation.isHinglish(other) && language.languageCode == other.languageCode
+    }
 
     /// The uploader's own translation of each line (the server splits it off the line) when it is written in `target`;
     /// nil otherwise. On this Mac the language itself is recognised, so English is told apart from Spanish too (the
@@ -90,13 +93,15 @@ final class LyricsTranslations {
 
     /// The languages offered in Settings › Lyrics › Translate into besides the Mac's own, with their own names, in the
     /// order of those names: those Apple's framework translates (NN_SELFTEST_TRANSLATEINTO checks each one) and Google's
-    /// endpoint takes too, by the codes Google takes. The Windows and Android app offers the same list (#19).
+    /// endpoint takes too, by the codes Google takes. The Windows and Android app offers the same list (#19). Hinglish
+    /// is Google's only (`googleOnly`): Apple's framework does not write Hindi in Latin letters.
     static let choices: [(id: String, name: String)] = [
         ("id", "Bahasa Indonesia"), ("de", "Deutsch"), ("en", "English"), ("es", "Español"), ("fr", "Français"),
-        ("it", "Italiano"), ("nl", "Nederlands"), ("pl", "Polski"), ("pt", "Português"), ("vi", "Tiếng Việt"),
+        (OnlineTranslation.hinglish, "Hinglish"), ("it", "Italiano"), ("nl", "Nederlands"), ("pl", "Polski"), ("pt", "Português"), ("vi", "Tiếng Việt"),
         ("tr", "Türkçe"), ("ru", "Русский"), ("uk", "Українська"), ("ar", "العربية"), ("hi", "हिन्दी"), ("th", "ไทย"),
         ("ja", "日本語"), ("zh-CN", "简体中文"), ("zh-TW", "繁體中文"), ("ko", "한국어"),
     ]
+    static let googleOnly: Set<String> = [OnlineTranslation.hinglish]
 }
 
 /// The lyrics with each line's translation under it. Asks for the translation the first time it shows for a song in
@@ -184,8 +189,9 @@ struct TranslatedLyricsView: View {
             store.store(provided, for: key, credit: "Translation from the lyrics")
             return
         }
-        // this Mac unsure of the lyrics' language (Hindi in English letters): Google tells it, and translates
-        guard let language else { await online(); return }
+        // Hinglish, which Apple's framework does not write; or this Mac unsure of the lyrics' language (Hindi in English
+        // letters): Google tells it, and translates
+        guard let language, !OnlineTranslation.isHinglish(target) else { await online(); return }
         // on this Mac when it has the pair of languages (or can download it: the system asks); otherwise, for pairs
         // Apple's framework does not translate (from Punjabi, among others), Google's public translation service
         switch await LanguageAvailability().status(from: language, to: target) {
@@ -209,7 +215,7 @@ struct TranslatedLyricsView: View {
     /// nothing to translate, and the panel says so.
     private func online() async {
         let answer = try? await OnlineTranslation.translate(texts, to: target)
-        if let source = answer?.source, source.split(separator: "-").first == OnlineTranslation.code(for: target)?.split(separator: "-").first {
+        if let source = answer?.source, OnlineTranslation.alreadyIn(source, texts.map(\.1), target: target) {
             store.markAlready(key)
             return
         }
@@ -247,8 +253,11 @@ enum OnlineTranslation {
     nonisolated static func translate(_ texts: [(Int, String)], to target: Locale.Language) async throws -> (lines: [(Int, String)], source: String?) {
         guard let code = Self.code(for: target),
               var parts = URLComponents(string: "https://translate.googleapis.com/translate_a/single") else { return ([], nil) }
+        // Hinglish: the Hindi translation, romanized (dt=rm), as the chunk [null, null, romanized, …] that ends the list
+        let romanized = code == hinglish
         parts.queryItems = [URLQueryItem(name: "client", value: "gtx"), URLQueryItem(name: "sl", value: "auto"),
-                            URLQueryItem(name: "tl", value: code), URLQueryItem(name: "dt", value: "t")]
+                            URLQueryItem(name: "tl", value: romanized ? "hi" : code), URLQueryItem(name: "dt", value: "t")]
+            + (romanized ? [URLQueryItem(name: "dt", value: "rm")] : [])
         guard let url = parts.url else { return ([], nil) }
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "POST"
@@ -262,7 +271,9 @@ enum OnlineTranslation {
         // third item is the language they were written in
         guard let reply = try JSONSerialization.jsonObject(with: data) as? [Any], let chunks = reply.first as? [Any] else { return ([], nil) }
         let source = reply.count > 2 ? reply[2] as? String : nil
-        let joined = chunks.compactMap { ($0 as? [Any])?.first as? String }.joined()
+        let joined = romanized
+            ? chunks.compactMap { chunk in (chunk as? [Any]).flatMap { $0.count > 2 && $0[0] is NSNull ? $0[2] as? String : nil } }.joined()
+            : chunks.compactMap { ($0 as? [Any])?.first as? String }.joined()
         let lines = joined.components(separatedBy: "\n")
         guard lines.count == texts.count else { throw URLError(.cannotParseResponse) }   // lines that no longer line up
         return (zip(texts, lines).map { ($0.0, $1.trimmingCharacters(in: .whitespaces)) }, source)
@@ -271,8 +282,32 @@ enum OnlineTranslation {
     /// `language` as Google's endpoint takes it: "es", "hi"; Chinese as "zh-CN" or "zh-TW" by its script. Google reads a
     /// plain "zh" as simplified, so traditional Chinese (a Mac in Taiwan, or 繁體中文 chosen) needs its own code (#19).
     nonisolated static func code(for language: Locale.Language) -> String? {
+        if isHinglish(language) { return hinglish }
         guard let code = language.languageCode?.identifier else { return nil }
         guard code == "zh" else { return code }
         return language.maximalIdentifier.contains("-Hant") ? "zh-TW" : "zh-CN"
+    }
+
+    /// Hindi in Latin letters, as most people text it: Google's Hindi translation romanized, and Hindi lyrics in
+    /// Devanagari romanized. Its code says the script (BCP 47); Google is asked for "hi".
+    nonisolated static let hinglish = "hi-Latn"
+
+    nonisolated static func isHinglish(_ language: Locale.Language) -> Bool {
+        language.languageCode?.identifier == "hi" && language.script?.identifier == "Latn"
+    }
+
+    /// Whether lyrics Google found written in `source` need no translating into `target`: the same language, or, for
+    /// Hinglish, Hindi already in Latin letters (Google answers "hi" for Hindi in either script).
+    nonisolated static func alreadyIn(_ source: String, _ texts: [String], target: Locale.Language) -> Bool {
+        let base = source.split(separator: "-").first.map(String.init)
+        if isHinglish(target) { return base == "hi" && latin(texts) }
+        return base == code(for: target)?.split(separator: "-").first.map(String.init)
+    }
+
+    /// Whether most letters of `texts` (8 in 10, as on Windows) are Latin ones.
+    nonisolated static func latin(_ texts: [String]) -> Bool {
+        let letters = texts.joined().unicodeScalars.filter(\.properties.isAlphabetic)
+        let latin = letters.filter { (0x41...0x24F).contains($0.value) || (0x1E00...0x1EFF).contains($0.value) }
+        return !letters.isEmpty && latin.count * 10 >= letters.count * 8
     }
 }
