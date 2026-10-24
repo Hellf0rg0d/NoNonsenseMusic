@@ -89,22 +89,48 @@ def _credit(title: str, artists: tuple[str, ...]) -> frozenset[str]:
     return frozenset(normalise(" ".join([featured, *artists])).split()) - CREDIT_JOINERS
 
 
+def release_cores(albums) -> frozenset[str]:
+    """Release titles without what they have in brackets, normalised: "SremmLife 2 (Deluxe)" is "sremmlife 2"."""
+    return frozenset(core for core in (normalise(_BRACKETED.sub("", album)) for album in albums if album) if core)
+
+
+def _releases(x) -> frozenset[str]:
+    """The releases a copy is on (its album), or a stored song's (`albums`: every copy's, library._recording)."""
+    albums = getattr(x, "albums", None)
+    return albums if albums is not None else release_cores([getattr(x, "album", None)])
+
+
+VIDEO_KINDS = frozenset({"video", "upload"})
+
+
 def credit(listing) -> frozenset[str]:
     """Every word of everyone a copy credits, in its artists or in its title's "(feat. …)", in any order."""
     return _credit(listing.title, tuple(listing.artists))
 
 
 def same_recording(a : Listing, b : Listing) -> bool:
-    """Return True when two listings are the same recording: close durations and matching artists, and either equal
+    """Return True when two listings are the same recording: matching artists, close durations, and either equal
     titles or equal core titles crediting the same people. ZEZE is "(feat. Travis Scott & Offset)" on JioSaavn and
-    "(feat. Offset & Travis Scott)" on YouTube Music, by "Kodak Black" on both (24 Oct). A song and its version with
-    someone more ("Despacito" and "Despacito (feat. Justin Bieber)") credit different people, and stay apart."""
-    if abs(a.duration - b.duration) > DURATION_TOLERANCE or not artists_match(a.artists, b.artists):
+    "(feat. Offset & Travis Scott)" on YouTube Music, by "Kodak Black" on both (24 Oct).
+
+    One source often leaves out who a song features: "Black Beatles" on JioSaavn is "Black Beatles (feat. Gucci Mane)"
+    on YouTube Music. Credits like those, one inside the other, are one recording when both copies are on one release
+    (SremmLife 2), one not named after the song: a remix single is ("Despacito" and "Despacito (feat. Justin Bieber)"
+    stay apart). A music video or an upload is its song's copy within YOUTUBE_DURATION_TOLERANCE, as videos run longer
+    (ZEZE's video is 4:37, the song 3:48). Black Beatles, Money Trees and ZEZE
+    were each stored twice these ways (24 Oct)."""
+    if not artists_match(a.artists, b.artists):
+        return False
+    video = getattr(a, "kind", None) in VIDEO_KINDS or getattr(b, "kind", None) in VIDEO_KINDS
+    if abs(a.duration - b.duration) > (YOUTUBE_DURATION_TOLERANCE if video else DURATION_TOLERANCE):
         return False
     if normalise(a.title) == normalise(b.title):
         return True
     core = core_title(a.title)
-    return bool(core) and core == core_title(b.title) and credit(a) == credit(b)
+    if not core or core != core_title(b.title):
+        return False
+    ours, theirs = credit(a), credit(b)
+    return ours == theirs or (ours < theirs or theirs < ours) and bool((_releases(a) & _releases(b)) - {core})
 
 
 # Official videos drift ~1 min from the album cut (Blinding Lights: 4:23 video vs 3:20 song), so plain

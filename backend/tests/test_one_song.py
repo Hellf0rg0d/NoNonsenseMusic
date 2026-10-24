@@ -7,8 +7,9 @@ from music_backend.services import library
 from music_backend.services.matching import core_title, group_listings, same_recording
 
 
-def copy(source, id, title, duration, artists=("Kodak Black",)):
-    return Listing(source=source, id=id, title=title, artists=list(artists), album=None, duration=duration, popularity=None)
+def copy(source, id, title, duration, artists=("Kodak Black",), album=None, kind=None):
+    return Listing(source=source, id=id, title=title, artists=list(artists), album=album, duration=duration, popularity=None,
+                   kind=kind)
 
 
 SAAVN = copy("jiosaavn", "js1", "ZEZE (feat. Travis Scott & Offset)", 228)
@@ -28,6 +29,26 @@ def test_a_version_with_someone_more_or_less_is_another_recording():
     remix = copy("jiosaavn", "d2", "Despacito (feat. Justin Bieber)", 228, artists=["Luis Fonsi", "Daddy Yankee"])
     assert not same_recording(original, remix)
     assert not same_recording(SAAVN, copy("ytmusic", "z", "ZEZE (feat. Offset)", 229))
+
+
+def test_a_source_that_leaves_out_who_is_featured_has_the_same_recording_on_the_same_album():
+    # as stored on the server, 24 Oct: JioSaavn leaves the feature out, YouTube Music names it
+    plain = copy("jiosaavn", "bb", "Black Beatles", 292, artists=["Rae Sremmurd"], album="SremmLife 2")
+    named = copy("ytmusic", "bbf", "Black Beatles (feat. Gucci Mane)", 292, artists=["Rae Sremmurd"], album="SremmLife 2 (Deluxe)")
+    assert same_recording(plain, named)
+    on_a_compilation = named.model_copy(update={"album": "Hype Mode 2023"})
+    assert not same_recording(plain, on_a_compilation)              # nothing shared to go by: left apart
+    # a remix single is named after the song: no evidence that the two are one recording
+    original = copy("jiosaavn", "d1", "Despacito", 229, artists=["Luis Fonsi"], album="Despacito")
+    remix = copy("ytmusic", "d2", "Despacito (feat. Justin Bieber)", 228, artists=["Luis Fonsi"], album="Despacito (Remix)")
+    assert not same_recording(original, remix)
+
+
+def test_a_music_video_is_its_songs_copy_within_ninety_seconds():
+    video = copy("ytmusic", "omv", "ZEZE (feat. Offset & Travis Scott)", 277, kind="video")
+    assert same_recording(SAAVN, video) and same_recording(video, SAAVN)
+    assert not same_recording(SAAVN, YTM.model_copy(update={"duration": 277}))    # a song that long is another edit
+    assert not same_recording(SAAVN, copy("ytmusic", "omv2", "ZEZE (Live)", 290, kind="video"))
 
 
 def test_a_search_groups_the_sources_copies_and_leaves_the_karaoke_out():
@@ -118,6 +139,32 @@ async def test_a_new_copy_matching_two_stored_songs_merges_them(pool):
         assert await library.resolve_song(conn, [fresh]) == older
         assert {await song_of(conn, "ytmusic", i) for i in ("yt1", "yt9")} == {older}
         assert (await (await conn.execute("SELECT into_id FROM song_merges WHERE from_id = %s", [newer])).fetchone())["into_id"] == older
+
+
+@pytest.mark.anyio
+async def test_the_backfill_merges_a_video_stored_alone_and_a_song_stored_without_its_feature(pool):
+    from music_backend.core import merge_songs
+    async with pool.connection() as conn:
+        song = await library.resolve_song(conn, [SAAVN])
+        video = await stored_before(conn, copy("ytmusic", "omv", "ZEZE (feat. Offset & Travis Scott)", 277))
+        await conn.execute("UPDATE listings SET kind = 'video' WHERE source_id = 'omv'")      # as the backfill reads it
+        plain = await library.resolve_song(conn, [copy("jiosaavn", "bb", "Black Beatles", 292, artists=["Rae Sremmurd"],
+                                                       album="SremmLife 2")])
+        await stored_before(conn, copy("ytmusic", "bbf", "Black Beatles (feat. Gucci Mane)", 292, artists=["Rae Sremmurd"]))
+        await conn.execute("UPDATE listings SET album = 'SremmLife 2 (Deluxe)' WHERE source_id = 'bbf'")
+    assert len(await merge_songs.merge(pool, apply=True)) == 2
+    async with pool.connection() as conn:
+        assert await song_of(conn, "ytmusic", "omv") == song
+        assert await song_of(conn, "ytmusic", "bbf") == plain
+        assert (await (await conn.execute("SELECT 1 FROM songs WHERE id = %s", [video])).fetchone()) is None
+
+
+@pytest.mark.anyio
+async def test_a_song_made_from_a_video_takes_its_audio_copy_and_keeps_taking_them(pool):
+    async with pool.connection() as conn:
+        song = await library.resolve_song(conn, [copy("ytmusic", "omv", "ZEZE (feat. Offset & Travis Scott)", 277, kind="video")])
+        assert await library.resolve_song(conn, [SAAVN]) == song
+        assert await library.resolve_song(conn, [copy("jiosaavn", "js9", "ZEZE (feat. Travis Scott & Offset)", 229)]) == song
 
 
 @pytest.mark.anyio

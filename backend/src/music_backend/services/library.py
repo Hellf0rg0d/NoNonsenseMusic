@@ -14,7 +14,7 @@ from psycopg import AsyncConnection
 
 from music_backend.services import notifications
 from music_backend.services.served import ServedListings
-from music_backend.services.matching import Vocabulary, core_title, normalise, pick_best, pick_cover, same_recording, words_of
+from music_backend.services.matching import Vocabulary, core_title, normalise, release_cores, pick_best, pick_cover, same_recording, words_of
 from music_backend.models import (EventType, LibrarySong, Listing, Member, Notification,
                                   PlaylistMetadata, PlaylistItem, Song)
 
@@ -67,6 +67,23 @@ async def trusted_listings(conn: AsyncConnection, served: ServedListings, listin
     return found
 
 
+# A stored song as same_recording compares it: its frozen identity, the releases its copies are on, and whether its
+# identity is a video (the copy it was made from: its title and length)
+_RECORDINGS = """SELECT s.id, s.title, s.artists, s.duration, s.created_at,
+                        array_remove(array_agg(DISTINCT l.album), NULL) AS albums,
+                        bool_or(l.kind IN ('video', 'upload') AND l.title = s.title AND l.duration = s.duration) AS video
+                   FROM songs s LEFT JOIN listings l ON l.song_id = s.id
+                  WHERE {where}
+                  GROUP BY s.id ORDER BY s.created_at"""
+
+
+async def recordings(conn: AsyncConnection, where: str, args: list) -> list[SimpleNamespace]:
+    """Stored songs, oldest first, as same_recording compares them (_RECORDINGS)."""
+    return [SimpleNamespace(id = r["id"], title = r["title"], artists = r["artists"], duration = r["duration"],
+                            kind = "video" if r["video"] else None, albums = release_cores(r["albums"]))
+            for r in await (await conn.execute(_RECORDINGS.format(where = where), args)).fetchall()]
+
+
 async def resolve_song(conn: AsyncConnection, listings: list[Listing]) -> UUID:
     """Return the stored song these listings are copies of, creating it if needed; link new listings.
 
@@ -86,24 +103,16 @@ async def resolve_song(conn: AsyncConnection, listings: list[Listing]) -> UUID:
     first = listings[0]
     async with conn.transaction():
         await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [core_title(first.title)])
-        songs = [SimpleNamespace(**r) for r in await (await conn.execute(
-            """SELECT DISTINCT s.id, s.title, s.artists, s.duration, s.created_at
-                 FROM listings l
-                 JOIN songs s ON s.id = l.song_id
-                 JOIN unnest(%s::text[], %s::text[]) AS k(source, source_id)
-                   ON (l.source, l.source_id) = (k.source, k.source_id)
-                ORDER BY s.created_at""",
-            [[l.source for l in listings], [l.id for l in listings]],
-        )).fetchall()]
+        songs = await recordings(conn, """s.id IN (SELECT l.song_id FROM listings l
+                                                   JOIN unnest(%s::text[], %s::text[]) AS k(source, source_id)
+                                                     ON (l.source, l.source_id) = (k.source, k.source_id))""",
+                                 [[l.source for l in listings], [l.id for l in listings]])
         why = "its copies were on both"
         if not songs:
             # normalised_title too: a song stored before migrations/0007 has no core title until the next start
-            candidates = await (await conn.execute(
-                """SELECT id, title, artists, duration FROM songs WHERE core_title = %s OR normalised_title = %s
-                    ORDER BY created_at""",
-                [core_title(first.title), normalise(first.title)],
-            )).fetchall()
-            songs = [c for c in (SimpleNamespace(**r) for r in candidates) if same_recording(c, first)]
+            songs = [c for c in await recordings(conn, "s.core_title = %s OR s.normalised_title = %s",
+                                                 [core_title(first.title), normalise(first.title)])
+                     if same_recording(c, first)]
             why = "both are the same recording as a new copy"
 
         song_id = songs[0].id if songs else None
@@ -121,9 +130,7 @@ async def resolve_song(conn: AsyncConnection, listings: list[Listing]) -> UUID:
                  pick_cover([l for l in listings if same_recording(first, l)])],
             )).fetchone())["id"]
 
-        identity = SimpleNamespace(**(await (await conn.execute(
-            "SELECT title, artists, duration FROM songs WHERE id = %s", [song_id],
-        )).fetchone()))
+        identity = (await recordings(conn, "s.id = %s", [song_id]))[0]
         same = [l for l in listings if same_recording(identity, l)]
         if same:
             words = [stored_words(l.title, l.artists) for l in same]

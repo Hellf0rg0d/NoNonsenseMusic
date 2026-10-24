@@ -11,7 +11,6 @@ lock resolve_song takes, so a like arriving meanwhile waits.
 """
 import argparse
 import asyncio
-from types import SimpleNamespace
 
 from music_backend.core import db
 from music_backend.services import library
@@ -42,9 +41,7 @@ async def merge(pool, apply: bool) -> list[str]:
     for core in cores:
         async with pool.connection() as conn, conn.transaction():
             await conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [core])
-            songs = [SimpleNamespace(**r) for r in await (await conn.execute(
-                "SELECT id, title, artists, duration FROM songs WHERE core_title = %s ORDER BY created_at", [core],
-            )).fetchall()]
+            songs = await library.recordings(conn, "s.core_title = %s", [core])
             for centre, same in centres(songs):
                 for song in same:
                     changes.append(f"{song.title!r} by {', '.join(song.artists)} ({song.duration} s) "
