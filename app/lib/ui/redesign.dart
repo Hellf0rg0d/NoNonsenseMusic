@@ -11,6 +11,7 @@ import '../core/api.dart';
 import '../core/download_store.dart';
 import '../core/jam.dart';
 import '../core/models.dart';
+import '../core/player.dart';
 import '../core/settings.dart';
 import '../core/social.dart';
 import 'concept.dart';
@@ -415,7 +416,7 @@ class NowHero extends StatelessWidget {
           return last == null ? const SizedBox.shrink() : _ResumeCard(track: last);
         }
         if (resumeOnly) return const SizedBox.shrink();
-        final next = p.queue.upNext;
+        final next = p.nextSongs; // the room's in a jam
         final now = _NowCard(track: current);
         if (next.isEmpty) return now;
         return LayoutBuilder(
@@ -567,7 +568,7 @@ class _NowLineState extends State<_NowLine> {
 
 /// Up Next on Home: the next three songs; one clicked plays now, See all opens Up Next itself.
 class _UpNextCard extends StatelessWidget {
-  final List<Track> next;
+  final List<NextSong> next;
   const _UpNextCard({required this.next});
 
   @override
@@ -592,7 +593,7 @@ class _UpNextCard extends StatelessWidget {
             child: const Text('See all'),
           ),
         ]),
-        for (var i = 0; i < next.length && i < 3; i++) _SongLine(track: next[i], onTap: () => p.jump(p.queue.index + 1 + i)),
+        for (final song in next.take(3)) _SongLine(track: song.track, onTap: song.play),
       ]),
     );
   }

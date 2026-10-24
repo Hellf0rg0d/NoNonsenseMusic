@@ -15,7 +15,7 @@ struct NowHero: View {
         let _ = SelfTest.drew("home.hero")
         #endif
         if let current = player.current {
-            let next = showUpNext ? Array(player.upNext.prefix(3)) : []
+            let next = showUpNext ? Array(player.nextSongs.prefix(3)) : []      // the room's in a jam
             if next.isEmpty {
                 NowCard(track: current)
             } else {
@@ -144,13 +144,13 @@ private struct RoundPlay: View {
 /// Up Next on Home: the next three songs, each with its length; one clicked plays now. See All opens Now Playing with
 /// Up Next beside the song.
 private struct UpNextCard: View {
-    let next: [Track]
+    let next: [NextSong]
     @Environment(Player.self) private var player
     @AppStorage("nowPlayingPanel") private var panelRaw = NowPlayingPanel.upNext.rawValue
 
     var body: some View {
         #if DEBUG
-        let _ = SelfTest.drew("home.upNext", next.first?.title ?? "")
+        let _ = SelfTest.drew("home.upNext", next.first?.track.title ?? "")
         #endif
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
@@ -170,8 +170,8 @@ private struct UpNextCard: View {
                 .help("Open Up Next")
             }
             .frame(minHeight: 32)
-            ForEach(Array(next.enumerated()), id: \.offset) { i, track in
-                UpNextLine(track: track) { player.jump(to: player.index + 1 + i) }
+            ForEach(next) { song in
+                UpNextLine(track: song.track, play: song.play)
             }
         }
         .padding(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 8))

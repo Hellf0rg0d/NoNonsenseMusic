@@ -35,6 +35,23 @@ final class Player {
     private(set) var audioLength: Double?
     var upNext: [Track] { order.upNext }
     var nextTrack: Track? { order.nextTrack }
+
+    /// What plays next, for every view that shows it: the room's queue in a jam, else this Mac's Up Next, each song with
+    /// what playing it does. One answer for all of them: Home's card read this Mac's queue in a jam, and showed nothing
+    /// while Now Playing showed the room's (24 Oct).
+    var nextSongs: [NextSong] {
+        if let room = JamSession.shared.state {
+            return room.queue.map { entry in
+                NextSong(id: entry.id.uuidString, track: Track(best: entry.listing, listings: [entry.listing], choosingVersion: false)) {
+                    JamSession.shared.jump(to: entry)
+                }
+            }
+        }
+        let from = index + 1
+        return order.upNext.enumerated().map { i, track in
+            NextSong(id: "\(from + i)|\(track.id)", track: track) { [weak self] in self?.jump(to: from + i) }
+        }
+    }
     /// The playlist the queue came from ("Gym"), for Now Playing and Discord; nil for other queues.
     var playingFrom: String? {
         guard let source = order.origin, source.hasPrefix("playlist:"),
@@ -880,4 +897,11 @@ final class Player {
             return .success
         }
     }
+}
+
+/// One song of what plays next (Player.nextSongs): the song, and playing it from there, in a jam or not.
+struct NextSong: Identifiable {
+    let id: String
+    let track: Track
+    let play: @MainActor () -> Void
 }

@@ -31,6 +31,19 @@ import 'youtube.dart';
 class Player extends ChangeNotifier implements JamPlayer {
   final ja.AudioPlayer _audio;
   final queue = PlayQueue();
+
+  /// What plays next, for every view that shows it: the room's queue in a jam, else this device's Up Next, each song with
+  /// what playing it does. One answer for all of them: Home's card read this device's queue in a jam, and showed nothing
+  /// while Now Playing showed the room's (24 Oct).
+  List<NextSong> get nextSongs {
+    final room = jam?.state;
+    if (room != null) {
+      final session = jam!;
+      return [for (final e in room.queue) NextSong(e.entryId, e.track, () => session.jump(e))];
+    }
+    final from = queue.index + 1;
+    return [for (final (i, t) in queue.upNext.indexed) NextSong('${from + i}|${t.id}', t, () => jump(from + i))];
+  }
   final List<StreamSubscription> _subs = [];
 
   /// The playing song's id, on its own: song rows listen to this, not to every play/pause and buffering change.
@@ -693,4 +706,12 @@ class Player extends ChangeNotifier implements JamPlayer {
     _audio.dispose();
     super.dispose();
   }
+}
+
+/// One song of what plays next (Player.nextSongs): the song, and playing it from there, in a jam or not.
+class NextSong {
+  final String id;
+  final Track track;
+  final void Function() play;
+  const NextSong(this.id, this.track, this.play);
 }
