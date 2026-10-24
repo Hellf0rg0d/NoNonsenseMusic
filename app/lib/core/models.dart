@@ -20,6 +20,10 @@ class Listing {
   final List<String?>? artistIds;
   final String? albumId;
 
+  /// What the copy is, as its source says: "audio" (the song), "video" (its music video), "upload" (anyone's video);
+  /// null: not known. A video can run longer than the song, so the song's lyrics' times fit only the song.
+  final String? kind;
+
   const Listing({
     required this.source,
     required this.id,
@@ -32,6 +36,7 @@ class Listing {
     this.explicit,
     this.artistIds,
     this.albumId,
+    this.kind,
   });
 
   /// Unique across sources: the same id string could exist on two sources.
@@ -57,6 +62,7 @@ class Listing {
         explicit: j['explicit'] as bool?,
         artistIds: (j['artist_ids'] as List?)?.cast<String?>(),
         albumId: j['album_id'] as String?,
+        kind: j['kind'] as String?,
       );
 
   /// Converts this object to a JSON map, a missing optional field as null.
@@ -75,7 +81,11 @@ class Listing {
         'explicit': explicit,
         if (artistIds != null) 'artist_ids': artistIds,
         if (albumId != null) 'album_id': albumId,
+        if (kind != null) 'kind': kind,
       };
+
+  /// The song before a copy of unknown kind, before its music video, before an upload (the server's KIND_RANK).
+  int get kindRank => switch (kind) { 'audio' => 0, null => 1, 'video' => 2, _ => 3 };
 }
 
 /// A song as every screen and the player work with it, built from a search or the library.
@@ -97,7 +107,9 @@ class Track {
 
   /// Builds the track with [best] set to the copy the user's preferences select, when [choosingVersion] is true.
   ///
-  /// The preferred source's copies come first, then the server's pick, then the rest, most popular first. The first
+  /// The preferred source's copies come first, then the server's pick, then the rest: the song before its video
+  /// ([Listing.kindRank]: a video's views outnumber the song's plays, and its length the song's lyrics), then the most
+  /// popular. The first
   /// preferred-source copy whose explicit flag matches [prefersExplicit] wins; then one of that source whose version
   /// is not known, since an unknown version does not contradict the choice; then any source's copy of the wanted
   /// version; with no match, or with [choosingVersion] false, [serverBest] is used. The remaining listings keep a
@@ -113,6 +125,8 @@ class Track {
         ..sort((a, b) {
           final r = (a.$2.source == first ? 0 : 1).compareTo(b.$2.source == first ? 0 : 1);
           if (r != 0) return r;
+          final k = a.$2.kindRank.compareTo(b.$2.kindRank);
+          if (k != 0) return k;
           final p = byPopularity(a.$2, b.$2);
           return p != 0 ? p : a.$1.compareTo(b.$1);
         });

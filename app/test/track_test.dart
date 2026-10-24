@@ -2,8 +2,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nononsense/core/models.dart';
 
-Listing copy(String source, String id, {bool? explicit, int popularity = 0, String? image}) => Listing(
-    source: source, id: id, title: 'Song', artists: const ['Kai'], duration: 200, popularity: popularity, explicit: explicit, image: image);
+Listing copy(String source, String id, {bool? explicit, int popularity = 0, String? image, String? kind}) => Listing(
+    source: source, id: id, title: 'Song', artists: const ['Kai'], duration: 200, popularity: popularity, explicit: explicit, image: image,
+    kind: kind);
 
 void main() {
   tearDown(() {
@@ -84,6 +85,26 @@ void main() {
         'image': 'https://img.test/song.jpg',
       });
       expect(t.image, 'https://img.test/song.jpg');
+    });
+  });
+
+  group('the song before its video', () {
+    // ZEZE: the 4:37 music video had more views than the 3:49 song had plays, played, and the song's lyrics ran early
+    final song = copy('ytmusic', 'atv', explicit: true, popularity: 50, kind: 'audio');
+    final video = copy('ytmusic', 'omv', explicit: true, popularity: 900, kind: 'video');
+
+    test('a chosen source plays its song, not its more viewed video', () {
+      Track.preferredSource = 'ytmusic';
+      expect(Track(copy('jiosaavn', 's', explicit: true), [video, song]).best, song);
+    });
+
+    test('a failed song falls back to another song before a video', () {
+      final other = copy('ytmusic', 'atv2', popularity: 1, kind: 'audio');
+      expect(Track(song, [video, other]).listings.map((l) => l.id), ['atv', 'atv2', 'omv']);
+    });
+
+    test('the kind is kept when saved and read back', () {
+      expect(Listing.fromJson(video.toJson()).kind, 'video');
     });
   });
 

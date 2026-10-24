@@ -17,9 +17,15 @@ nonisolated struct Listing: Codable, Hashable, Sendable {
     /// on: the pages to open. nil when the source said nothing (a copy stored before 24 Oct, or plain YouTube).
     var artistIds: [String?]? = nil
     var albumId: String? = nil
+    /// What the copy is, as its source says: "audio" (the song), "video" (its music video), "upload" (anyone's video);
+    /// nil: not known. A video can run longer than the song, so the song's lyrics' times fit only the song.
+    var kind: String? = nil
+    /// The song before a copy of unknown kind, before its music video, before an upload (the server's KIND_RANK).
+    var kindRank: Int { switch kind { case "audio": 0; case nil: 1; case "video": 2; default: 3 } }
 
     enum CodingKeys: String, CodingKey {
         case source, id, title, artists, album, duration, popularity, image, explicit
+        case kind
         case artistIds = "artist_ids", albumId = "album_id"
     }
 
@@ -42,6 +48,7 @@ nonisolated struct Listing: Codable, Hashable, Sendable {
         try c.encode(explicit, forKey: .explicit)        // nil -> null
         try c.encodeIfPresent(artistIds, forKey: .artistIds)
         try c.encodeIfPresent(albumId, forKey: .albumId)
+        try c.encodeIfPresent(kind, forKey: .kind)
     }
     var sourceName: String { Listing.name(ofSource: source) }
     /// YouTube Music and plain YouTube copies are YouTube videos: their links are looked up on this Mac, as the IP that
@@ -338,12 +345,18 @@ struct Track: Identifiable, Hashable {
         let wantExplicit = Track.prefersExplicit
         // Settings › Playback › Preferred Source: that source's copies first; Automatic keeps the server's pick first
         let preferred = Track.preferredSource ?? serverBest.source
-        let inOrder = [serverBest] + listings.sorted {           // the preferred source, then the most played
-            ($0.source == preferred ? 0 : 1, -($0.popularity ?? 0)) < ($1.source == preferred ? 0 : 1, -($1.popularity ?? 0))
+        // the preferred source, then the song before its video (a video's views outnumber the song's plays, and its length
+        // the song's lyrics: ZEZE's 4:37 video played and its lyrics ran a minute early, 24 Oct), then the most played
+        let inOrder = [serverBest] + listings.sorted {
+            ($0.source == preferred ? 0 : 1, $0.kindRank, -($0.popularity ?? 0)) < ($1.source == preferred ? 0 : 1, $1.kindRank, -($1.popularity ?? 0))
         }
         let ranked = inOrder.sorted { ($0.source == preferred ? 0 : 1) < ($1.source == preferred ? 0 : 1) }   // stable sort
+        // a copy of the preferred source whose version is not known comes before another source's: an unknown version
+        // does not contradict the choice (as on Windows and Android)
         let best = choosingVersion
-            ? (ranked.first { $0.source == preferred && $0.explicit == wantExplicit } ?? ranked.first { $0.explicit == wantExplicit } ?? ranked[0])
+            ? (ranked.first { $0.source == preferred && $0.explicit == wantExplicit }
+               ?? ranked.first { $0.source == preferred && $0.explicit == nil }
+               ?? ranked.first { $0.explicit == wantExplicit } ?? ranked[0])
             : serverBest
         self.id = best.key
         self.title = best.title
@@ -351,10 +364,10 @@ struct Track: Identifiable, Hashable {
         self.duration = best.duration
         self.image = Track.coverURL(image: image, listings: [best] + listings)
         self.best = best
-        // the default copy first, then copies from the same source, then the rest, most popular first.
+        // the default copy first, then copies from the same source, then the rest; songs before videos, most popular first.
         // The listings list shows this order, and a failed copy falls back in this order.
         let others = listings.filter { $0.key != best.key }.sorted {
-            ($0.source == best.source ? 0 : 1, -($0.popularity ?? 0)) < ($1.source == best.source ? 0 : 1, -($1.popularity ?? 0))
+            ($0.source == best.source ? 0 : 1, $0.kindRank, -($0.popularity ?? 0)) < ($1.source == best.source ? 0 : 1, $1.kindRank, -($1.popularity ?? 0))
         }
         self.listings = [best] + others
     }
