@@ -43,6 +43,8 @@ OUTPLAYED = 10
 # "money" and "honey" (80) stay apart; a shorter word must be exact ("hi" and "ho": 67)
 TYPO_MIN_LENGTH = 4
 TYPO_SIMILARITY = 85
+# what a title has in brackets: "(From "Aashiqui 2")", "[Remastered]"
+_BRACKETED = re.compile(r"\s*[(\[][^)\]]*[)\]]")
 # who a title names as featured: "Drowning (feat. Kodak Black)", "Song ft. Someone"
 _FEATURED = re.compile(r"\s*[(\[]\s*(?:feat|ft|featuring)\b[^)\]]*[)\]]|\s+(?:feat|ft|featuring)\b.*$", re.IGNORECASE)
 
@@ -114,11 +116,15 @@ def same_video(song : Song, video : Song) -> bool:
     """Return True when a plain-YouTube video is the same recording as an already-found song.
 
     Video titles carry prefixes and suffixes the album title does not ("The Weeknd - Blinding Lights
-    (Official Video)"), so equality never matches: one normalised title must contain the other on word
-    boundaries, the artists must match, and the durations must be within YOUTUBE_DURATION_TOLERANCE.
+    (Official Video)"), so equality never matches: the video's normalised title must contain the song's on word
+    boundaries, the song's without what it has in brackets ("Tum Hi Ho (From "Aashiqui 2")" is in a video's "Tum Hi
+    Ho"); the artists must match, and the durations must be within YOUTUBE_DURATION_TOLERANCE. Never the other way:
+    the upload "Mad" by NAV is not a video of "Why You Mad" by Nav Tyler, whose row it joined, so NAV's song could not
+    be found (24 Oct).
     """
-    a, b = normalise(song.title), normalise(video.title)
-    if not a or not b or not (f" {a} " in f" {b} " or f" {b} " in f" {a} "):
+    a = normalise(_BRACKETED.sub("", song.title)) or normalise(song.title)
+    b = normalise(video.title)
+    if not a or not b or f" {a} " not in f" {b} ":
         return False
     if not song.artists or not video.artists or not artists_match(song.artists, video.artists):
         return False
@@ -311,16 +317,24 @@ class Vocabulary:
 
 
 def coverage(query: str, song: Song, lead: bool = False) -> float:
-    """How much of what was typed a song contains: the share of the query's words found (typos allowed) in a title and
-    its artists, the best of the song's copies. lead=True leaves out who it features: every artist but the first, and a
-    title's "(feat. …)"."""
+    """How much of what was typed a song contains, the best of the song's copies. A typed word in its title counts 1
+    (typos allowed); one in an artist's name counts the share of that name the query has: "nav" is all of NAV but half
+    of Nav Tyler. Counted together, "nav mad" found "Why You Mad" by Nav Tyler as fully as the song asked for, and
+    plain YouTube, the only place NAV's "Mad" is, was never asked (24 Oct). lead=True leaves out who it features: every
+    artist but the first, and a title's "(feat. …)"."""
     words = normalise(query).split()
     if not words:
         return 1.0
-    most = 0
+    typed = set(words)
+    most = 0.0
     for listing in song.listings:
-        have = words_of([_FEATURED.sub("", listing.title), *listing.artists[:1]] if lead else [listing.title, *listing.artists])
-        most = max(most, sum(found(word, have) for word in words))
+        title = words_of([_FEATURED.sub("", listing.title) if lead else listing.title])
+        names = [name for name in (words_of([a]) for a in (listing.artists[:1] if lead else listing.artists)) if name]
+        shares = [sum(found(w, typed) for w in name) / len(name) for name in names]
+        score = sum(1.0 if found(word, title) else
+                    max((share for name, share in zip(names, shares) if found(word, name)), default = 0.0)
+                    for word in words)
+        most = max(most, score)
     return most / len(words)
 
 

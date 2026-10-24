@@ -409,6 +409,28 @@ def test_a_music_video_of_a_song_found_is_one_more_copy_not_a_second_row():
     assert songs[0].listings[-1] is video and songs[0].best.source == "jiosaavn"     # a fallback, never the pick
 
 
+def test_an_upload_whose_title_is_part_of_a_songs_is_its_own_song():
+    # "nav mad" (24 Oct): YouTube Music's top result, NAV's unreleased "Mad" (an upload), joined "Why You Mad" by
+    # Nav Tyler as its video: "mad" is in "why you mad", and NAV's name is part of Nav Tyler's
+    upload = yt("Mad", ["NAV"], 273, 124_000, id="mad")
+    songs = rank_songs([[make("Why You Mad", ["Nav Tyler"], 214, popularity=4_000)]], plays=True, top=upload)
+    assert [(s.title, s.artists, len(s.listings)) for s in songs] == [("Mad", ["NAV"], 1), ("Why You Mad", ["Nav Tyler"], 1)]
+
+
+def test_a_video_joins_a_song_whose_title_has_more_in_brackets():
+    video = yt("Tum Hi Ho (Official Video)", ["Arijit Singh"], 290, 900_000_000, id="v")
+    songs = rank_songs([[make('Tum Hi Ho (From "Aashiqui 2")', ["Arijit Singh", "Mithoon"], 262, popularity=9_000_000)]],
+                       plays=True, top=video)
+    assert len(songs) == 1 and songs[0].listings[-1] is video
+
+
+def test_a_word_of_an_artists_name_counts_for_its_share_of_the_name():
+    nav_tyler = to_song([make("Why You Mad", ["Nav Tyler"], 214)])
+    assert coverage("nav mad", nav_tyler) == 0.75                 # half of Nav Tyler, and the title's "mad"
+    assert coverage("nav mad", to_song([make("Mad", ["NAV"], 273)])) == 1.0
+    assert coverage("weeknd blinding lights", to_song([make("Blinding Lights", ["The Weeknd"], 200)])) > 0.8
+
+
 def test_a_top_result_without_plays_is_a_vote_not_first():
     # a song card says no plays; missing from the songs list, nothing could outplay it
     card = yt("Faded (feat. Future)", ["Mike WiLL Made-It"], 240, None)
