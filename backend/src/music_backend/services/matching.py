@@ -24,6 +24,10 @@ SOURCE_PREFERENCE = {"jiosaavn" : 0, "ytmusic" : 1, "youtube" : 2}
 # the cover's own order: YouTube Music's art is the release people recognise (the owner's call), then JioSaavn's,
 # then a video thumbnail
 COVER_PREFERENCE = {"ytmusic" : 0, "jiosaavn" : 1, "youtube" : 2}
+# the song itself before its video, before anyone's upload; a copy stored before kinds were kept (None) in between.
+# ZEZE's 4:37 music video played over its 3:49 song, so lyrics timed for the song ran early, and the cover was a frame
+# of the video (24 Oct)
+KIND_RANK = {"audio" : 0, None : 1, "video" : 2, "upload" : 3}
 # A search's ranking (#25) counts more than the sources' own order. JioSaavn matches the typed words literally and fills
 # its list with namesakes and covers ("tadipar": four other artists' "Tadipar" above MC Stan's "Tadipaar", 14 Oct), so
 # its order counts half. Each source's list counts again ordered by play count, which compares only within one source
@@ -123,6 +127,7 @@ def pick_best(group: list[Listing]) -> Listing:
     """Return the listing to play from a group whose listings are all the same recording.
 
     Compared as a tuple, left to right, so each rule only matters when the earlier ones tie:
+      0. the song itself before its video, before an upload (KIND_RANK)
       1. preferred source (audio quality and URL reliability)
       2. higher popularity: only ever compared between listings of the same source, because
          rule 1 has already separated sources (38 million on JioSaavn and 3.6 billion on
@@ -133,6 +138,7 @@ def pick_best(group: list[Listing]) -> Listing:
     """
     median = statistics.median(listing.duration for listing in group)
     return min(group, key=lambda listing: (
+        KIND_RANK.get(getattr(listing, "kind", None), KIND_RANK[None]),
         SOURCE_PREFERENCE[listing.source],
         -(listing.popularity or 0),
         abs(listing.duration - median),
@@ -145,14 +151,16 @@ def pick_cover(group: list) -> str | None:
 
     The listings are the recording's releases (the single, the album, later compilations), each with its own art.
     The choice depends only on the set, never on its order: COVER_PREFERENCE, then the most played (play counts
-    compare within one source), then the lowest id. A stored song keeps the cover chosen when it was created
-    (songs.image), so copies linked later never change it. Albums and artists are picked the same way (their copies
+    compare within one source), then the lowest id. A stored song's cover is chosen again from its releases once their
+    pages are read (services/releases.py: its canonical release's); this is the cover until then. Albums and artists are picked the same way (their copies
     have no play count): JioSaavn's artist photo is a 50 px image or a silhouette, YouTube Music's a real one (#27).
     """
     with_art = [listing for listing in group if listing.image]
     if not with_art:
         return None
+    # a song's art before a video's frame (KIND_RANK); a stored song's is its canonical release's (services/releases.py)
     return min(with_art, key=lambda listing: (
+        KIND_RANK.get(getattr(listing, "kind", None), KIND_RANK[None]),
         COVER_PREFERENCE.get(listing.source, len(COVER_PREFERENCE)),
         -(getattr(listing, "popularity", None) or 0),
         listing.id,

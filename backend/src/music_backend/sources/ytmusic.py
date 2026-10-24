@@ -400,6 +400,7 @@ def get_album_blocking(album_id: str) -> AlbumDetail | None:
         artists = album_artists,
         year = int_or_none(d.get("year")),
         image = thumb_url(d.get("thumbnails")),
+        release_type = d.get("type"),
         explicit = explicit,
         songs = songs,
     )

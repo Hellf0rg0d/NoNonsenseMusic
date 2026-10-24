@@ -158,6 +158,8 @@ class AlbumDetail(BaseModel):
     image : Image = None
     explicit : bool | None = None
     songs : list[Song] = []
+    # the source's own word for it, where it has one: YouTube Music's "Album", "EP" or "Single" (services/releases.py)
+    release_type : str | None = None
 
 
 class ArtistDetail(BaseModel):
