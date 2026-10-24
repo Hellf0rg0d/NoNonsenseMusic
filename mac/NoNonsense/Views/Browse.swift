@@ -5,7 +5,7 @@ import SwiftUI
 enum Route: Hashable {
     case artist(ArtistRef)
     case album(AlbumRef)
-    /// An artist known only by name (a song's artist line): the best match from a search opens.
+    /// An artist known only by name (a copy with no artist ids): the artist of exactly that name from a search opens.
     case artistNamed(String)
     /// An album known only by its title and artist (a song's album): the best match from a search opens.
     case albumNamed(title: String, artist: String)
@@ -52,9 +52,41 @@ struct TitleBarTitle: View {
 }
 
 
+/// The sources whose artist and album ids open a page (GET /artist, /album): plain YouTube's copies carry none.
+private let pagedSources: Set<String> = ["jiosaavn", "ytmusic"]
+
 extension Track {
     /// The album the playing copy belongs to, when its source names one.
     var albumTitle: String? { best.album.flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// The page of `name`, one of this song's artists: the artist its copies' own source names (the copy that plays
+    /// first), else the artist of exactly that name. A name alone opened whoever a search put first: another artist.
+    func artistRoute(_ name: String) -> Route {
+        let plain = GeniusNotes.plain(name)
+        for copy in [best] + listings where pagedSources.contains(copy.source) {
+            guard let ids = copy.artistIds else { continue }
+            for (i, artist) in copy.artists.enumerated() where i < ids.count {
+                if let id = ids[i], GeniusNotes.plain(artist) == plain {
+                    return .artist(ArtistRef(source: copy.source, id: id, name: artist, image: nil))
+                }
+            }
+        }
+        return .artistNamed(name)
+    }
+
+    /// The page of this song's album: the release a copy of that album title is on, by its id, else the best match
+    /// from a search.
+    var albumRoute: Route? {
+        guard let title = albumTitle else { return nil }
+        let plain = GeniusNotes.plain(title)
+        for copy in [best] + listings where pagedSources.contains(copy.source) {
+            if let id = copy.albumId, let album = copy.album, GeniusNotes.plain(album) == plain {
+                return .album(AlbumRef(source: copy.source, id: id, title: album, artists: copy.artists, year: nil,
+                                       image: nil, songCount: nil))
+            }
+        }
+        return .albumNamed(title: title, artist: artists.first ?? "")
+    }
 }
 
 // MARK: - Artist
@@ -127,10 +159,10 @@ struct ArtistView: View {
             case .artist(let known): ref = known
             case .artistNamed(let name):
                 let found = try await API.searchArtists(name)
-                // the same name first (case and accents ignored), else the search's best
+                // exactly that name (case and accents ignored), never the search's first: that is someone else
                 let plain = GeniusNotes.plain(name)
-                guard let best = found.first(where: { GeniusNotes.plain($0.name) == plain }) ?? found.first else {
-                    problem = "No artist called “\(name)” was found."
+                guard let best = found.first(where: { GeniusNotes.plain($0.name) == plain }) else {
+                    problem = "No artist page for “\(name)”."
                     return
                 }
                 ref = best.best
@@ -273,9 +305,11 @@ struct PlayShuffleButtons: View {
     }
 }
 
-/// Artist names, each one a link to that artist's page, separated by commas.
+/// Artist names, each one a link to that artist's page, separated by commas. `track`: the song they are the artists
+/// of, whose copies name each one's page.
 struct ArtistLinks: View {
     let artists: [String]
+    var track: Track? = nil
     var close: (() -> Void)? = nil            // Now Playing: closes itself before the page opens
 
     var body: some View {
@@ -283,7 +317,7 @@ struct ArtistLinks: View {
             ForEach(Array(artists.enumerated()), id: \.offset) { i, name in
                 Button(name) {
                     close?()
-                    Navigator.shared.open(.artistNamed(name))
+                    Navigator.shared.open(track?.artistRoute(name) ?? .artistNamed(name))
                 }
                 .buttonStyle(.quiet)
                 .help("Go to \(name)")

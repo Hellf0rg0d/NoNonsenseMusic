@@ -94,6 +94,7 @@ class PlayerBar extends StatelessWidget {
                               ),
                               ArtistLinks(
                                 artists: t.artists,
+                                track: t,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: ink.withValues(alpha: 0.58),
@@ -173,6 +174,7 @@ class PlayerBar extends StatelessWidget {
                                     const SizedBox(height: 2),
                                     ArtistLinks(
                                       artists: t.artists,
+                                      track: t,
                                       style: TextStyle(
                                         fontSize: 12.5,
                                         color: ink.withValues(alpha: 0.58),

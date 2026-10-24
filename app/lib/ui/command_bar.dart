@@ -202,10 +202,10 @@ class _CommandBarState extends State<CommandBar> {
         Command(p.volume == 0 ? 'Unmute' : 'Mute', p.volume == 0 ? FluentIcons.speaker_mute_24_regular : FluentIcons.speaker_2_24_regular,
             p.toggleMute, keys: 'M'),
         if (t.artists.isNotEmpty)
-          Command('Go to Artist', FluentIcons.person_24_regular, () => openBrowse(context, ArtistNamed(t.artists.first)), detail: t.artists.first),
+          Command('Go to Artist', FluentIcons.person_24_regular, () => openBrowse(context, artistOf(t, t.artists.first)), detail: t.artists.first),
         if (t.albumTitle != null)
           Command('Go to Album', FluentIcons.album_24_regular,
-              () => openBrowse(context, AlbumNamed(t.albumTitle!, t.artists.firstOrNull ?? '')), detail: t.albumTitle),
+              () => openBrowse(context, albumOf(t)), detail: t.albumTitle),
         if (downloads.folder != null)
           downloads.isDownloaded(t)
               ? Command('Show in Folder', FluentIcons.folder_open_24_regular, () => showInFolder(downloads.fileFor(t)!), detail: t.title)

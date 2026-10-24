@@ -227,10 +227,12 @@ class Catalog {
     return found.firstOrNull;
   }
 
-  /// Resolves an artist known only by name (a song's artist line) to the page to open.
+  /// Resolves an artist known only by name (a copy with no artist ids) to the page to open: the artist of exactly that
+  /// name (case and accents ignored), else none. Never the search's first: that is someone else.
   static Future<ArtistRef?> artistNamed(String name) async {
+    final plain = GeniusNotes.plain(name);
     final found = (await search(name, filter: 'artists')).artists;
-    return bestByName(found, name, (a) => a.name)?.best;
+    return found.where((a) => GeniusNotes.plain(a.name) == plain).firstOrNull?.best;
   }
 
   /// Resolves an album known by its title and artist (a song's album) to the page to open.

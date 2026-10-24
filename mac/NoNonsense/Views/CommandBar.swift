@@ -252,11 +252,11 @@ final class CommandBarState {
                         keys: "M") { player.toggleMute() },
             ]
             if let artist = song.artists.first {
-                all.append(Command(label: "Go to Artist", symbol: "person", detail: artist) { Navigator.shared.open(.artistNamed(artist)) })
+                all.append(Command(label: "Go to Artist", symbol: "person", detail: artist) { Navigator.shared.open(song.artistRoute(artist)) })
             }
-            if let album = song.albumTitle {
+            if let album = song.albumTitle, let route = song.albumRoute {
                 all.append(Command(label: "Go to Album", symbol: "square.stack", detail: album) {
-                    Navigator.shared.open(.albumNamed(title: album, artist: song.artists.first ?? ""))
+                    Navigator.shared.open(route)
                 })
             }
             if downloads.available {

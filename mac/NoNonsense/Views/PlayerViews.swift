@@ -48,7 +48,7 @@ struct PlayerBar: View {
                             Text(track.title).textStyle(.body, weight: .medium).lineLimit(1)
                             if track.isExplicit { ExplicitBadge() }
                         }
-                        ArtistLinks(artists: track.artists).textStyle(.subheadline).foregroundStyle(.secondary)
+                        ArtistLinks(artists: track.artists, track: track).textStyle(.subheadline).foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -413,7 +413,7 @@ struct NowPlayingView: View {
                         Text(track.title).textStyle(.largeTitle, weight: .bold).lineLimit(1)
                         if track.isExplicit { ExplicitBadge() }
                     }
-                    ArtistLinks(artists: track.artists) { player.showNowPlaying = false }
+                    ArtistLinks(artists: track.artists, track: track) { player.showNowPlaying = false }
                         .textStyle(.title3, weight: .medium)
                         .foregroundStyle(.tint)
                         .padding(.top, 3)

@@ -120,6 +120,7 @@ class NowPlaying extends StatelessWidget {
                         // the artists and the album open their pages (Now Playing closes first)
                         ArtistLinks(
                           artists: t.artists,
+                          track: t,
                           style: TextStyle(
                             fontSize: 16,
                             color: ink.withValues(alpha: NowPlayingInk.secondary),
@@ -133,13 +134,7 @@ class NowPlaying extends StatelessWidget {
                                 child: Tooltip(
                                   message: 'Go to ${t.albumTitle}',
                                   child: InkWell(
-                                    onTap: () => openBrowse(
-                                      context,
-                                      AlbumNamed(
-                                        t.albumTitle!,
-                                        t.artists.firstOrNull ?? '',
-                                      ),
-                                    ),
+                                    onTap: () => openBrowse(context, albumOf(t)),
                                     child: Text(
                                       t.albumTitle!,
                                       maxLines: 1,
@@ -383,7 +378,7 @@ class NowPlaying extends StatelessWidget {
                               if (t.isExplicit) const Padding(padding: EdgeInsets.only(left: 8), child: ExplicitBadge()),
                             ]),
                             const SizedBox(height: 3),
-                            ArtistLinks(artists: t.artists, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: accent)),
+                            ArtistLinks(artists: t.artists, track: t, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: accent)),
                             const SizedBox(height: 4),
                             CopyMenu(track: t),
                           ]),

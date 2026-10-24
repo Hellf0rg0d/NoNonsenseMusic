@@ -14,11 +14,12 @@ import 'layout.dart';
 import 'scope.dart';
 
 /// Artist names, each one a link to that artist's page, separated by commas. One line; a name that does not fit is
-/// cut at its end like any text.
+/// cut at its end like any text. [track]: the song they are the artists of, whose copies name each one's page.
 class ArtistLinks extends StatefulWidget {
   final List<String> artists;
+  final Track? track;
   final TextStyle? style;
-  const ArtistLinks({super.key, required this.artists, this.style});
+  const ArtistLinks({super.key, required this.artists, this.track, this.style});
   @override
   State<ArtistLinks> createState() => _ArtistLinksState();
 }
@@ -45,7 +46,7 @@ class _ArtistLinksState extends State<ArtistLinks> {
   @override
   void didUpdateWidget(ArtistLinks old) {
     super.didUpdateWidget(old);
-    if (!listEquals(old.artists, widget.artists)) _release();
+    if (!listEquals(old.artists, widget.artists) || old.track?.id != widget.track?.id) _release();
   }
 
   @override
@@ -56,7 +57,7 @@ class _ArtistLinksState extends State<ArtistLinks> {
 
   TextSpan _line(int? hovered) {
     if (_taps.isEmpty) {
-      _taps = [for (final name in widget.artists) TapGestureRecognizer()..onTap = () => openBrowse(context, ArtistNamed(name))];
+      _taps = [for (final name in widget.artists) TapGestureRecognizer()..onTap = () => openBrowse(context, artistOf(widget.track, name))];
     }
     return TextSpan(children: [
       for (final (i, name) in widget.artists.indexed) ...[

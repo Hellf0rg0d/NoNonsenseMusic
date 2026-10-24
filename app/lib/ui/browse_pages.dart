@@ -24,7 +24,7 @@ class BrowsePage extends StatelessWidget {
             key: ValueKey(target),
             load: () async {
               final ref = await Catalog.artistNamed(name);
-              if (ref == null) throw ApiProblem('No artist called “$name” was found.');
+              if (ref == null) throw ApiProblem('No artist page for “$name”.');
               return Catalog.artist(ref);
             }),
         AlbumTarget(:final ref) => AlbumPage(key: ValueKey(target), load: () => Catalog.album(ref)),

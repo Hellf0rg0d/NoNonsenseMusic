@@ -13,6 +13,15 @@ nonisolated struct Listing: Codable, Hashable, Sendable {
     let image: String?
     /// The explicit version (MUS-19); nil: not known (listings stored before 7 Oct, until they are seen again)
     var explicit: Bool? = nil
+    /// The source's id for each of `artists`, in order (nil for a name it gave no id), and for the album this copy is
+    /// on: the pages to open. nil when the source said nothing (a copy stored before 24 Oct, or plain YouTube).
+    var artistIds: [String?]? = nil
+    var albumId: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case source, id, title, artists, album, duration, popularity, image, explicit
+        case artistIds = "artist_ids", albumId = "album_id"
+    }
 
     /// Unique across sources: the same id string could exist on two sources.
     var key: String { "\(source):\(id)" }
@@ -31,6 +40,8 @@ nonisolated struct Listing: Codable, Hashable, Sendable {
         try c.encode(popularity, forKey: .popularity)    // nil -> null
         try c.encode(image, forKey: .image)
         try c.encode(explicit, forKey: .explicit)        // nil -> null
+        try c.encodeIfPresent(artistIds, forKey: .artistIds)
+        try c.encodeIfPresent(albumId, forKey: .albumId)
     }
     var sourceName: String { Listing.name(ofSource: source) }
     /// YouTube Music and plain YouTube copies are YouTube videos: their links are looked up on this Mac, as the IP that

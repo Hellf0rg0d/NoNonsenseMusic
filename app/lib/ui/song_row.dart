@@ -260,12 +260,9 @@ Future<void> showSongMenu(
       final file = DownloadStore.shared.fileFor(track);
       if (file != null) showInFolder(file);
     case 'artist':
-      openBrowse(context, ArtistNamed(track.artists.first));
+      openBrowse(context, artistOf(track, track.artists.first));
     case 'album':
-      openBrowse(
-        context,
-        AlbumNamed(track.albumTitle!, track.artists.firstOrNull ?? ''),
-      );
+      openBrowse(context, albumOf(track));
     case 'remove':
       remove?.run();
     case 'playlist':

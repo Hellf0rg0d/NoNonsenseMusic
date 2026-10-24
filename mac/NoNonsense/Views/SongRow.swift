@@ -58,10 +58,10 @@ struct SongRow: View {
                 SongLibraryActions(track: track)
                 Divider()
                 if let artist = track.artists.first {
-                    Button("Go to Artist") { Navigator.shared.open(.artistNamed(artist)) }
+                    Button("Go to Artist") { Navigator.shared.open(track.artistRoute(artist)) }
                 }
-                if let album = track.albumTitle {
-                    Button("Go to Album") { Navigator.shared.open(.albumNamed(title: album, artist: track.artists.first ?? "")) }
+                if let route = track.albumRoute {
+                    Button("Go to Album") { Navigator.shared.open(route) }
                 }
                 if let remove {
                     Divider()

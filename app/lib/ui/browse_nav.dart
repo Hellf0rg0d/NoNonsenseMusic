@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 
+import '../core/api.dart';
 import '../core/catalog.dart';
+import '../core/models.dart';
 import 'browse_pages.dart';
 import 'concept.dart';
 import 'glass.dart';
@@ -33,7 +35,7 @@ class AlbumTarget extends BrowseTarget {
   int get hashCode => ref.hashCode;
 }
 
-/// An artist known only by name (a song's artist line): the best match from a search opens.
+/// An artist known only by name (a copy with no artist ids): the artist of exactly that name from a search opens.
 class ArtistNamed extends BrowseTarget {
   final String name;
   const ArtistNamed(this.name);
@@ -52,6 +54,39 @@ class AlbumNamed extends BrowseTarget {
       other is AlbumNamed && other.title == title && other.artist == artist;
   @override
   int get hashCode => Object.hash(title, artist);
+}
+
+/// The sources whose artist and album ids open a page (GET /artist, /album): plain YouTube's copies carry none.
+const _paged = {'jiosaavn', 'ytmusic'};
+
+/// The page of [name], one of [track]'s artists: the artist its copies' own source names (the copy that plays first),
+/// else the artist of exactly that name (ArtistNamed). A name alone opened whoever a search put first: another artist.
+BrowseTarget artistOf(Track? track, String name) {
+  final plain = GeniusNotes.plain(name);
+  for (final l in [if (track != null) track.best, ...?track?.listings]) {
+    final ids = l.artistIds;
+    if (ids == null || !_paged.contains(l.source)) continue;
+    for (final (i, artist) in l.artists.indexed) {
+      final id = i < ids.length ? ids[i] : null;
+      if (id != null && GeniusNotes.plain(artist) == plain) {
+        return ArtistTarget(ArtistRef(source: l.source, id: id, name: artist));
+      }
+    }
+  }
+  return ArtistNamed(name);
+}
+
+/// The page of [track]'s album: the release a copy of that album title is on, by its id, else the best match from a
+/// search (AlbumNamed).
+BrowseTarget albumOf(Track track) {
+  final title = GeniusNotes.plain(track.albumTitle ?? '');
+  for (final l in [track.best, ...track.listings]) {
+    final id = l.albumId;
+    if (id != null && _paged.contains(l.source) && GeniusNotes.plain(l.album ?? '') == title) {
+      return AlbumTarget(AlbumRef(source: l.source, id: id, title: l.album!));
+    }
+  }
+  return AlbumNamed(track.albumTitle ?? '', track.artists.firstOrNull ?? '');
 }
 
 /// The songs downloaded to this device: a page of its own on a phone, where the bottom bar has no room for it

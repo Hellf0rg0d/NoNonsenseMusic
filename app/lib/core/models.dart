@@ -15,6 +15,11 @@ class Listing {
   /// Whether this copy is the explicit version; null: not known.
   final bool? explicit;
 
+  /// The source's id for each of [artists], in order (null for a name it gave no id), and for the album this copy is
+  /// on: the pages to open. Null when the source said nothing (a copy stored before 24 Oct, or plain YouTube).
+  final List<String?>? artistIds;
+  final String? albumId;
+
   const Listing({
     required this.source,
     required this.id,
@@ -25,6 +30,8 @@ class Listing {
     this.popularity,
     this.image,
     this.explicit,
+    this.artistIds,
+    this.albumId,
   });
 
   /// Unique across sources: the same id string could exist on two sources.
@@ -48,6 +55,8 @@ class Listing {
         popularity: (j['popularity'] as num?)?.toInt(),
         image: j['image'] as String?,
         explicit: j['explicit'] as bool?,
+        artistIds: (j['artist_ids'] as List?)?.cast<String?>(),
+        albumId: j['album_id'] as String?,
       );
 
   /// Converts this object to a JSON map, a missing optional field as null.
@@ -64,6 +73,8 @@ class Listing {
         'popularity': popularity,
         'image': image,
         'explicit': explicit,
+        if (artistIds != null) 'artist_ids': artistIds,
+        if (albumId != null) 'album_id': albumId,
       };
 }
 

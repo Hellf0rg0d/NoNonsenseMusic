@@ -111,7 +111,7 @@ extension SelfTest {
             frames["artist.page"] = nil
             Navigator.shared.open(.artistNamed("Arijit Singh"))
             let named = (try? await API.searchArtists("Arijit Singh"))?.first?.name ?? "none"
-            check("…and by name, as Now Playing opens it", await until(15) { frames["artist.page"] != nil }, "search's first: \(named)")
+            check("…and by its exact name, as a copy with no artist ids opens it", await until(15) { frames["artist.page"] != nil }, "search's first: \(named)")
             Navigator.shared.path = []
             try? await Task.sleep(for: .seconds(1))
             if let album {
