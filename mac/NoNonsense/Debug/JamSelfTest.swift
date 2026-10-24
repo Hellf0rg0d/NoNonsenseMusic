@@ -95,6 +95,15 @@ extension SelfTest {
             other.send(["type": "skip"])
             check("5. a member's Next plays the room's next song here", await until(8) {
                 player.playingListing?.key == b.key && player.isPlaying && !player.isBuffering })
+            // Previous in a song's first 3 s by the room's clock: the seek puts the room at 0 first, both on this socket
+            jam.seek(to: 0)
+            player.previous()
+            check("5. Previous in a song's first 3 s plays the room's last song again here", await until(8) {
+                player.playingListing?.key == a.key && player.isPlaying && !player.isBuffering })
+            check("5. …with the song it left first in the queue", jam.state?.queue.first?.listing.key == b.key,
+                  jam.state?.queue.first?.listing.title ?? "-")
+            player.next()
+            check("5. …and Next comes back to it", await until(8) { player.playingListing?.key == b.key && player.isPlaying })
             check("the member hears the host's playhead (a report every 15 s)", await until(20) { other.count("position") >= 1 },
                   "\(other.count("position")) reports")
 

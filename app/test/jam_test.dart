@@ -102,6 +102,7 @@ void main() {
     expect(m(const JamCommand.play()), {'type': 'play'});
     expect(m(const JamCommand.pause()), {'type': 'pause'});
     expect(m(const JamCommand.skip()), {'type': 'skip'});
+    expect(m(const JamCommand.previous()), {'type': 'previous'});
     expect(m(const JamCommand.seek(42.5)), {'type': 'seek', 'seconds': 42.5});
     expect(m(const JamCommand.position(7)), {'type': 'position', 'seconds': 7});
     expect(m(const JamCommand.ended('e1')), {'type': 'ended', 'entry_id': 'e1'});
@@ -246,11 +247,12 @@ void main() {
       expect(jam.state!.positionSeconds, 90);
     });
 
-    test("5. Next and Previous are the room's: the next song, or this one from the start", () async {
+    test("5. Next and Previous are the room's: the next song, the last one or this one from the start", () async {
       await joinAsMember(roomJson(host: 'u2', current: entry('e1', listing('a'))));
       jam.skip();
+      jam.previous();                                  // the server goes back or restarts, by its playhead
       jam.seek(-3);
-      expect(sent().map((m) => (m['type'], m['seconds'])), [('skip', null), ('seek', 0)]);
+      expect(sent().map((m) => (m['type'], m['seconds'])), [('skip', null), ('previous', null), ('seek', 0)]);
     });
 
     test('6. every member says when the song ended here: the entry it loaded, not one the room moved to', () async {
@@ -391,6 +393,7 @@ void main() {
       final before = sent().length;
       jam.setPlaying(false);
       jam.skip();
+      jam.previous();
       jam.seek(40);
       expect(sent().length, before, reason: 'the server would refuse them');
       expect(player.calls.last, 'say ${JamSession.lockedNotice}');

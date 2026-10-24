@@ -194,7 +194,7 @@ class Player extends ChangeNotifier implements JamPlayer {
   }
 
   Future<void> previous() async {
-    if (jam != null) return jam!.seek(0); // a jam has no "previous": the song restarts
+    if (jam != null) return jam!.previous(); // the room's last song, or this one from the start: the server decides
     if (await readPosition() > 3) return seek(0);
     await _skipIfPlaying();
     _go(queue.indexAfterPrevious());

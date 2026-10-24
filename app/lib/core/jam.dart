@@ -132,6 +132,10 @@ class JamCommand {
   const JamCommand.play() : this._('play');
   const JamCommand.pause() : this._('pause');
   const JamCommand.skip() : this._('skip');
+
+  /// Previous: the room's last song again in its first 3 s, else this one from the start; the server decides by its
+  /// playhead (docs/jam.md, Previous).
+  const JamCommand.previous() : this._('previous');
   const JamCommand.seek(double seconds) : this._('seek', seconds: seconds);
 
   /// The host's playhead, sent every 15 s while its player plays the room's song.
@@ -459,6 +463,10 @@ class JamSession extends ChangeNotifier {
 
   void skip() {
     if (!_locked()) _send(const JamCommand.skip());
+  }
+
+  void previous() {
+    if (!_locked()) _send(const JamCommand.previous());
   }
 
   void seek(double seconds) {

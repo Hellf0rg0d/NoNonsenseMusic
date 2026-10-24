@@ -39,7 +39,7 @@ keeps time with the music rather than with the server's clock.
 |---|---|---|---|
 | `add` (end of the queue) | yes | | yes |
 | `add` with placement `next` or `now` | yes | | refused: the apps send it as `end` and say so |
-| `play`, `pause`, `seek`, `skip`, `remove`, `move`, `jump` | yes | | refused: the apps do not send them and say so |
+| `play`, `pause`, `seek`, `skip`, `previous`, `remove`, `move`, `jump` | yes | | refused: the apps do not send them and say so |
 | `ended` | yes, near the song's end (see "The song ends") | yes, at any point | yes |
 | `position` | | yes | |
 | `only_host_plays`, `only_host_controls` | | yes | |
@@ -73,7 +73,7 @@ The room's socket: `GET /ws/jam?ticket=…&room_id=…` (a ticket from `POST /ws
 | `{"type":"out","reason":"removed"\|"left"}` | the host removed you, or you left on another device; the socket then closes (4404) |
 | `{"type":"pong"}` | the answer to `ping` |
 
-From an app: the text `ping`, or a command `{"type": …}`: `play`, `pause`, `seek {seconds}`, `skip`,
+From an app: the text `ping`, or a command `{"type": …}`: `play`, `pause`, `seek {seconds}`, `skip`, `previous`,
 `add {listings, copies, placement: end|next|now}`, `remove {entry_id}`, `move {entry_id, to_index}`, `jump {entry_id}`,
 `ended {entry_id}`, `position {seconds}`, `only_host_plays {on}`, `only_host_controls {on}`. Each member may send 60
 messages a minute. The server closes a socket that has said nothing for 30 s.
@@ -107,6 +107,16 @@ Every app that plays the room's song to its end sends `ended` with the entry's i
 An end reported twice moves the room once. (Windows' player reports an end up to three times: sent as two skips, they
 had the room jump over the next song, 17 Oct.)
 
+## Previous
+
+The room keeps the songs it played, the last 50, newest last: a song goes there when another takes its place (Next, the
+song ending, Play on a song, a jump), not when someone removes it. They are kept across a restart, as the queue is.
+
+`previous`, by whoever may send `skip`: within the first 3 s of a song by the room's clock, the last song played plays
+again from its start, for everyone, and the song that was playing goes back to the front of the queue, so Next returns
+to it. Later in a song, or with nothing played yet, the song restarts. The server decides by its playhead, so every app
+does the same thing. (Until 24 Oct a jam kept no history and Previous only restarted the song.)
+
 A copy that will not play on one device is that device's alone: it tries the song's other copies, as outside a jam;
 when none plays it says so and waits for the next song. The room is not skipped for everyone (a member's failing copy
 did that until 12 Oct; the host's did until this spec).
@@ -138,7 +148,7 @@ The same on the Mac, Windows and Android. "Member" is any member who is not the 
 |---|---|
 | Play, Pause (bar, Now Playing, media keys, Space) | plays or pauses the room for everyone: what the button shows on this device. Play with the room empty starts it with the song on screen, from the start; with nothing on screen it says how to start |
 | Next | the room's next song for everyone |
-| Previous | the room's song from the start (a jam keeps no history) |
+| Previous | in a song's first 3 s, the room's last song again for everyone, the one playing first in Up Next; later, the room's song from the start |
 | Seek (the line, ← →) | the room's song, for everyone |
 | Play on a song | that song now for everyone; the one playing is dropped |
 | Play on a list, Shuffle | the list (up to 50 songs) for everyone, from that song |
@@ -179,7 +189,8 @@ own test server on CI, with songs made on the runner: no internet).
 2. Join with a song playing: an empty room takes it; a room with a song gives its own, at the room's playhead.
 3. Play and pause, by the host and by a member: the room and every player follow.
 4. Seek, by the host and by a member: every player moves to it; under 2.5 s apart nothing moves.
-5. Next and Previous: the next song for everyone; Previous restarts the song.
+5. Next and Previous: the next song for everyone; Previous in a song's first 3 s plays the last song again, with the one
+   playing next in the queue; later, it restarts the song.
 6. The song ends: the host's `ended` moves the room on, and a member's near the end; a second, or a member's far from
    the end, does nothing.
 7. The host leaves: the next member is host, and is told.

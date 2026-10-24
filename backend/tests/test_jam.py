@@ -746,6 +746,46 @@ async def test_3_4_5_play_pause_seek_and_next_by_a_member_reach_everyone():
 
 
 @pytest.mark.anyio
+async def test_5_previous_early_in_a_song_plays_the_last_one_again_and_later_restarts():
+    hub = jam.JamHub()
+    room, host, member, host_ws, member_ws = two_people_in_a_room(hub)
+    await hub.handle_command(room, host, JamCommand(type="add", listings=[make_listing(i) for i in (1, 2, 3)]), host_ws)
+    await hub.handle_command(room, member, JamCommand(type="skip"), member_ws)             # Song 2; Song 1 played
+    room.position_seconds = 40.0                                                           # well into Song 2
+    await hub.handle_command(room, member, JamCommand(type="previous"), member_ws)
+    assert room.current.listing.title == "Song 2" and hub.playhead(room) < 1                # restarted
+    await hub.handle_command(room, member, JamCommand(type="previous"), member_ws)         # within 3 s: back one
+    assert room.current.listing.title == "Song 1" and room.is_playing and hub.playhead(room) < 1
+    assert [e.listing.title for e in room.queue] == ["Song 2", "Song 3"]                    # Next comes back to it
+    assert host_ws.last()["type"] == member_ws.last()["type"] == "state"
+    await hub.handle_command(room, member, JamCommand(type="previous"), member_ws)         # nothing before: restarts
+    assert room.current.listing.title == "Song 1"
+
+
+@pytest.mark.anyio
+async def test_a_removed_song_is_not_gone_back_to_and_jump_and_play_now_are():
+    hub, room, sender = fresh_room()
+    await hub.handle_command(room, room.host_id, JamCommand(type="add", listings=[make_listing(i) for i in (1, 2, 3, 4)]), sender)
+    await hub.handle_command(room, room.host_id, JamCommand(type="remove", entry_id=room.current.entry_id), sender)
+    assert room.played == []
+    await hub.handle_command(room, room.host_id, JamCommand(type="jump", entry_id=room.queue[-1].entry_id), sender)
+    await hub.handle_command(room, room.host_id, JamCommand(type="add", listings=[make_listing(5)], placement="now"), sender)
+    assert [e.listing.title for e in room.played] == ["Song 2", "Song 4"]
+
+
+def test_a_room_keeps_its_last_fifty_songs_and_takes_them_across_a_restart():
+    hub, room, _ = fresh_room()
+    room.current = jam.JamQueueEntry(entry_id=uuid4(), listing=make_listing(0))
+    room.queue = [jam.JamQueueEntry(entry_id=uuid4(), listing=make_listing(i)) for i in range(1, 61)]
+    for _ in range(60):
+        hub._advance(room)
+    assert len(room.played) == jam.MAX_PLAYED and room.played[-1].listing.title == "Song 59"
+    restarted = jam.JamHub()
+    restarted.restore(snapshot_after(hub, 4))
+    assert [e.entry_id for e in restarted.get(room.id).played] == [e.entry_id for e in room.played]
+
+
+@pytest.mark.anyio
 async def test_the_hosts_report_reaches_the_members_and_not_the_host():
     hub = jam.JamHub()
     room, host, member, host_ws, member_ws = two_people_in_a_room(hub)

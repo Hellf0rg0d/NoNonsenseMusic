@@ -298,7 +298,7 @@ final class Player {
     }
 
     func previous() {
-        if let jam { jam.seek(to: 0); return }                     // a jam has no "previous": the song restarts
+        if let jam { jam.previous(); return }                      // the room's last song, or this one again: the server decides
         previousPresses += 1
         if livePosition > 3 { seek(to: 0); return }     // like every player: first press restarts the song
         reportSkipIfNeeded()

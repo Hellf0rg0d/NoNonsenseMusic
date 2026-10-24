@@ -39,7 +39,7 @@ ROOM_IDLE_SECONDS = 2 * 60 * 60
 MAX_SOCKETS_PER_USER = 5
 SEND_TIMEOUT = 3.0
 # with only_host_controls on, what a member may not do (an add is allowed, at the end of the queue)
-MEMBER_LOCKED = {"play", "pause", "seek", "skip", "remove", "move", "jump"}
+MEMBER_LOCKED = {"play", "pause", "seek", "skip", "previous", "remove", "move", "jump"}
 CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"   # no l/1/0/o: a code read aloud or typed must not fail
 # seconds: a room that was playing when the server stopped plays on if the server is back this soon. The members'
 # players never stopped (a deploy takes about 4 s, 14 Oct), so the playhead counts the time between; after longer, the
@@ -51,6 +51,9 @@ RESUME_WITHIN = 60
 # for the others. The host's is taken whatever the playhead: its player is the room's clock, and when every copy is
 # shorter than the listing says (a radio edit, YouTube Music copies of a JioSaavn listing) only the host's end moves on
 END_WITHIN = 3.0
+MAX_PLAYED = 50            # the songs a room keeps for Previous, newest last
+# seconds: Previous this early in a song plays the last song again; later, it restarts the song (docs/jam.md, Previous)
+PREVIOUS_WITHIN = 3.0
 
 
 class RoomNotFound(Exception):
@@ -85,6 +88,7 @@ class Room:
     position_seconds: float = 0.0
     position_at: float = field(default_factory=time.time)
     queue: list[JamQueueEntry] = field(default_factory=list)
+    played: list[JamQueueEntry] = field(default_factory=list)      # what Previous goes back to, newest last
     sockets: dict[WebSocket, UUID] = field(default_factory=dict)   # socket -> user_id
     only_host_plays: bool = False                  # the host's device plays the room alone; the others follow silently
     only_host_controls: bool = False               # members may only add songs to the end of the queue
@@ -365,6 +369,16 @@ class JamHub:
                 await sender.send_json({"type": "error", "detail": "Nothing to skip."})
                 return
             self._advance(room)
+        elif cmd.type == "previous":
+            if room.current is None:
+                await sender.send_json({"type": "error", "detail": "Nothing to go back from."})
+                return
+            if room.played and self.playhead(room) < PREVIOUS_WITHIN:
+                room.queue.insert(0, room.current)       # Next comes back to it
+                room.current = room.played.pop()
+            room.position_seconds = 0.0
+            room.position_at = time.time()
+            room.is_playing = True
         elif cmd.type == "add":
             if not cmd.listings:
                 await sender.send_json({"type": "error", "detail": "Nothing to add."})
@@ -385,6 +399,7 @@ class JamHub:
                 room.position_at = time.time()
                 room.is_playing = True               # adding to an idle room starts it
             elif cmd.placement == "now":
+                self._played(room)
                 room.current = entries[0]            # Play: this song at once; the one playing is dropped, as jump does
                 room.queue[0:0] = entries[1:]
                 room.position_seconds = 0.0
@@ -399,7 +414,7 @@ class JamHub:
                 await sender.send_json({"type": "error", "detail": "Which entry?"})
                 return
             if room.current and cmd.entry_id == room.current.entry_id:
-                self._advance(room)
+                self._advance(room, played=False)    # removed: not a song to go back to
             else:
                 before = len(room.queue)
                 room.queue = [e for e in room.queue if e.entry_id != cmd.entry_id]
@@ -432,6 +447,7 @@ class JamHub:
             if index is None:
                 await sender.send_json({"type": "error", "detail": "No such entry."})
                 return
+            self._played(room)
             room.current = room.queue.pop(index)      # the entry leaves the queue; the song playing is dropped
             room.position_seconds = 0.0
             room.position_at = time.time()
@@ -440,8 +456,18 @@ class JamHub:
         await self.broadcast(room, {"type": "state", "data": self.state(room).model_dump(mode="json")})
 
     @staticmethod
-    def _advance(room: Room) -> None:
-        """The next song in the queue, from its start, playing; with none left, the room is empty and still."""
+    def _played(room: Room) -> None:
+        """The song playing, kept for Previous as another takes its place."""
+        if room.current is not None:
+            room.played.append(room.current)
+            del room.played[:-MAX_PLAYED]
+
+    @classmethod
+    def _advance(cls, room: Room, played: bool = True) -> None:
+        """The next song in the queue, from its start, playing; with none left, the room is empty and still. The song
+        that was playing is kept for Previous, unless it was removed (played=False)."""
+        if played:
+            cls._played(room)
         room.current = room.queue.pop(0) if room.queue else None
         room.position_seconds = 0.0
         room.position_at = time.time()
@@ -488,6 +514,7 @@ class JamHub:
             "join_order": [str(user_id) for user_id in room.join_order],
             "current": room.current.model_dump(mode="json") if room.current else None,
             "queue": [entry.model_dump(mode="json") for entry in room.queue],
+            "played": [entry.model_dump(mode="json") for entry in room.played],
             "is_playing": room.is_playing,
             "position_seconds": self.playhead(room),
             "only_host_plays": room.only_host_plays,
@@ -516,6 +543,7 @@ class JamHub:
                 position_seconds=s["position_seconds"],
                 position_at=s["saved_at"] if playing else now,
                 queue=[JamQueueEntry.model_validate(entry) for entry in s["queue"]],
+                played=[JamQueueEntry.model_validate(entry) for entry in s.get("played", [])],   # saved before 24 Oct: none
                 only_host_plays=s["only_host_plays"],
                 only_host_controls=s["only_host_controls"],
                 touched_at=time.monotonic() - s["idle_seconds"] - away,

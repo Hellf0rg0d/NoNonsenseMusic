@@ -567,7 +567,7 @@ class JamHostRequest(BaseModel):
 
 # One shape for every control message over /ws/jam; the handler checks which fields the type needs.
 class JamCommand(BaseModel):
-    type: Literal["play", "pause", "seek", "skip", "add", "remove", "move", "jump", "ended", "position",
+    type: Literal["play", "pause", "seek", "skip", "previous", "add", "remove", "move", "jump", "ended", "position",
                   "only_host_plays", "only_host_controls"]
     seconds: float | None = None                 # seek, position
     listings: list[ListingIn] | None = Field(default=None, max_length=MAX_LISTINGS)    # add

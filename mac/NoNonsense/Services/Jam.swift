@@ -341,6 +341,9 @@ final class JamSession {
         if !locked() { send(JamCommand(type: play ? "play" : "pause")) }
     }
     func skip() { if !locked() { send(JamCommand(type: "skip")) } }
+    /// The room's last song again in its first 3 s, else this one from the start: the server decides by its playhead
+    /// (docs/jam.md, Previous).
+    func previous() { if !locked() { send(JamCommand(type: "previous")) } }
     func seek(to seconds: Double) { if !locked() { send(JamCommand(type: "seek", seconds: max(0, seconds))) } }
 
     /// Whether you may control the room: everyone may, unless the host chose to control it alone.
