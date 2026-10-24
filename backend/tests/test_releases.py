@@ -93,10 +93,39 @@ async def test_a_stored_song_takes_its_canonical_releases_cover_once_its_pages_a
     async with pool.connection() as conn:
         song_id = await library.resolve_song(conn, [copy("jiosaavn", "hm", "hypemode2023", image="https://img/basketball.jpg")])
         await library.resolve_song(conn, [copy("jiosaavn", "hm", "hypemode2023"), copy("jiosaavn", "s2", "sremmlife2")])
-    assert await releases.refresh_cover(pool, song_id, fetch) == SREMMLIFE_2.image
+    assert await releases.refresh_cover(pool, song_id, fetch) == SREMMLIFE_2
     async with pool.connection() as conn:
         row = await (await conn.execute("SELECT image FROM songs WHERE id = %s", [song_id])).fetchone()
     assert row["image"] == SREMMLIFE_2.image
     # a release is read once: asked again, nothing is fetched and nothing changes
     assert await releases.refresh_cover(pool, song_id, fetch) is None
     assert sorted(asked) == [("jiosaavn", "hypemode2023"), ("jiosaavn", "sremmlife2")]
+
+
+@pytest.mark.anyio
+async def test_the_backfill_reads_old_copies_again_lists_first_then_changes_the_cover(pool, user_id):
+    from music_backend.core import refresh_covers
+    pages = {("jiosaavn", "hypemode2023"): HYPE_MODE, ("jiosaavn", "sremmlife2"): SREMMLIFE_2}
+
+    async def fetch(source, album_id):
+        return pages[(source, album_id)]
+
+    async def song_page(song_id):                 # what JioSaavn's song page says each copy is on
+        return copy("jiosaavn", song_id, {"hm": "hypemode2023", "s2": "sremmlife2"}[song_id])
+
+    async with pool.connection() as conn:
+        # stored before 24 Oct: no album ids, the compilation's basketball as the cover
+        old = [copy("jiosaavn", "hm", None, image="https://img/basketball.jpg"), copy("jiosaavn", "s2", None)]
+        song_id = await library.resolve_song(conn, old)
+        await library.like(conn, user_id, song_id)
+
+    run = lambda apply: refresh_covers.refresh(pool, apply, lookups={"jiosaavn": song_page}, fetch_release=fetch, pause=0)
+    assert await run(False) == ["Black Beatles by Rae Sremmurd: sremmlife2 (album, 2016)"]
+    async with pool.connection() as conn:
+        assert (await (await conn.execute("SELECT image FROM songs WHERE id = %s", [song_id])).fetchone())["image"] == "https://img/basketball.jpg"
+        assert (await (await conn.execute("SELECT count(*) AS n FROM releases")).fetchone())["n"] == 0
+    assert await run(True) == ["Black Beatles by Rae Sremmurd: sremmlife2 (album, 2016)"]
+    async with pool.connection() as conn:
+        assert (await (await conn.execute("SELECT image FROM songs WHERE id = %s", [song_id])).fetchone())["image"] == SREMMLIFE_2.image
+        assert {r["album_id"] for r in await (await conn.execute("SELECT album_id FROM listings")).fetchall()} == {"hypemode2023", "sremmlife2"}
+    assert await run(True) == []                                  # once done, nothing left to change

@@ -62,10 +62,10 @@ def release_of(album: AlbumDetail) -> Release:
                    track_count = len(album.songs), kind = kind_of(album), image = album.image)
 
 
-def canonical_cover(song_artists: list[str], copies: list[tuple[Listing, Release | None]]) -> str | None:
-    """The cover a song shows: its canonical release's, or None when none of its releases is known yet (then the
-    song keeps the one it has). By the song's own artist first, then album, EP, single, compilation, then the
-    earliest, then COVER_PREFERENCE, then the release id (the same set gives the same cover, whatever its order)."""
+def canonical_release(song_artists: list[str], copies: list[tuple[Listing, Release | None]]) -> tuple[Listing, Release] | None:
+    """A song's canonical release, with the copy on it: by the song's own artist first, then album, EP, single,
+    compilation, then the earliest, then COVER_PREFERENCE, then the release id (the same set gives the same release,
+    whatever its order). None when none of its releases with a cover is known yet."""
     known = [(copy, release) for copy, release in copies if release is not None and (release.image or copy.image)]
     if not known:
         return None
@@ -76,8 +76,13 @@ def canonical_cover(song_artists: list[str], copies: list[tuple[Listing, Release
         return (0 if by_artist else 1, KIND_RANK[release.kind], release.year or 9999,
                 COVER_PREFERENCE.get(release.source, len(COVER_PREFERENCE)), release.id)
 
-    copy, release = min(known, key = rank)
-    return release.image or copy.image
+    return min(known, key = rank)
+
+
+def canonical_cover(song_artists: list[str], copies: list[tuple[Listing, Release | None]]) -> str | None:
+    """The cover a song shows: its canonical release's, or None when none is known yet (the song keeps the one it has)."""
+    chosen = canonical_release(song_artists, copies)
+    return chosen and (chosen[1].image or chosen[0].image)
 
 
 async def stored_releases(conn, keys: list[tuple[str, str]]) -> dict[tuple[str, str], Release]:
@@ -111,16 +116,19 @@ async def fetch(source: str, album_id: str) -> Release | None:
     return release_of(album) if album else None
 
 
-async def refresh_cover(pool, song_id: UUID, fetch_release = None) -> str | None:
-    """Read the pages of the song's releases not read yet, then choose its cover again; returns the cover stored when
-    it changed, else None. fetch_release: fetch, unless a test gives another."""
+async def refresh_cover(pool, song_id: UUID, fetch_release = None, *, copies: list[Listing] | None = None,
+                        write: bool = True) -> Release | None:
+    """Read the pages of the song's releases not read yet, then choose its cover again; returns the canonical release
+    when the cover changes, else None. fetch_release: fetch, unless a test gives another. copies: the song's stored
+    ones, unless given. write: store the pages and the cover (without it, only say what would change)."""
     fetch_release = fetch_release or fetch
     async with pool.connection() as conn:
         song = await (await conn.execute("SELECT artists, image FROM songs WHERE id = %s", [song_id])).fetchone()
-        rows = await (await conn.execute("SELECT * FROM listings WHERE song_id = %s", [song_id])).fetchall()
+        if copies is None:
+            copies = [_stored_listing(r) for r in await (await conn.execute(
+                "SELECT * FROM listings WHERE song_id = %s", [song_id])).fetchall()]
     if song is None:
         return None
-    copies = [_stored_listing(r) for r in rows]
     keys = sorted({(c.source, c.album_id) for c in copies if c.album_id and c.source in SOURCES})
     async with pool.connection() as conn:
         known = await stored_releases(conn, keys)
@@ -133,19 +141,22 @@ async def refresh_cover(pool, song_id: UUID, fetch_release = None) -> str | None
             async with limit:
                 release = await fetch_release(*key)
             if release is not None:
-                async with pool.connection() as conn:
-                    await store_release(conn, release)
+                if write:
+                    async with pool.connection() as conn:
+                        await store_release(conn, release)
                 known[key] = release
         except Exception as e:                    # a page that will not load: the cover stays as it is
             logger.info("releases: %s %s not read (%s)", key[0], key[1], type(e).__name__)
         finally:
             _asking.discard(key)
-    cover = canonical_cover(song["artists"], [(c, known.get((c.source, c.album_id))) for c in copies])
+    chosen = canonical_release(song["artists"], [(c, known.get((c.source, c.album_id))) for c in copies])
+    cover = chosen and (chosen[1].image or chosen[0].image)
     if cover is None or cover == song["image"]:
         return None
-    async with pool.connection() as conn:
-        await conn.execute("UPDATE songs SET image = %s WHERE id = %s", [cover, song_id])
-    return cover
+    if write:
+        async with pool.connection() as conn:
+            await conn.execute("UPDATE songs SET image = %s WHERE id = %s", [cover, song_id])
+    return chosen[1]
 
 
 def learn_later(pool, song_id: UUID) -> None:
