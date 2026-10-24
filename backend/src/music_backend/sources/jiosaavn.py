@@ -262,6 +262,10 @@ def to_listing(result: dict) -> Listing:
         image = result.get("image"),
         # "1" or "0"; missing would mean JioSaavn changed its reply: then unknown, not clean
         explicit = result["explicit_content"] == "1" if "explicit_content" in result else None,
+        artist_ids = [artist.get("id") or None for artist in info["artistMap"]["primary_artists"]] or None,
+        album_id = info.get("album_id") or None,
+        kind = "audio",                          # JioSaavn has songs only
+        year = year if (year := int_or_none(result.get("year"))) and 1900 <= year <= 2100 else None,
     )
 
 async def get_song(song_id: str) -> Listing:

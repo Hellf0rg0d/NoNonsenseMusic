@@ -111,6 +111,7 @@ def get_artist_blocking(artist_id: str) -> ArtistDetail | None:
                 popularity = entry.get("view_count"),
                 image = entry_thumbs[-1]["url"] if entry_thumbs else None,
                 explicit = None,
+                kind = "upload",                 # plain YouTube: a video, never the catalogue's song
             )]))
         except (KeyError, TypeError, ValueError) as e:
             logger.warning("YouTube: skipped a bad channel video: %r", e)
@@ -203,6 +204,7 @@ def to_listing(item: dict) -> Listing:
         popularity = views_of(item),
         image = artwork(item),
         explicit = is_explicit(item),
+        kind = "upload",                         # plain YouTube: a video, never the catalogue's song
     )
 
 

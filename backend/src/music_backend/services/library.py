@@ -39,7 +39,8 @@ class UnknownListing(Exception):
 def _stored_listing(row: dict) -> Listing:
     return Listing(source = row["source"], id = row["source_id"], title = row["title"], artists = row["artists"],
                    album = row["album"], duration = row["duration"], popularity = row["popularity"],
-                   image = row["image"], explicit = row["explicit"])
+                   image = row["image"], explicit = row["explicit"], artist_ids = row.get("artist_ids"),
+                   album_id = row.get("album_id"), kind = row.get("kind"), year = row.get("year"))
 
 
 async def trusted_listings(conn: AsyncConnection, served: ServedListings, listings: list[Listing]) -> list[Listing]:
@@ -120,12 +121,24 @@ async def resolve_song(conn: AsyncConnection, listings: list[Listing]) -> UUID:
             # executemany: every listing in one round trip (psycopg pipelines them), not one trip per listing
             async with conn.cursor() as cur:
                 await cur.executemany(
+                    # a copy stored before gets what it did not know filled in (its explicit flag; its source's ids,
+                    # kind and year, migrations/0005), never overwritten, and only written when there is something to fill
                     """INSERT INTO listings (source, source_id, song_id, title, artists, album, duration, popularity, image,
-                                             explicit, words)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                       ON CONFLICT (source, source_id) DO UPDATE SET explicit = EXCLUDED.explicit
-                       WHERE listings.explicit IS NULL AND EXCLUDED.explicit IS NOT NULL""",   # fill in an unknown flag
-                    [[l.source, l.id, song_id, l.title, l.artists, l.album, l.duration, l.popularity, l.image, l.explicit, w]
+                                             explicit, words, artist_ids, album_id, kind, year)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (source, source_id) DO UPDATE SET
+                           explicit = COALESCE(listings.explicit, EXCLUDED.explicit),
+                           artist_ids = COALESCE(listings.artist_ids, EXCLUDED.artist_ids),
+                           album_id = COALESCE(listings.album_id, EXCLUDED.album_id),
+                           kind = COALESCE(listings.kind, EXCLUDED.kind),
+                           year = COALESCE(listings.year, EXCLUDED.year)
+                       WHERE (listings.explicit IS NULL AND EXCLUDED.explicit IS NOT NULL)
+                          OR (listings.artist_ids IS NULL AND EXCLUDED.artist_ids IS NOT NULL)
+                          OR (listings.album_id IS NULL AND EXCLUDED.album_id IS NOT NULL)
+                          OR (listings.kind IS NULL AND EXCLUDED.kind IS NOT NULL)
+                          OR (listings.year IS NULL AND EXCLUDED.year IS NOT NULL)""",
+                    [[l.source, l.id, song_id, l.title, l.artists, l.album, l.duration, l.popularity, l.image, l.explicit, w,
+                      l.artist_ids, l.album_id, l.kind, l.year]
                      for l, w in zip(same, words)],
                 )
             for w in words:

@@ -16,6 +16,7 @@ from music_backend.services.images import Image
 # Lowercase, no spaces: they appear in URLs (/play/ytmusic/...) and must never drift between files.
 # Display names like "YouTube Music" belong to a UI, not here.
 SourceName = Literal["jiosaavn", "ytmusic", "youtube"]
+CopyKind = Literal["audio", "video", "upload"]
 
 class Listing(BaseModel):
     source : SourceName
@@ -29,6 +30,15 @@ class Listing(BaseModel):
     image : Image = None
     # the explicit version (JioSaavn's explicit_content, YouTube Music's E badge); None: not known (older rows)
     explicit : bool | None = None
+    # What the source says this copy is (migrations/0005; None: not known, as for copies stored before it).
+    # One id per name in `artists`, in order, None where a name has none: YouTube Music's channel id, JioSaavn's artist
+    # id. None for a video whose artists were read from its title: the row's ids were the uploader's, not the artists'.
+    artist_ids : list[str | None] | None = None
+    album_id : str | None = None                # the release this copy is on
+    # "audio": the song itself (YouTube Music ATV, every JioSaavn song); "video": its official video (OMV); "upload":
+    # anyone's (UGC, plain YouTube)
+    kind : CopyKind | None = None
+    year : int | None = None                    # the release's
 
 # Limits on what a client may send. Real values are far inside them (the longest title seen is ~120 characters); they
 # only stop one request from filling the database or the memory of a server on the internet.
@@ -52,6 +62,9 @@ class ListingIn(Listing):
     duration : int = Field(gt = 0, le = MAX_DURATION)
     popularity : int | None = Field(ge = 0, le = 10**13)
     image : Image = Field(default = None, max_length = 1000)
+    artist_ids : list[Annotated[str, Field(max_length = 100)] | None] | None = Field(default = None, max_length = 20)
+    album_id : str | None = Field(default = None, max_length = 100)
+    year : int | None = Field(default = None, ge = 1900, le = 2100)
 
 
 class BaseSong(BaseModel):

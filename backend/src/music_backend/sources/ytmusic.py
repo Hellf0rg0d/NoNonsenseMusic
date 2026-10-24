@@ -55,6 +55,44 @@ async def search(query: str) -> list[Listing]:
 
 # the top results a search can put first: a song, a music video, an upload. Not an artist, album or podcast episode
 TOP_KINDS = {"MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC"}
+# what a row's musicVideoType says the copy is (Listing.kind)
+KINDS = {"MUSIC_VIDEO_TYPE_ATV" : "audio", "MUSIC_VIDEO_TYPE_OMV" : "video", "MUSIC_VIDEO_TYPE_UGC" : "upload"}
+
+
+def browse_id(run: dict) -> str | None:
+    """The page a text run links to: an artist's channel id ("UC…"), an album's ("MPREb_…"); None for plain text."""
+    return ((run.get("navigationEndpoint") or {}).get("browseEndpoint") or {}).get("browseId")
+
+
+def kept_ids(names: list[str], given: list[tuple[str | None, str | None]]) -> list[str | None] | None:
+    """`names`' ids, from the row's own (name, id) pairs, only while the names are the row's: a video's artists read
+    from its title ("slipfunc" on Ikigai's channel, named()) would get the uploader's ids. None without one id."""
+    if [name for name, _ in given] != names:
+        return None
+    ids = [i for _, i in given]
+    return ids if any(ids) else None
+
+
+def raw_kind(item: dict) -> str | None:
+    """A raw search row's kind (Listing.kind), from its play button's musicVideoType."""
+    watch = (((item.get("overlay") or {}).get("musicItemThumbnailOverlayRenderer") or {}).get("content") or {}) \
+        .get("musicPlayButtonRenderer", {}).get("playNavigationEndpoint", {}).get("watchEndpoint", {})
+    return KINDS.get(watch.get("watchEndpointMusicSupportedConfigs", {}).get("watchEndpointMusicConfig", {}).get("musicVideoType"))
+
+
+def to_year(value) -> int | None:
+    """A release year as YouTube Music writes it ("2020"), or None."""
+    text = str(value or "").strip()
+    return int(text) if text.isdigit() and 1900 <= int(text) <= 2100 else None
+
+
+def parsed_identity(row: dict, names: list[str], *, artists: list | None = None, album_id: str | None = None,
+                    year=None, kind: str | None = None) -> dict:
+    """Listing's identity fields from a ytmusicapi row (watch playlists, albums, artist pages): its artists' ids (or
+    `artists`', the album's own, for a track that names none), album id, kind and year."""
+    given = [(a.get("name"), a.get("id")) for a in (row.get("artists") or artists or [])]
+    return {"artist_ids" : kept_ids(names, given), "album_id" : album_id or (row.get("album") or {}).get("id"),
+            "kind" : KINDS.get(row.get("videoType")) or kind, "year" : to_year(year or row.get("year"))}
 
 
 async def top_result(query: str) -> Listing | None:
@@ -80,8 +118,9 @@ def top_listing(response: dict) -> Listing | None:
     if kind not in TOP_KINDS or not watch.get("videoId"):
         return None
     parts = split_on_separator(card["subtitle"]["runs"])
+    runs = [run for run in parts[1] if run["text"] not in ARTIST_JOINERS]
     title, artists = named({"title" : card["title"]["runs"][0]["text"], "videoType" : kind,
-                            "artists" : [{"name" : run["text"]} for run in parts[1] if run["text"] not in ARTIST_JOINERS]})
+                            "artists" : [{"name" : run["text"]} for run in runs]})
     return Listing(
         source = "ytmusic",
         id = watch["videoId"],
@@ -92,6 +131,8 @@ def top_listing(response: dict) -> Listing | None:
         popularity = to_count(parts[2][0]["text"]) if len(parts) == 4 else None,   # a video's views
         image = artwork(card),
         explicit = is_explicit(card),
+        artist_ids = kept_ids(artists, [(run["text"], browse_id(run)) for run in runs]),
+        kind = KINDS.get(kind),
     )
 
 
@@ -236,6 +277,7 @@ def radio_blocking(source_id: str, limit: int) -> list[Listing]:
                 image = thumb_url(row.get("thumbnail")),   # watch-playlist rows say "thumbnail" (singular)
                 # watch-playlist rows carry no isExplicit badge: unknown, not clean
                 explicit = None,
+                **parsed_identity(row, artists),
             ))
         except (KeyError, TypeError, ValueError) as e:
             logger.warning("YouTube Music: skipped a bad radio track: %r", e)
@@ -278,7 +320,8 @@ def import_track_blocking(video_id: str) -> Listing | None:
         return None
     title, artists = named(row)
     return Listing(source="ytmusic", id=video_id, title=title, artists=artists, album=None,
-                   duration=duration, popularity=None, image=thumb_url(row.get("thumbnail")), explicit=None)
+                   duration=duration, popularity=None, image=thumb_url(row.get("thumbnail")), explicit=None,
+                   **parsed_identity(row, artists))
 
 
 async def import_playlist(playlist_id: str) -> tuple[str, list[SpotifyImportSong]] | None:
@@ -329,16 +372,22 @@ def get_album_blocking(album_id: str) -> AlbumDetail | None:
             if not row.get("videoId") or not duration:
                 logger.warning("YouTube Music: skipped album track %s without id/duration", row.get("videoId"))
                 continue
+            names = [a["name"] for a in row.get("artists") or []] or album_artists
             songs.append(to_song([Listing(
                 source = "ytmusic",
                 id = row["videoId"],
                 title = row["title"],
-                artists = [a["name"] for a in row.get("artists") or []] or album_artists,
+                artists = names,
                 album = d["title"],
                 duration = duration,
                 popularity = to_count(row["views"]) if row.get("views") else None,
                 image = thumb_url(row.get("thumbnails")) or album_cover,
                 explicit = row.get("isExplicit"),
+                # no kind: logged out, an album page calls every track a video (OMV), with ids that are not the songs'
+                # though their lengths are (all 19 of Shoot For The Stars, 24 Oct); search, radio and the top result
+                # tell songs from videos as they are
+                **{**parsed_identity(row, names, artists = d.get("artists"), album_id = album_id, year = d.get("year")),
+                   "kind" : None},
             )]))
         except (KeyError, TypeError, ValueError) as e:
             logger.warning("YouTube Music: skipped a bad album track: %r", e)
@@ -386,16 +435,18 @@ async def get_artist(artist_id: str) -> ArtistDetail | None:
             if not duration:
                 logger.warning("YouTube Music: no duration for %s: album fetch or title match failed",
                                row.get("videoId"))
+            names = [a["name"] for a in row.get("artists") or []] or [name]
             songs.append(to_song([Listing(
                 source = "ytmusic",
                 id = row["videoId"],
                 title = row["title"],
-                artists = [a["name"] for a in row.get("artists") or []] or [name],
+                artists = names,
                 album = (row.get("album") or {}).get("name"),
                 duration = duration or 0,
                 popularity = None,
                 image = thumb_url(row.get("thumbnails")),
                 explicit = row.get("isExplicit"),
+                **parsed_identity(row, names, artists = [{"name" : name, "id" : artist_id}]),
             )]))
         except (KeyError, TypeError, ValueError) as e:
             logger.warning("YouTube Music: skipped a bad artist song: %r", e)
@@ -479,7 +530,8 @@ def to_listing(item: dict) -> Listing:
     """Turn one YouTube Music song row into a Listing."""
     title = column(item, 0)[0]["text"]
     parts = split_on_separator(column(item, 1))
-    artists = [run["text"] for run in parts[0] if run["text"] not in ARTIST_JOINERS]
+    runs = [run for run in parts[0] if run["text"] not in ARTIST_JOINERS]
+    artists = [run["text"] for run in runs]
     album = parts[1][0]["text"] if len(parts) == 3 else None
     plays = column(item, 2)
     return Listing(
@@ -492,6 +544,9 @@ def to_listing(item: dict) -> Listing:
         popularity = to_count(plays[0]["text"]) if plays else None,
         image = artwork(item),
         explicit = is_explicit(item),
+        artist_ids = kept_ids(artists, [(run["text"], browse_id(run)) for run in runs]),
+        album_id = browse_id(parts[1][0]) if len(parts) == 3 else None,
+        kind = raw_kind(item),
     )
 
 
