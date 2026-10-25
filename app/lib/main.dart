@@ -22,6 +22,7 @@ import 'core/media_controls.dart';
 import 'core/player.dart';
 import 'core/jam.dart';
 import 'core/settings.dart';
+import 'core/update_check.dart';
 import 'core/social.dart';
 import 'core/accent.dart';
 import 'ui/in_front.dart';
@@ -74,6 +75,8 @@ Future<void> main() async {
   DownloadStore.shared.onDownloaded = lyrics.keep; // offline lyrics, as the Mac keeps them
   unawaited(DownloadStore.shared.keepMissingCovers()); // covers of downloads made before covers were kept
   runApp(NoNonsenseApp(player: player, library: library, lyrics: lyrics, settings: settings, auth: auth));
+  // the update self-test (a build with --dart-define=NN_SELFTEST_UPDATE_FEED=…): the update flow at once, signed in or not
+  if (updateSelfTestFeed.isNotEmpty) SchedulerBinding.instance.addPostFrameCallback((_) => runUpdateSelfTest());
   // Measurement only (--dart-define=AUTOPLAY=<search>, NOW_PLAYING=lyrics|upNext): plays the first result, muted,
   // so CPU can be read while a song plays without the user touching it. Not set in a normal build.
   const autoplay = String.fromEnvironment('AUTOPLAY');

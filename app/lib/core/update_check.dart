@@ -5,7 +5,10 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// In-place updates, as the Mac app's Sparkle does them: once per launch the app reads the latest release's
 /// update.json (scripts/make-update-feeds.py), and a newer version is offered with its notes. Update downloads this
@@ -141,6 +144,26 @@ Future<String?> installUpdate(File file, {void Function()? quit}) async {
         : null;
   }
   return null;
+}
+
+/// A build for the update self-test (`--dart-define=NN_SELFTEST_UPDATE_FEED=<update.json>`, with NN_UPDATE_KEY the test
+/// key): at launch it reads that feed and runs the update as Update does, saying each step in the log ("SELFTEST update:").
+const updateSelfTestFeed = String.fromEnvironment('NN_SELFTEST_UPDATE_FEED');
+
+Future<void> runUpdateSelfTest() async {
+  void say(String text) => debugPrint('SELFTEST update: $text');
+  final current = (await PackageInfo.fromPlatform()).version;
+  say('this app is $current');
+  final update = await checkForUpdate(current: current, feed: Uri.parse(updateSelfTestFeed));
+  if (update?.file == null) return say('no update found');
+  try {
+    final folder = Directory('${(await getTemporaryDirectory()).path}${Platform.pathSeparator}nononsense-update');
+    final file = await downloadUpdate(update!.file!, folder);
+    say('downloaded and checked ${update.version}');
+    say(await installUpdate(file) ?? 'handed to the installer');
+  } on UpdateRefused catch (e) {
+    say('refused: ${e.text}');
+  }
 }
 
 /// "0.10.0" is newer than "0.9.1": compared number by number, a missing number counting as 0.
