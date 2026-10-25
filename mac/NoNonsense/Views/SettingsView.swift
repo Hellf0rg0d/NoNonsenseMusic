@@ -463,6 +463,7 @@ private struct PlaybackSettings: View {
                 Text("For songs found on more than one source, or in both versions. Applies to songs listed from now on.")
                     .foregroundStyle(.secondary)
             }
+            EqualizerSection()
         }
         .settingsPage()
     }
@@ -903,6 +904,12 @@ private struct FootprintSettings: View {
                 Toggle(isOn: $animateBackdrop) {
                     Text("Moving background")
                     Text("Uses about 5% more CPU while music plays, and 10–14% more in Now Playing.")
+                        .foregroundStyle(.secondary)
+                }
+                // its filters measured on 14 bands in stereo (25 Oct): 0.12% of one core; its curve is in Settings › Playback
+                Toggle(isOn: Binding(get: { Equalizer.shared.on }, set: { Equalizer.shared.setOn($0) })) {
+                    Text("Equalizer")
+                    Text("Uses about 0.1% of one core while music plays. Its bands are in Settings › Playback.")
                         .foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {

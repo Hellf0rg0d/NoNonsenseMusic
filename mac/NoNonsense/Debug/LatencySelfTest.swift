@@ -173,6 +173,20 @@ extension SelfTest {
                 try? await Task.sleep(for: .milliseconds(10))
             }
             check("plays through the loader", heard != nil, "no sound in 5 s\(probe.currentItem?.error.map { ": \($0.localizedDescription)" } ?? "")")
+            // the equalizer's tap on a stream through the loader, as on a YouTube song (#37): its audio reaches the filters
+            if heard != nil, let item = probe.currentItem {
+                let wasOn = Equalizer.shared.on
+                Equalizer.shared.setOn(true)
+                Equalizer.shared.apply(to: item)
+                var frames = 0
+                for _ in 0..<50 where frames == 0 {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    frames = Equalizer.shared.liveProcessors.map { $0.takeReading().frames }.max() ?? 0
+                }
+                check("the equalizer's tap gets the audio of a stream through the loader", frames > 0, "no frames in 5 s")
+                item.audioMix = nil
+                Equalizer.shared.setOn(wasOn)
+            }
             if let heard {
                 report(String(format: "loader: play → sound %.0f ms (a local file; YouTube adds the network)", heard * 1000))
                 // only on an item that played: on a failed one Apple's seek never returns, and the test hung until

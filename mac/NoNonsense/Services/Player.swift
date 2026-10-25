@@ -91,6 +91,8 @@ final class Player {
         player.automaticallyWaitsToMinimizeStalling = false
         player.volume = Self.gain(volume)
         order.repeatMode = UserDefaults.standard.string(forKey: "repeat").flatMap(PlayQueue.Repeat.init(rawValue:)) ?? .off
+        // the equalizer switched on or off: the song playing gets its tap, or loses it, at once
+        Equalizer.shared.changed = { [weak self] in self?.equalizerChanged() }
         // No periodic time observer: it set `position` twice a second and every view reading it redrew, the app's
         // biggest steady cost while playing (7 Oct). `position` now changes only on events; the progress line and
         // times are drawn by Core Animation (PlaybackTimeline), and code that needs the exact time reads livePosition.
@@ -267,6 +269,9 @@ final class Player {
     }
 
     #if DEBUG
+    /// Self-tests: whether the loaded copy's audio goes through an equalizer tap
+    var itemHasTapForTests: Bool { player.currentItem?.audioMix != nil }
+
     /// Self-tests: the loaded copy's state, as AVPlayer sees it
     var itemStatusForTests: String {
         switch player.currentItem?.status { case .readyToPlay: "ready"; case .failed: "failed"; case .unknown: "loading"; default: "none" }
@@ -640,6 +645,7 @@ final class Player {
             item.forwardPlaybackEndTime = CMTime(seconds: Double(listing.duration) + 1, preferredTimescale: 600)
         }
         // @Sendable: KVO calls this on whatever thread changed the status, not necessarily the main one
+        Equalizer.shared.apply(to: item)                          // its tap when the equalizer is on; none when off
         statusObservation = item.observe(\.status) { @Sendable [weak self] item, _ in
             let status = item.status, which = ObjectIdentifier(item)
             Task { @MainActor in self?.statusChanged(status, of: which) }
@@ -649,6 +655,10 @@ final class Player {
         if isPlaying { player.play() }
         refreshBuffering()
         publish()
+    }
+
+    private func equalizerChanged() {
+        if let item = player.currentItem { Equalizer.shared.apply(to: item) }
     }
 
     /// A copy loaded (its real length is now known), or would not play (MUS-1, rule 7). For a failed copy the server is
