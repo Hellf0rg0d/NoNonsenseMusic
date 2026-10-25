@@ -250,9 +250,13 @@ jobs:
           python3 -I scripts/make-update-feeds.py --version 9.9.9 --build 999 --notes README.md --base-url http://127.0.0.1:8799 \
             --out "$T/feed" --sign "$T/tools/bin/sign_update" --key-file mac/UpdateTest/test-update-private.key "$T/feed/NoNonsenseMusic-macOS.zip"
           # a tampered update: the same appcast, but the zip it points to is another file
-          cp "$T/feed/appcast.xml" "$T/bad/appcast.xml"; head -c 4000000 /dev/urandom > "$T/bad/NoNonsenseMusic-macOS.zip"
+          # (its link moved to the bad server: a copy still pointing at 8799 fetched the good zip and installed it, 25 Oct)
+          sed 's|http://127.0.0.1:8799/|http://127.0.0.1:8800/|' "$T/feed/appcast.xml" > "$T/bad/appcast.xml"
+          grep -q "127.0.0.1:8800/NoNonsenseMusic-macOS.zip" "$T/bad/appcast.xml"
+          # the same size as the real one, every byte different: only the signature can tell
+          SIZE=$(stat -f %z "$T/feed/NoNonsenseMusic-macOS.zip"); head -c "$SIZE" /dev/urandom > "$T/bad/NoNonsenseMusic-macOS.zip"
           (cd "$T/feed" && python3 -m http.server 8799 --bind 127.0.0.1 > /dev/null 2>&1 &)
-          (cd "$T/bad" && python3 -m http.server 8800 --bind 127.0.0.1 > /dev/null 2>&1 &)
+          (cd "$T/bad" && python3 -m http.server 8800 --bind 127.0.0.1 > "$T/bad.log" 2>&1 &)
           sleep 2
           ditto "$APP" "$T/old/NoNonsenseMusic.app"; ditto "$APP" "$T/old2/NoNonsenseMusic.app"
           run() {   # the app at $1, with the feed $2: signed in on its own test server, it updates itself, or refuses
@@ -270,6 +274,7 @@ jobs:
           echo "the app on disk after the update: build $(version "$T/old/NoNonsenseMusic.app")"
           sleep 5; pgrep -fl "$T/old/NoNonsenseMusic.app" && echo "the new version opened"
           pkill -f "$T/old/NoNonsenseMusic.app" || true
+          rm -rf "$HOME/Library/Caches/app.nononsense.music.debug/org.sparkle-project.Sparkle"   # nothing the first run fetched
           run "$T/old2/NoNonsenseMusic.app" http://127.0.0.1:8800/appcast.xml update-bad.log
           grep SELFTEST update-bad.log
           echo "the app on disk after the tampered update: build $(version "$T/old2/NoNonsenseMusic.app")"
@@ -277,6 +282,7 @@ jobs:
           [ "$(version "$T/old/NoNonsenseMusic.app")" = 999 ]
           grep -q "update: ready to install 9.9.9" update.log
           grep -q "update: aborted" update-bad.log
+          grep -q "GET /NoNonsenseMusic-macOS.zip" "$T/bad.log"            # it was asked for the tampered file
           [ "$(version "$T/old2/NoNonsenseMusic.app")" != 999 ]
         env:
           GH_TOKEN: ${{ github.token }}
