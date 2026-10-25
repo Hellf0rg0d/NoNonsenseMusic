@@ -255,9 +255,12 @@ jobs:
           (cd "$T/bad" && python3 -m http.server 8800 --bind 127.0.0.1 > /dev/null 2>&1 &)
           sleep 2
           ditto "$APP" "$T/old/NoNonsenseMusic.app"; ditto "$APP" "$T/old2/NoNonsenseMusic.app"
-          run() {   # the app at $1, with the feed $2: it updates itself, or refuses, then quits
-            env NN_SELFTEST_UPDATE=1 NN_UPDATE_FEED="$2" perl -e 'alarm shift; exec @ARGV' 120 "$1/Contents/MacOS/NoNonsenseMusic" \
-              -serverURL http://127.0.0.1:8765 -discordEnabled NO -ApplePersistenceIgnoreState YES > "$3" 2>&1 || true
+          run() {   # the app at $1, with the feed $2: signed in on its own test server, it updates itself, or refuses
+            lsof -ti tcp:8765 | xargs kill 2>/dev/null || true
+            env NN_SELFTEST_UPDATE=1 NN_UPDATE_FEED="$2" DATABASE_URL=postgresql:///music_test \
+              perl -e 'alarm shift; exec @ARGV' 120 "$1/Contents/MacOS/NoNonsenseMusic" \
+              -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
+              -discordEnabled NO -ApplePersistenceIgnoreState YES > "$3" 2>&1 || true
           }
           version() { /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$1/Contents/Info.plist"; }
           set +e
