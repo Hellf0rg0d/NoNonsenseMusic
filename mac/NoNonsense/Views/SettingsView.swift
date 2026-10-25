@@ -704,7 +704,7 @@ private struct AccountSettings: View {
     @Environment(LibraryStore.self) private var library
     @State private var choosingFiles = false
     @State private var importLink = ""
-    @AppStorage("checkUpdates") private var checkUpdates = true      // UpdateCheck.enabled reads the same key
+    @AppStorage("checkUpdates") private var checkUpdates = true      // Updater.enabled reads the same key
     private var importer: SpotifyImporter { .shared }
     @State private var signingOut = false
     @State private var deviceDraft = Account.deviceName      // saved on Return
@@ -778,11 +778,19 @@ private struct AccountSettings: View {
                     .foregroundStyle(.secondary)
             }
             Section {
-                LabeledContent("Version") { Text(UpdateCheck.current).foregroundStyle(.secondary) }
+                LabeledContent("Version") {
+                    HStack {
+                        Text(Updater.current).foregroundStyle(.secondary)
+                        Button("Check Now") { Updater.shared.checkNow() }
+                            .disabled(!Updater.shared.canCheck)
+                    }
+                }
                 Toggle(isOn: $checkUpdates) {
                     Text("Check for updates")
-                    Text("At launch, asks GitHub whether a newer version exists.").foregroundStyle(.secondary)
+                    Text("Once a day, asks GitHub whether a newer version exists. An update downloads and installs itself when you say so, and only if it is signed by NoNonsenseMusic's release key.")
+                        .foregroundStyle(.secondary)
                 }
+                .onChange(of: checkUpdates) { _, on in Updater.enabled = on }
             } header: {
                 Text("Updates")
             }

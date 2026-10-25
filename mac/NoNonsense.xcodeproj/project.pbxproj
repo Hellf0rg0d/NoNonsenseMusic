@@ -14,6 +14,7 @@
 		0C826E77A187FE0CCA50931C /* EqualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326F676677E65041C04439B3 /* EqualizerView.swift */; };
 		0E59F343C250DEB67EB7B342 /* Screens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187B65FDE5C1D9B4300ACE83 /* Screens.swift */; };
 		19A9BED03715E71FB1C17E4F /* BrowseSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0029102565E8036146C9F1B0 /* BrowseSelfTest.swift */; };
+		1E08B3BDC26FC1CD16BD2F78 /* UpdateSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A69F2C0E44D5E0708A6D0F4 /* UpdateSelfTest.swift */; };
 		1F80C4CE5289A4F4712090A6 /* Shuffle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57E61BBC7E329399CCCFF251 /* Shuffle.swift */; };
 		1FCDD4B642281E41A1130EE0 /* AccountViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5EA99D1EBE71A439B8643B /* AccountViews.swift */; };
 		2378FEC447BD5BF1FCB49A4C /* Presence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5C8CE53A38023E1F773BDBD /* Presence.swift */; };
@@ -29,6 +30,7 @@
 		37A16A5E78571781A8C14A3C /* PagesSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9418F4BBF34BB80AC22AA20 /* PagesSelfTest.swift */; };
 		3DDD48B03F42672DEF183122 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73544AE9F06A2B4B55D2598C /* Components.swift */; };
 		40BF76B3B4FDEC0C4FEFF242 /* AutoplaySelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F428E571CB35CF429FEECFDB /* AutoplaySelfTest.swift */; };
+		44851D4277C20E3A0065C876 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 37EA3FBCAFE78870AC23DF85 /* Sparkle */; };
 		456A4EBD365B61228E2E70E5 /* EqualizerSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D869B6085400D8899979E78 /* EqualizerSelfTest.swift */; };
 		482817B66F5AF7745C8AF391 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCDA5EC827220ADD683A012F /* SignInView.swift */; };
 		50493A6732F168A78D258680 /* SpotifyImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */; };
@@ -66,12 +68,12 @@
 		B99AE23AF1B1EA2642638CDC /* BoundedRangeLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B787910CB0D1FA64514F6A52 /* BoundedRangeLoader.swift */; };
 		BD5B300141EDC58A26525276 /* Prefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C1A9DC93EAF19E0637D439 /* Prefetcher.swift */; };
 		BE935D27A81011CB5E14057E /* JamSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4959C1E1E9DCDBE27CFF964F /* JamSelfTest.swift */; };
+		BF2A4109865D0EEB2A78B713 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A561235C0692FB4B426F29EF /* Updater.swift */; };
 		C2EDC8457EA6AA7AA6B0C1C3 /* ArtworkCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF34CE64DF6A78F1C8313C22 /* ArtworkCache.swift */; };
 		C2F8B36F2094C626C85CAD53 /* Browse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241C02CAD86BD53024EE3BE2 /* Browse.swift */; };
 		C3D45EF8E04EE77DA5CECD1A /* Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219EB9D529F5EF24B0F08DDD /* Home.swift */; };
 		D044B7F4E4BE1BD07AC6E6B1 /* SelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3D0063CBD5878029E2E727 /* SelfTest.swift */; };
 		D14701BCE220BFFE52359ABA /* Social.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC180CBD9CAE5022E863BAD /* Social.swift */; };
-		D44F2A587722CA75FA8CDA97 /* UpdateCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */; };
 		D6C295E72FEA5C8128DA9059 /* JamViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 488DEC685DA0304B893444B7 /* JamViews.swift */; };
 		E3C1BAD6A0079F7A5A5860C2 /* Translation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E78AB03F8D61BD062EA5D8 /* Translation.swift */; };
 		EAD89C6A64DF6656871BE823 /* Playlists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F6AD91ABE9ABF1546E6470 /* Playlists.swift */; };
@@ -99,10 +101,10 @@
 		241C02CAD86BD53024EE3BE2 /* Browse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Browse.swift; sourceTree = "<group>"; };
 		26CFDB9AA45C45E878F131FD /* Footprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Footprint.swift; sourceTree = "<group>"; };
 		292804CD0EB5D2B5A39CF640 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		2A69F2C0E44D5E0708A6D0F4 /* UpdateSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateSelfTest.swift; sourceTree = "<group>"; };
 		2D869B6085400D8899979E78 /* EqualizerSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerSelfTest.swift; sourceTree = "<group>"; };
 		326F676677E65041C04439B3 /* EqualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerView.swift; sourceTree = "<group>"; };
 		329D0FA5B9551CCD2A1718DE /* ImportSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSelfTest.swift; sourceTree = "<group>"; };
-		3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheck.swift; sourceTree = "<group>"; };
 		3BE09B7F546BD239B2AFD81C /* PlayerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViews.swift; sourceTree = "<group>"; };
 		413FB74B40D0CE16AB8515BB /* DownloadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStore.swift; sourceTree = "<group>"; };
 		488DEC685DA0304B893444B7 /* JamViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamViews.swift; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 		98DB0EEED76BDE29D7783DAB /* ShellSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellSelfTest.swift; sourceTree = "<group>"; };
 		990E0DB832F7D7C8D25D4453 /* NoNonsenseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoNonsenseApp.swift; sourceTree = "<group>"; };
 		9C3D0063CBD5878029E2E727 /* SelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfTest.swift; sourceTree = "<group>"; };
+		A561235C0692FB4B426F29EF /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		A5C08D46C220140190F5BA02 /* DownloadFilesSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFilesSelfTest.swift; sourceTree = "<group>"; };
 		AE0713C4CF39D2CF687A3DAE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AEB8186E89FB9026CB640031 /* Player.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player.swift; sourceTree = "<group>"; };
@@ -155,6 +158,17 @@
 		F428E571CB35CF429FEECFDB /* AutoplaySelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoplaySelfTest.swift; sourceTree = "<group>"; };
 		F9418F4BBF34BB80AC22AA20 /* PagesSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagesSelfTest.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4312AB45C9D68D2C83D45289 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				44851D4277C20E3A0065C876 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		375AE5E2D847C0D1DF4402E1 /* NoNonsense */ = {
@@ -213,6 +227,7 @@
 				98DB0EEED76BDE29D7783DAB /* ShellSelfTest.swift */,
 				1A9592945899992685A5DA42 /* ShotsSelfTest.swift */,
 				E45C9839E6D148278A97358A /* TranslationSelfTest.swift */,
+				2A69F2C0E44D5E0708A6D0F4 /* UpdateSelfTest.swift */,
 				7653F9E290239BE43EF6D0D6 /* YouTubeSelfTest.swift */,
 			);
 			path = Debug;
@@ -278,7 +293,7 @@
 				0EC180CBD9CAE5022E863BAD /* Social.swift */,
 				E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */,
 				D2B2FE4C7E6EEAA589159B7F /* ThemeStore.swift */,
-				3880D68DEA76B8DD8C71BF71 /* UpdateCheck.swift */,
+				A561235C0692FB4B426F29EF /* Updater.swift */,
 				172BF860B15E1251D0DF0E1C /* YouTubeLookup.swift */,
 			);
 			path = Services;
@@ -301,6 +316,7 @@
 			buildPhases = (
 				5221CE03EFCDC5AE2A7E4BAF /* Sources */,
 				6AC872CC6D858ED48A5DA8F1 /* Resources */,
+				4312AB45C9D68D2C83D45289 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -308,6 +324,7 @@
 			);
 			name = NoNonsense;
 			packageProductDependencies = (
+				37EA3FBCAFE78870AC23DF85 /* Sparkle */,
 			);
 			productName = NoNonsense;
 			productReference = 1ED8D65E869B635E8873CD76 /* NoNonsense.app */;
@@ -336,6 +353,9 @@
 			);
 			mainGroup = B46D8D8A0E1506BBF43CB686;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4FAE054F1A425331769534A4 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F2530425FD98B301C896071A /* Products */;
 			projectDirPath = "";
@@ -429,7 +449,8 @@
 				AE2446E87AE50D3E1F6FAE13 /* ThemeStore.swift in Sources */,
 				E3C1BAD6A0079F7A5A5860C2 /* Translation.swift in Sources */,
 				646E0989884970389B751CCE /* TranslationSelfTest.swift in Sources */,
-				D44F2A587722CA75FA8CDA97 /* UpdateCheck.swift in Sources */,
+				1E08B3BDC26FC1CD16BD2F78 /* UpdateSelfTest.swift in Sources */,
+				BF2A4109865D0EEB2A78B713 /* Updater.swift in Sources */,
 				28B98636A1E0595CBA384EC3 /* YouTubeLookup.swift in Sources */,
 				247AC5B08012F05B68A9FAE3 /* YouTubeSelfTest.swift in Sources */,
 			);
@@ -512,6 +533,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.4.0;
+				NN_UPDATE_FEED = "";
+				NN_UPDATE_KEY = "fV6+W5hiUV1hZe3TvS6AbNVbe4TJ6npYDb+Mt2R8NjQ=";
 				NN_URL_SCHEME = "nononsense-debug";
 				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music.debug;
 				PRODUCT_NAME = NoNonsenseMusic;
@@ -601,6 +624,8 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.4.0;
+				NN_UPDATE_FEED = "https://github.com/ego004/NoNonsenseMusic/releases/latest/download/appcast.xml";
+				NN_UPDATE_KEY = RELEASE_KEY_PENDING;
 				NN_URL_SCHEME = nononsense;
 				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music;
 				PRODUCT_NAME = NoNonsenseMusic;
@@ -632,6 +657,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		4FAE054F1A425331769534A4 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		37EA3FBCAFE78870AC23DF85 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4FAE054F1A425331769534A4 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F9E63E35AE171762FCC4BEC5 /* Project object */;
 }

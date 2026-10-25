@@ -232,6 +232,51 @@ jobs:
             -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > jam.log 2>&1 || true
           grep SELFTEST jam.log
           grep -q "jam: all checks pass" jam.log
+      - name: Self-test, in-place update (NN_SELFTEST_UPDATE), from a local feed signed with the test key
+        if: ${{ !cancelled() }}
+        run: |
+          set -e
+          T="$RUNNER_TEMP/update"; rm -rf "$T"; mkdir -p "$T/tools" "$T/feed" "$T/bad" "$T/old" "$T/old2"
+          # Sparkle's signing tool, as pinned (mac/project.yml), checked against GitHub's digest of the release file
+          gh release download 2.10.0 --repo sparkle-project/Sparkle -p Sparkle-2.10.0.tar.xz -D "$T"
+          echo "c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c  $T/Sparkle-2.10.0.tar.xz" | shasum -a 256 -c
+          tar -xJf "$T/Sparkle-2.10.0.tar.xz" -C "$T/tools"
+          APP=mac/build/Build/Products/Debug/NoNonsenseMusic.app
+          # the update: this build as 9.9.9 (999), signed again ad hoc, zipped as a release is
+          ditto "$APP" "$T/new/NoNonsenseMusic.app"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 9.9.9" -c "Set :CFBundleVersion 999" "$T/new/NoNonsenseMusic.app/Contents/Info.plist"
+          codesign --force --deep -s - "$T/new/NoNonsenseMusic.app"
+          (cd "$T/new" && ditto -c -k --keepParent NoNonsenseMusic.app "$T/feed/NoNonsenseMusic-macOS.zip")
+          python3 -I scripts/make-update-feeds.py --version 9.9.9 --build 999 --notes README.md --base-url http://127.0.0.1:8799 \
+            --out "$T/feed" --sign "$T/tools/bin/sign_update" --key-file mac/UpdateTest/test-update-private.key "$T/feed/NoNonsenseMusic-macOS.zip"
+          # a tampered update: the same appcast, but the zip it points to is another file
+          cp "$T/feed/appcast.xml" "$T/bad/appcast.xml"; head -c 4000000 /dev/urandom > "$T/bad/NoNonsenseMusic-macOS.zip"
+          (cd "$T/feed" && python3 -m http.server 8799 --bind 127.0.0.1 > /dev/null 2>&1 &)
+          (cd "$T/bad" && python3 -m http.server 8800 --bind 127.0.0.1 > /dev/null 2>&1 &)
+          sleep 2
+          ditto "$APP" "$T/old/NoNonsenseMusic.app"; ditto "$APP" "$T/old2/NoNonsenseMusic.app"
+          run() {   # the app at $1, with the feed $2: it updates itself, or refuses, then quits
+            env NN_SELFTEST_UPDATE=1 NN_UPDATE_FEED="$2" perl -e 'alarm shift; exec @ARGV' 120 "$1/Contents/MacOS/NoNonsenseMusic" \
+              -serverURL http://127.0.0.1:8765 -discordEnabled NO -ApplePersistenceIgnoreState YES > "$3" 2>&1 || true
+          }
+          version() { /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$1/Contents/Info.plist"; }
+          set +e
+          run "$T/old/NoNonsenseMusic.app" http://127.0.0.1:8799/appcast.xml update.log
+          for i in $(seq 1 60); do [ "$(version "$T/old/NoNonsenseMusic.app")" = 999 ] && break; sleep 1; done
+          grep SELFTEST update.log
+          echo "the app on disk after the update: build $(version "$T/old/NoNonsenseMusic.app")"
+          sleep 5; pgrep -fl "$T/old/NoNonsenseMusic.app" && echo "the new version opened"
+          pkill -f "$T/old/NoNonsenseMusic.app" || true
+          run "$T/old2/NoNonsenseMusic.app" http://127.0.0.1:8800/appcast.xml update-bad.log
+          grep SELFTEST update-bad.log
+          echo "the app on disk after the tampered update: build $(version "$T/old2/NoNonsenseMusic.app")"
+          set -e
+          [ "$(version "$T/old/NoNonsenseMusic.app")" = 999 ]
+          grep -q "update: ready to install 9.9.9" update.log
+          grep -q "update: aborted" update-bad.log
+          [ "$(version "$T/old2/NoNonsenseMusic.app")" != 999 ]
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Self-test, equalizer (NN_SELFTEST_EQ), on tones made here
         if: ${{ !cancelled() }}
         run: |

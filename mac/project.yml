@@ -10,11 +10,20 @@ settings:
     # UI code runs on the main thread by default; background work opts out explicitly
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_APPROACHABLE_CONCURRENCY: YES
+packages:
+  # in-place updates: Sparkle, pinned. 2.10.0 (13 Sep); its update check needs an EdDSA signature on every update,
+  # which is all an ad-hoc-signed app can offer ("Either DSA must be valid, or Apple Code Signing must be valid",
+  # SUUpdateValidator.m)
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.0
 targets:
   NoNonsense:
     type: application
     platform: macOS
     sources: [NoNonsense]
+    dependencies:
+      - package: Sparkle
     info:
       path: NoNonsense/Info.plist
       properties:
@@ -27,6 +36,11 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: app.nononsense.music
             CFBundleURLSchemes: [$(NN_URL_SCHEME)]   # nononsense; the Debug build answers nononsense-debug only
+        # Sparkle (Services/Updater.swift): the latest release's appcast, and the key every update must be signed with
+        SUFeedURL: $(NN_UPDATE_FEED)
+        SUPublicEDKey: $(NN_UPDATE_KEY)
+        SUEnableAutomaticChecks: true            # Settings › Account › Check for updates says whether; no first-run prompt
+        SUScheduledCheckInterval: 86400          # once a day
         NSAppTransportSecurity:
           # the backend runs on this Mac over plain http; everything else (audio CDNs) is https
           NSAllowsLocalNetworking: true
@@ -46,6 +60,8 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CURRENT_PROJECT_VERSION: "10"
         NN_URL_SCHEME: nononsense
+        NN_UPDATE_FEED: https://github.com/ego004/NoNonsenseMusic/releases/latest/download/appcast.xml
+        NN_UPDATE_KEY: RELEASE_KEY_PENDING
       configs:
         Debug:
           # self-test builds must not answer your links: macOS would pick any copy that claims the scheme
@@ -53,6 +69,9 @@ targets:
           # nor share your app's identity: its preferences, audio cache and session (a test copy running beside your
           # app wrote to the same cache folder and settings)
           PRODUCT_BUNDLE_IDENTIFIER: app.nononsense.music.debug
+          # nor update itself: no feed, and only the update self-test's key (mac/UpdateTest) is trusted
+          NN_UPDATE_FEED: ""
+          NN_UPDATE_KEY: fV6+W5hiUV1hZe3TvS6AbNVbe4TJ6npYDb+Mt2R8NjQ=
         Release:
           # stripped: unstripped, the app carried 65,130 debug entries naming every source folder, the home folder of
           # whoever built it (and so their name) among them (20 Oct). Build releases in a folder whose path names nobody

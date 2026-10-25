@@ -209,17 +209,6 @@ struct RootView: View {
             if theme.songColor != next { theme.songColor = next }
         }
         .modifier(PlaylistSheets(selection: $selection))
-        .alert("NoNonsenseMusic \(UpdateCheck.shared.available?.version ?? "") is available",
-               isPresented: Binding(get: { UpdateCheck.shared.available != nil }, set: { if !$0 { UpdateCheck.shared.available = nil } })) {
-            Button("Download") {
-                if let page = UpdateCheck.shared.available?.page { NSWorkspace.shared.open(page) }
-                UpdateCheck.shared.available = nil
-            }
-            Button("Skip This Version") { UpdateCheck.shared.skip() }
-            Button("Not Now", role: .cancel) { UpdateCheck.shared.available = nil }
-        } message: {
-            Text("You have \(UpdateCheck.current). The release page has the download and what is new.")
-        }
         // ⌘K, and ⌘F (find), from any screen and while typing: the command bar takes the keyboard (invisible buttons
         // that only hold the shortcuts). ⌘F opened Search before the bar (15 Oct)
         .background {
@@ -260,11 +249,7 @@ struct RootView: View {
                 },
                 settings: { openSettings() })
             Task { await YouTubeLookup.shared.prepare() }   // the visitor id now, not at the first YouTube song
-            #if DEBUG
-            if !SelfTest.isRunning { Task { await UpdateCheck.shared.check() } }   // never in a self-test
-            #else
-            Task { await UpdateCheck.shared.check() }        // "an update is available", once per launch
-            #endif
+            Updater.shared.start()                           // in-place updates (Sparkle): a Debug build has no feed
             Social.shared.start()                            // friends and notifications, live (one socket)
             JamSession.shared.player = player
             JamSession.shared.onNotice = { [library] in library.notify($0, symbol: "person.2.wave.2") }

@@ -137,6 +137,7 @@ extension NoNonsenseApp {
         SelfTest.runFriendsCheckIfAsked(account: account)
         SelfTest.runJamCheckIfAsked(player: player, library: library)
         SelfTest.runEqualizerCheckIfAsked(player: player)
+        SelfTest.runUpdateCheckIfAsked()
         SelfTest.runImportCheckIfAsked(library: library)
         SelfTest.runAutoplayCheckIfAsked(player: player)
         SelfTest.runSearchScrollCheckIfAsked()
@@ -162,6 +163,9 @@ struct PlaybackCommands: Commands {
     let account: Account
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { Updater.shared.checkNow() }
+        }
         CommandGroup(replacing: .newItem) {
             Button("New Playlist…") { library.newPlaylistRequest = .init(track: nil) }
                 .keyboardShortcut("n", modifiers: .command)
