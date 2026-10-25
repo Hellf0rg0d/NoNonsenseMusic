@@ -236,7 +236,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           set -e
-          T="$RUNNER_TEMP/update"; rm -rf "$T"; mkdir -p "$T/tools" "$T/feed" "$T/bad" "$T/old" "$T/old2"
+          T="$RUNNER_TEMP/update"; rm -rf "$T"; mkdir -p "$T/tools" "$T/feed" "$T/bad" "$T/old" "$T/old2" "$T/evil"
           # Sparkle's signing tool, as pinned (mac/project.yml), checked against GitHub's digest of the release file
           gh release download 2.10.0 --repo sparkle-project/Sparkle -p Sparkle-2.10.0.tar.xz -D "$T"
           echo "c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c  $T/Sparkle-2.10.0.tar.xz" | shasum -a 256 -c
@@ -253,8 +253,12 @@ jobs:
           # (its link moved to the bad server: a copy still pointing at 8799 fetched the good zip and installed it, 25 Oct)
           sed 's|http://127.0.0.1:8799/|http://127.0.0.1:8800/|' "$T/feed/appcast.xml" > "$T/bad/appcast.xml"
           grep -q "127.0.0.1:8800/NoNonsenseMusic-macOS.zip" "$T/bad/appcast.xml"
-          # the same size as the real one, every byte different: only the signature can tell
-          SIZE=$(stat -f %z "$T/feed/NoNonsenseMusic-macOS.zip"); head -c "$SIZE" /dev/urandom > "$T/bad/NoNonsenseMusic-macOS.zip"
+          # what an attacker would serve: a real zip of a changed app (one file added, signed again ad hoc), with the
+          # genuine zip's signature. It unzips fine; only the EdDSA signature can tell (random bytes failed to unzip, 25 Oct)
+          ditto "$T/new/NoNonsenseMusic.app" "$T/evil/NoNonsenseMusic.app"
+          echo "not from NoNonsenseMusic" > "$T/evil/NoNonsenseMusic.app/Contents/Resources/changed.txt"
+          codesign --force --deep -s - "$T/evil/NoNonsenseMusic.app"
+          (cd "$T/evil" && ditto -c -k --keepParent NoNonsenseMusic.app "$T/bad/NoNonsenseMusic-macOS.zip")
           (cd "$T/feed" && python3 -m http.server 8799 --bind 127.0.0.1 > /dev/null 2>&1 &)
           (cd "$T/bad" && python3 -m http.server 8800 --bind 127.0.0.1 > "$T/bad.log" 2>&1 &)
           sleep 2
@@ -278,12 +282,14 @@ jobs:
           run "$T/old2/NoNonsenseMusic.app" http://127.0.0.1:8800/appcast.xml update-bad.log
           grep SELFTEST update-bad.log
           echo "the app on disk after the tampered update: build $(version "$T/old2/NoNonsenseMusic.app")"
-          set -e
-          [ "$(version "$T/old/NoNonsenseMusic.app")" = 999 ]
-          grep -q "update: ready to install 9.9.9" update.log
-          grep -q "update: aborted" update-bad.log
-          grep -q "GET /NoNonsenseMusic-macOS.zip" "$T/bad.log"            # it was asked for the tampered file
-          [ "$(version "$T/old2/NoNonsenseMusic.app")" != 999 ]
+          echo "the tampered server was asked for:"; grep -o '"GET [^"]*"' "$T/bad.log" || true
+          fail() { echo "FAILED: $1"; exit 1; }
+          [ "$(version "$T/old/NoNonsenseMusic.app")" = 999 ] || fail "the update was not installed"
+          grep -q "update: ready to install 999" update.log || fail "Sparkle did not get the update ready"
+          grep -q "GET /NoNonsenseMusic-macOS.zip" "$T/bad.log" || fail "the tampered file was never asked for"
+          grep -qi "update: aborted.*sign" update-bad.log || fail "the tampered update was not refused for its signature"
+          [ "$(version "$T/old2/NoNonsenseMusic.app")" = 10 ] || fail "the tampered update was installed"
+          [ ! -e "$T/old2/NoNonsenseMusic.app/Contents/Resources/changed.txt" ] || fail "the tampered app is on disk"
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Self-test, equalizer (NN_SELFTEST_EQ), on tones made here
