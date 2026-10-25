@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the one folder an update's APK is handed to Android's installer from: the cache's nononsense-update
+     (lib/ui/shell.dart downloads it there) -->
+<paths>
+    <cache-path name="updates" path="nononsense-update/" />
+</paths>

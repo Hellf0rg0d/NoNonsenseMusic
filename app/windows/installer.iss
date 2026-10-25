@@ -1,7 +1,8 @@
 ; The Windows installer, NoNonsenseMusic-Setup.exe: built by .github/workflows/windows.yml with Inno Setup, from the
 ; release build. Installs for the current user (no administrator prompt) into %LOCALAPPDATA%\Programs, with a Start menu
 ; entry, an optional desktop icon and an uninstaller in Settings > Apps. A newer setup replaces the version installed,
-; closing the app first. The workflow passes the version and the build's folder:
+; closing the app first, and an update the app downloads itself runs it silently. The workflow passes the version and the
+; build's folder:
 ;   iscc /DAppVersion=0.3.0 /DSourceDir=<build folder> installer.iss
 
 #ifndef AppVersion
@@ -51,3 +52,5 @@ Name: "{autodesktop}\NoNonsenseMusic"; Filename: "{app}\NoNonsenseMusic.exe"; Ta
 
 [Run]
 Filename: "{app}\NoNonsenseMusic.exe"; Description: "{cm:LaunchProgram,NoNonsenseMusic}"; Flags: nowait postinstall skipifsilent
+; an in-place update (lib/core/update_check.dart) runs this setup silently after the app quits: the new version opens
+Filename: "{app}\NoNonsenseMusic.exe"; Flags: nowait; Check: WizardSilent

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/jam.dart';
@@ -121,44 +122,100 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerUpdate());
   }
 
-  /// "NoNonsenseMusic 0.3.0 is available": Download opens the release page; Skip This Version is not offered again.
+  /// "NoNonsenseMusic 0.4.1 is available", with what is new: Update downloads it, checks its signature and installs it
+  /// (core/update_check.dart); a platform with no file in the release opens the release page instead. Skip This
+  /// Version is not offered again.
   Future<void> _offerUpdate() async {
     final settings = Scope.of(context).settings;
     if (!settings.checkUpdates) return;
     final current = (await PackageInfo.fromPlatform()).version;
-    final update = await checkForUpdate(
-      current: current,
-      skipped: settings.skippedUpdate,
-    );
+    final update = await checkForUpdate(current: current, skipped: settings.skippedUpdate);
     if (update == null || !mounted) return;
     final choice = await showGlassDialog<String>(
       context: context,
       builder: (c) => GlassDialog(
         title: Text('NoNonsenseMusic ${update.version} is available'),
-        content: Text(
-          'You have $current. The release page has the download and what is new.',
-        ),
+        content: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text('You have $current.'),
+          if (update.notes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(_plainNotes(update.notes), style: Theme.of(c).textTheme.bodySmall),
+          ],
+        ]),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, 'skip'),
-            child: const Text('Skip This Version'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Not Now'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c, 'skip'), child: const Text('Skip This Version')),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Not Now')),
           FilledButton(
-            onPressed: () => Navigator.pop(c, 'download'),
-            child: const Text('Download'),
+            onPressed: () => Navigator.pop(c, 'update'),
+            child: Text(update.file == null ? 'Open Release Page' : 'Update'),
           ),
         ],
       ),
     );
-    if (choice == 'download') {
-      await launchUrl(update.page, mode: LaunchMode.externalApplication);
-    }
     if (choice == 'skip') await settings.skipUpdate(update.version);
+    if (choice != 'update' || !mounted) return;
+    final file = update.file;
+    if (file == null) {
+      await launchUrl(update.page, mode: LaunchMode.externalApplication);
+      return;
+    }
+    await _installUpdate(update, file);
   }
+
+  /// Downloads, checks and installs: a progress bar meanwhile, and why it failed when it does.
+  Future<void> _installUpdate(UpdateInfo update, UpdateFile file) async {
+    final share = ValueNotifier<double>(0);
+    final navigator = Navigator.of(context);
+    showGlassDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => GlassDialog(
+        title: Text('Updating to ${update.version}'),
+        content: ValueListenableBuilder<double>(
+          valueListenable: share,
+          builder: (_, value, _) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LinearProgressIndicator(value: value > 0 ? value : null),
+            const SizedBox(height: 8),
+            Text(value < 1 ? 'Downloading… ${(value * 100).round()}%' : 'Installing…'),
+          ]),
+        ),
+      ),
+    );
+    String? problem, said;
+    try {
+      final folder = Directory('${(await getTemporaryDirectory()).path}${Platform.pathSeparator}nononsense-update');
+      final downloaded = await downloadUpdate(file, folder, progress: (v) => share.value = v);
+      share.value = 1;
+      said = await installUpdate(downloaded);      // Windows: the app quits here, and the new version opens
+    } on UpdateRefused catch (e) {
+      problem = e.text;
+    } catch (e) {
+      problem = 'Something went wrong: $e';
+    }
+    if (!mounted) return;
+    navigator.pop();
+    if (problem == null && said == null) return;
+    final open = await showGlassDialog<bool>(
+      context: context,
+      builder: (c) => GlassDialog(
+        title: Text(problem == null ? 'One more step' : 'Couldn’t update'),
+        content: Text(problem ?? said!),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('OK')),
+          if (problem != null) FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Open Release Page')),
+        ],
+      ),
+    );
+    if (open == true) await launchUrl(update.page, mode: LaunchMode.externalApplication);
+  }
+
+  /// The release notes as plain lines: headings and bullets without their Markdown marks.
+  static String _plainNotes(String markdown) => markdown
+      .split('\n')
+      .map((l) => l.startsWith('## ') ? l.substring(3) : l.startsWith('- ') ? '• ${l.substring(2)}' : l)
+      .map((l) => l.replaceAll('**', '').replaceAll('`', ''))
+      .join('\n')
+      .trim();
 
   /// Friends, notifications and jams are live from sign-in on (main.dart stops them at sign-out).
   void _goOnline() {

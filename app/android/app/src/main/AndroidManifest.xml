@@ -2,6 +2,8 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Release builds need this explicitly; Flutter adds it only to debug and profile builds. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- in-place updates: hand a downloaded, checked APK to Android's installer (MainActivity), which asks first -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <!-- Playback in the background: a media foreground service (audio_service), allowed to fetch audio while the app is
          not on screen (lib/core/media_controls.dart) -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -72,6 +74,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- the update's APK, shared with the installer (res/xml/update_paths.xml) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

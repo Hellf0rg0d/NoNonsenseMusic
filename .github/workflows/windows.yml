@@ -48,6 +48,23 @@ jobs:
           Copy-Item -Recurse $build build/zip/NoNonsenseMusic
           Compress-Archive -Path build/zip/NoNonsenseMusic -DestinationPath build/installer/NoNonsenseMusic-Windows.zip
           Get-ChildItem build/installer | Format-Table Name, Length
+      # an in-place update, end to end (test/windows_update_test.dart): the release setup installed (it opens the app),
+      # then the app's own update code fetches a 9.9.9 setup of the same build from a local feed, checks its signature
+      # and runs it. Windows' record of the app must say 9.9.9 after, and the app must be open again
+      - name: In-place update, from this release to a 9.9.9 setup
+        shell: pwsh
+        run: |
+          $build = (Resolve-Path build/windows/x64/runner/Release).Path
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc /Qp /O"build/e2e" "/DAppVersion=9.9.9" "/DSourceDir=$build" windows/installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Start-Process -Wait build/installer/NoNonsenseMusic-Setup.exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          Start-Sleep -Seconds 5
+          $env:NN_E2E_NEW_SETUP = (Resolve-Path build/e2e/NoNonsenseMusic-Setup.exe).Path
+          flutter test test/windows_update_test.dart
+          $result = $LASTEXITCODE
+          Stop-Process -Name NoNonsenseMusic -Force -ErrorAction SilentlyContinue
+          exit $result
       - uses: actions/upload-artifact@v4
         with:
           name: NoNonsenseMusic-windows
