@@ -45,7 +45,7 @@ final latestFeed = Uri.parse('$_releases/latest/download/update.json');
 
 /// The release key's public half (Sparkle's generate_keys, account nononsensemusic; the Mac app's SUPublicEDKey).
 /// --dart-define=NN_UPDATE_KEY=… replaces it for a test build.
-const releaseKey = String.fromEnvironment('NN_UPDATE_KEY', defaultValue: 'RELEASE_KEY_PENDING');
+const releaseKey = String.fromEnvironment('NN_UPDATE_KEY', defaultValue: 'y+sgiLPBeRJEb6RlazvQX1I7wFl2CpuBdxUGl6eViJs=');
 
 /// This platform's file in a release.
 String? get platformFile => Platform.isWindows

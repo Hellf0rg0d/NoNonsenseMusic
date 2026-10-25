@@ -625,7 +625,7 @@
 				);
 				MARKETING_VERSION = 0.4.0;
 				NN_UPDATE_FEED = "https://github.com/ego004/NoNonsenseMusic/releases/latest/download/appcast.xml";
-				NN_UPDATE_KEY = RELEASE_KEY_PENDING;
+				NN_UPDATE_KEY = "y+sgiLPBeRJEb6RlazvQX1I7wFl2CpuBdxUGl6eViJs=";
 				NN_URL_SCHEME = nononsense;
 				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music;
 				PRODUCT_NAME = NoNonsenseMusic;

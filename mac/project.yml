@@ -61,7 +61,7 @@ targets:
         CURRENT_PROJECT_VERSION: "10"
         NN_URL_SCHEME: nononsense
         NN_UPDATE_FEED: https://github.com/ego004/NoNonsenseMusic/releases/latest/download/appcast.xml
-        NN_UPDATE_KEY: RELEASE_KEY_PENDING
+        NN_UPDATE_KEY: y+sgiLPBeRJEb6RlazvQX1I7wFl2CpuBdxUGl6eViJs=   # the release key's public half (generate_keys, account nononsensemusic, 25 Oct)
       configs:
         Debug:
           # self-test builds must not answer your links: macOS would pick any copy that claims the scheme
