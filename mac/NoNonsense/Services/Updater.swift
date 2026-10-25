@@ -55,8 +55,15 @@ final class Updater: NSObject, SPUUpdaterDelegate {
         return url.isEmpty ? nil : url
     }
 
+    /// Only the update self-test's feed: otherwise nil, and Sparkle reads its own (a SUFeedURL in this app's defaults,
+    /// else Info.plist's), so a test of a release build can point it at a local feed. An update must still be signed by
+    /// the release key.
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? {
-        MainActor.assumeIsolated { feed }
+        #if DEBUG
+        return MainActor.assumeIsolated { SelfTest.updateFeed }
+        #else
+        return nil
+        #endif
     }
 
     #if DEBUG
