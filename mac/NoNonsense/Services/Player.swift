@@ -59,7 +59,8 @@ final class Player {
         return library.playlists.first { $0.id == id }?.name ?? library.details[id]?.name
     }
 
-    @ObservationIgnored private let player = AVPlayer()
+    /// A queue player, so the next song can wait behind the playing one (gapless); otherwise it holds one item.
+    @ObservationIgnored private let player = AVQueuePlayer()
     @ObservationIgnored private let library: LibraryStore
     @ObservationIgnored private let downloads: DownloadStore
     /// True while the playing copy is a downloaded file (no server, no internet needed).
@@ -68,6 +69,7 @@ final class Player {
     /// AVPlayer's own playing / waiting / paused state, observed when it changes (no timer: see `position`)
     @ObservationIgnored private var controlStatusObservation: NSKeyValueObservation?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var cacheObserver: NSObjectProtocol?
     @ObservationIgnored private var statusObservation: NSKeyValueObservation?
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var fallbacksTried = 0
@@ -89,6 +91,7 @@ final class Player {
         self.presence = presence
         // start as soon as audio arrives, instead of first buffering several seconds (the CDN answers in ~0.26 s)
         player.automaticallyWaitsToMinimizeStalling = false
+        player.actionAtItemEnd = .pause                     // as AVPlayer: an ended song stays loaded; `.advance` only while one is queued
         player.volume = Self.gain(volume)
         order.repeatMode = UserDefaults.standard.string(forKey: "repeat").flatMap(PlayQueue.Repeat.init(rawValue:)) ?? .off
         // the equalizer switched on or off: the song playing gets its tap, or loses it, at once
@@ -105,6 +108,10 @@ final class Player {
                                                              object: nil, queue: .main) { [weak self] note in
             let item = note.object as? AVPlayerItem
             MainActor.assumeIsolated { self?.itemEnded(item) }
+        }
+        // the next song's file just came in: it can wait behind this one now (gapless)
+        cacheObserver = NotificationCenter.default.addObserver(forName: AudioCache.stored, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.queueNext() }
         }
         setUpRemoteCommands()
         // a playlist you edit while it plays: the queue follows (PlayQueue.sync ignores other playlists)
@@ -215,6 +222,7 @@ final class Player {
         }
         Prefetcher.shared.queueChanged(next, playing: playingListing)
         refillIfNeeded()
+        queueNext()
     }
 
     // MARK: - autoplay
@@ -479,6 +487,7 @@ final class Player {
         loads += 1                                                // an address still on its way is dropped
         resolving = false
         player.pause()
+        unqueue()
         player.replaceCurrentItem(with: nil)
         let repeatMode = order.repeatMode
         order = PlayQueue()
@@ -527,6 +536,8 @@ final class Player {
     /// `fromFile: false` streams even a downloaded copy (its file would not play). `start: false` loads it paused: a copy
     /// that fails while you have paused hands over to the next one without starting it (it always started, 8 Oct).
     private func load(_ listing: Listing, fromFile: Bool = true, start: Bool = true) {
+        unqueue()                                                 // first: a queue player replacing its item would go into it
+        switchObservation = nil
         position = 0
         audioLength = nil                                         // the listed length, until this copy says its own
         isBuffering = true                                        // the spinner, until audio arrives
@@ -635,6 +646,17 @@ final class Player {
     @ObservationIgnored private var resolving = false
 
     private func attach(_ item: AVPlayerItem, for listing: Listing) {
+        prepare(item, for: listing)
+        observe(item)
+        player.replaceCurrentItem(with: item)
+        // you may have paused or played while its address was on its way: as you left it
+        if isPlaying { player.play() }
+        refreshBuffering()
+        publish()
+    }
+
+    /// Set up as every song is, playing now or queued.
+    private func prepare(_ item: AVPlayerItem, for listing: Listing) {
         // no time-stretching: the default algorithm processed every sample to allow speed changes we never make
         // (MEMixerChannel::TimePitch, a steady share of the audio thread, profiled 7 Oct). Varispeed at 1x is a pass-through
         item.audioTimePitchAlgorithm = .varispeed
@@ -644,21 +666,121 @@ final class Player {
         if listing.duration > 0 {
             item.forwardPlaybackEndTime = CMTime(seconds: Double(listing.duration) + 1, preferredTimescale: 600)
         }
-        // @Sendable: KVO calls this on whatever thread changed the status, not necessarily the main one
         SoundChain.shared.apply(to: item, key: listing.key)       // its tap when the equalizer or levelling is on; none when off
+    }
+
+    private func observe(_ item: AVPlayerItem) {
+        // @Sendable: KVO calls this on whatever thread changed the status, not necessarily the main one
         statusObservation = item.observe(\.status) { @Sendable [weak self] item, _ in
             let status = item.status, which = ObjectIdentifier(item)
             Task { @MainActor in self?.statusChanged(status, of: which) }
         }
-        player.replaceCurrentItem(with: item)
-        // you may have paused or played while its address was on its way: as you left it
-        if isPlaying { player.play() }
+    }
+
+    // MARK: - gapless
+
+    /// Settings › Playback › No gaps between songs (28 Oct; off by default). The next song, when its file is on this
+    /// Mac (the cache, where it was fetched while this one played, or Downloads), waits behind the playing one in the
+    /// queue player, which goes straight into it: no load at the change. Measured 8 Oct, a song from a file took ~0.15 s
+    /// to sound: that was the gap. A song that would stream, repeat one and a jam change songs as before.
+    static var gapless: Bool { UserDefaults.standard.bool(forKey: "gapless") }
+
+    /// The song queued behind the playing one: its item and copy, its place in the queue, and the item it follows.
+    private struct Queued { let item: AVPlayerItem; let listing: Listing; let index: Int; weak var after: AVPlayerItem? }
+    @ObservationIgnored private var queued: Queued?
+    /// Between the end of a song and the queue player making the queued one current (their order is not documented).
+    @ObservationIgnored private var switchObservation: NSKeyValueObservation?
+
+    /// The song that plays when this one ends, and the copy it would start with, when gapless can play it.
+    private func gaplessNext() -> (index: Int, listing: Listing)? {
+        guard Self.gapless, jam == nil, let i = order.indexAfterEnd(), i != order.index, order.tracks.indices.contains(i) else { return nil }
+        let track = order.tracks[i]
+        return (i, downloads.file(for: track)?.listing ?? track.best)
+    }
+
+    /// Queues the next song if its file is here and the playing one has loaded; a queued song that is no longer next
+    /// is taken out first.
+    private func queueNext() {
+        let wanted = gaplessNext()
+        if let queued, let wanted, queued.index == wanted.index, queued.listing.key == wanted.listing.key,
+           queued.after === player.currentItem { return }
+        unqueue()
+        guard let wanted, switchObservation == nil, let playing = player.currentItem, playing.status == .readyToPlay else { return }
+        let mine = loads
+        Task {
+            let file: URL? = if let downloaded = downloads.localURL(for: wanted.listing) { downloaded }
+                             else { await AudioCache.shared.file(for: wanted.listing.key) }
+            guard let file, mine == loads, queued == nil, player.currentItem === playing,
+                  let now = gaplessNext(), now.index == wanted.index, now.listing.key == wanted.listing.key else { return }
+            let item = AVPlayerItem(url: file)
+            prepare(item, for: wanted.listing)
+            guard player.canInsert(item, after: playing) else { return }
+            player.insert(item, after: playing)
+            player.actionAtItemEnd = .advance
+            queued = Queued(item: item, listing: wanted.listing, index: wanted.index, after: playing)
+        }
+    }
+
+    /// Settings › Playback: switched on or off.
+    func gaplessChanged() {
+        unqueue()
+        queueNext()
+    }
+
+    #if DEBUG
+    /// Self-tests: the copy queued behind the playing song.
+    var queuedKeyForTests: String? { queued?.listing.key }
+    #endif
+
+    private func unqueue() {
+        guard let queued else { return }
+        self.queued = nil
+        player.actionAtItemEnd = .pause
+        player.remove(queued.item)
+    }
+
+    /// The playing song ended and the queue player went into the queued one: everything a load would do, but the
+    /// audio is already playing.
+    private func playedOn(into next: Queued) {
+        guard let track = current else { return }
+        report("finish", track, at: Int(duration))
+        queued = nil
+        player.actionAtItemEnd = .pause
+        order.move(to: next.index)
+        resumeAt = nil
+        resumeFromRoom = false
+        fallbacksTried = 0
+        freshRetried = []
+        firstCopy = next.listing.key
+        position = 0
+        audioLength = nil
+        playingListing = next.listing
+        playingFile = downloads.localURL(for: next.listing) != nil
+        resolving = false
+        loads += 1
+        playReported = false
+        // the rest once the queued song is current: its status, and the song after it queued behind it, not the old one
+        let expected = ObjectIdentifier(next.item)
+        switchObservation = player.observe(\.currentItem, options: [.initial, .new]) { @Sendable [weak self] player, _ in
+            let now = player.currentItem.map(ObjectIdentifier.init)
+            Task { @MainActor in self?.switched(to: now, expecting: expected) }
+        }
+    }
+
+    private func switched(to now: ObjectIdentifier?, expecting expected: ObjectIdentifier) {
+        guard now == expected, switchObservation != nil, let item = player.currentItem else { return }
+        switchObservation = nil
+        observe(item)
+        statusChanged(item.status, of: expected)                 // ready already: no change for KVO to report
+        announceNext()
         refreshBuffering()
         publish()
     }
 
     private func soundChanged() {
         if let item = player.currentItem, let key = playingListing?.key { SoundChain.shared.apply(to: item, key: key) }
+        unqueue()
+        queueNext()                                               // the queued song gets the new chain too
     }
 
     /// A copy loaded (its real length is now known), or would not play (MUS-1, rule 7). For a failed copy the server is
@@ -670,6 +792,7 @@ final class Player {
         refreshBuffering()
         if status == .readyToPlay {
             failuresInARow = 0                                    // this song loads: the run of failures is over
+            if queued == nil { queueNext() }
             // "play" once it can sound: songs that never loaded no longer count as played, nor show in Recently Played
             if !playReported, let track = current { playReported = true; report("play", track, at: 0) }
             // its length as it will play (the audio's, or the end set in `load` when that comes first): the bar, the
@@ -810,6 +933,8 @@ final class Player {
     }
 
     private func itemEnded(_ item: AVPlayerItem?) {
+        // gapless: the queue player has gone (or is going) straight into the queued song
+        if let queued, let item, queued.after === item { playedOn(into: queued); return }
         guard item === player.currentItem, let track = current else { return }
         // in a jam the room moves on at the first device to finish (docs/jam.md)
         if let jam { report("finish", track, at: Int(duration)); jam.songEnded(); return }

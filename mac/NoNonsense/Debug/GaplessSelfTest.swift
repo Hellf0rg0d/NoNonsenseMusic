@@ -1,0 +1,117 @@
+#if DEBUG
+import AppKit
+
+/// With `NN_SELFTEST_GAPLESS=1` (no internet: tones made here, played from the audio cache): Settings › Playback › No
+/// gaps between songs. Two 6 s tones played one after the other, gapless off and then on. The gap is read from the
+/// player's own clock: where the first song's audio ends (the last time seen plus what was left of it) and where the
+/// second's begins (the time seen minus how far in it is). Then: the next song is queued only while it should be, the
+/// change reports the new song as playing, and ⏭ still works with a song queued. Muted; settings put back.
+extension SelfTest {
+    private static var startedGapless = false
+
+    static func runGaplessCheckIfAsked(player: Player) {
+        guard ProcessInfo.processInfo.environment["NN_SELFTEST_GAPLESS"] != nil, !startedGapless else { return }
+        startedGapless = true
+        Task { @MainActor in
+            var failures = 0
+            @MainActor func check(_ rule: String, _ ok: Bool, _ got: String = "") {
+                if !ok { failures += 1 }
+                report("gapless \(ok ? "PASS" : "FAIL") \(rule)\(ok || got.isEmpty ? "" : " (got \(got))")")
+            }
+            @MainActor func until(_ seconds: Double, _ done: () -> Bool) async -> Bool {
+                for _ in 0..<Int(seconds * 100) where !done() { try? await Task.sleep(for: .milliseconds(10)) }
+                return done()
+            }
+            func memoryMB() -> Double {
+                var info = rusage_info_v2()
+                _ = withUnsafeMutablePointer(to: &info) {
+                    $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(getpid(), RUSAGE_INFO_V2, $0) }
+                }
+                return Double(info.ri_phys_footprint) / 1e6
+            }
+            try? await Task.sleep(for: .seconds(2))
+            borrowDefaults(["gapless", "audioCacheMB", "autoplay", "shuffle", "repeat", "levelOn", "limiterOn", "eqOn"])
+            var keys: [String] = []
+            @MainActor func finish() {
+                UserDefaults.standard.set(false, forKey: "gapless")
+                for key in keys { Task { await AudioCache.shared.remove(key) } }
+                returnDefaults()
+                report("gapless: \(failures == 0 ? "all checks pass" : "\(failures) FAILED")")
+                NSApp.terminate(nil)
+            }
+            UserDefaults.standard.set(500, forKey: "audioCacheMB")
+            UserDefaults.standard.set(false, forKey: "autoplay")
+            if player.isShuffled { player.toggleShuffle() }
+            while player.repeatMode != .off { player.cycleRepeat() }
+            if !player.isMuted { player.toggleMute() }
+
+            var songs: [Listing] = []
+            for (n, hz) in [440.0, 660, 880].enumerated() {
+                guard let data = tone(hz: hz, seconds: 6) else { check("tones made with afconvert", false); finish(); return }
+                let song = Listing(source: "jiosaavn", id: "selftest-gapless-\(n)-\(UUID().uuidString)", title: "Gapless \(n + 1)",
+                                   artists: ["Self-Test"], album: nil, duration: 6, popularity: nil, image: nil)
+                try? FileManager.default.createDirectory(at: AudioCache.shared.folder, withIntermediateDirectories: true)
+                try? data.write(to: AudioCache.shared.path(for: song.key))
+                songs.append(song)
+                keys.append(song.key)
+            }
+            @MainActor func tracks(_ list: [Listing]) -> [Track] { list.map { Track(best: $0, listings: [$0], choosingVersion: false) } }
+
+            /// Plays `first` then `second` and returns the silence between them, in seconds (negative: overlap).
+            @MainActor func gap(_ first: Listing, _ second: Listing) async -> Double? {
+                player.play(tracks([first, second]))
+                guard await until(10, { player.isPlaying && player.livePosition > 0.2 && player.playingListing?.key == first.key }) else { return nil }
+                // the last look at the first song, every 5 ms, until the second takes over
+                var end: Date?
+                while player.playingListing?.key == first.key {
+                    let left = player.duration - player.livePosition
+                    if left >= 0, player.livePosition > 0 { end = Date().addingTimeInterval(left) }
+                    try? await Task.sleep(for: .milliseconds(5))
+                    if Date().timeIntervalSince(end ?? .distantFuture) > 5 { return nil }
+                }
+                // the second song's own clock: in its first second (until the queue player swaps items, the first's reads ~6 s)
+                guard await until(5, { player.playingListing?.key == second.key && player.livePosition > 0.05 && player.livePosition < 1 })
+                else { return nil }
+                let start = Date().addingTimeInterval(-player.livePosition)
+                return end.map { start.timeIntervalSince($0) }
+            }
+            func ms(_ value: Double?) -> String { value.map { String(format: "%.0f ms", $0 * 1000) } ?? "no change seen" }
+
+            // A. off: as before
+            UserDefaults.standard.set(false, forKey: "gapless")
+            player.gaplessChanged()
+            let before = await gap(songs[0], songs[1])
+            check("off: nothing is queued", player.queuedKeyForTests == nil)
+            report("gapless: off, the gap between songs is \(ms(before))")
+
+            // B. on
+            UserDefaults.standard.set(true, forKey: "gapless")
+            player.gaplessChanged()
+            player.play(tracks([songs[0], songs[1], songs[2]]))
+            let memoryBefore = memoryMB()
+            check("on: the next song is queued behind the playing one once it is in the cache",
+                  await until(5) { player.queuedKeyForTests == songs[1].key })
+            report(String(format: "gapless: queuing the next song took %.1f MB of memory", memoryMB() - memoryBefore))
+            player.clearUpNext()
+            check("Up Next cleared: nothing is queued any more", await until(2) { player.queuedKeyForTests == nil })
+            let after = await gap(songs[0], songs[1])
+            report("gapless: on, the gap between songs is \(ms(after))")
+            check("on: no gap (under 20 ms of the player's clock)", after.map { abs($0) < 0.02 } ?? false, ms(after))
+            check("…where off had one, so the test can see a gap", (before ?? 0) > (after ?? 0) + 0.03, "\(ms(before)) off")
+            check("the second song is the one playing, as after any change", player.playingListing?.key == songs[1].key
+                  && player.current?.best.key == songs[1].key && player.isPlaying)
+            check("its own length is read, not the first's (6 s)", abs(player.duration - 6) < 0.5, String(format: "%.2f s", player.duration))
+
+            // C. ⏭ with a song queued
+            player.play(tracks([songs[0], songs[1], songs[2]]))
+            _ = await until(5) { player.queuedKeyForTests == songs[1].key }
+            player.next()
+            check("⏭ with a song queued plays the next song", await until(5) { player.playingListing?.key == songs[1].key && player.livePosition > 0.2 })
+            check("…and queues the one after it", await until(5) { player.queuedKeyForTests == songs[2].key })
+
+            if player.isPlaying { player.togglePlayPause() }
+            finish()
+        }
+    }
+}
+#endif

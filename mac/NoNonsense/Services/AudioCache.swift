@@ -49,8 +49,12 @@ actor AudioCache {
         let file = path(for: key)
         guard FileManager.default.fileExists(atPath: file.path) else { return false }
         Task { @MainActor in Leveller.shared.measure(key, file: file) }       // nothing while levelling is off
+        NotificationCenter.default.post(name: Self.stored, object: nil, userInfo: ["key": key])
         return true
     }
+
+    /// Posted when a whole song is kept (userInfo "key"): the player can queue it behind the playing one (gapless).
+    nonisolated static let stored = Notification.Name("AudioCache.stored")
 
     /// Every song here: its name (`name(for:)`) and file.
     func contents() -> [(name: String, file: URL)] {

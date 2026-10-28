@@ -10,6 +10,7 @@
 		05A462C3FB25607BCB5ED070 /* Hands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81726CBB84545203781C75C /* Hands.swift */; };
 		06ED42D3B0F7A7FD121A2AC7 /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93FF752447B1866FD59A5D9D /* LibraryStore.swift */; };
 		0AC4DD34629ED87068AF6E5F /* LyricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881C5D7D7460D755FDFC0061 /* LyricsStore.swift */; };
+		0B9E5E13E5A699379616B69D /* GaplessSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44221F78FB3585CCCFB9829B /* GaplessSelfTest.swift */; };
 		0C147EA7316845A0564616B5 /* CacheSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C66CE5AA2573A220BAF1FD /* CacheSelfTest.swift */; };
 		0C826E77A187FE0CCA50931C /* EqualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326F676677E65041C04439B3 /* EqualizerView.swift */; };
 		0E59F343C250DEB67EB7B342 /* Screens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187B65FDE5C1D9B4300ACE83 /* Screens.swift */; };
@@ -111,6 +112,7 @@
 		329D0FA5B9551CCD2A1718DE /* ImportSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSelfTest.swift; sourceTree = "<group>"; };
 		3BE09B7F546BD239B2AFD81C /* PlayerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViews.swift; sourceTree = "<group>"; };
 		413FB74B40D0CE16AB8515BB /* DownloadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStore.swift; sourceTree = "<group>"; };
+		44221F78FB3585CCCFB9829B /* GaplessSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GaplessSelfTest.swift; sourceTree = "<group>"; };
 		488DEC685DA0304B893444B7 /* JamViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamViews.swift; sourceTree = "<group>"; };
 		4959C1E1E9DCDBE27CFF964F /* JamSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JamSelfTest.swift; sourceTree = "<group>"; };
 		4BE03707689D95331FD49A82 /* Equalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Equalizer.swift; sourceTree = "<group>"; };
@@ -220,6 +222,7 @@
 				A5C08D46C220140190F5BA02 /* DownloadFilesSelfTest.swift */,
 				2D869B6085400D8899979E78 /* EqualizerSelfTest.swift */,
 				1233A3ED8401FC7D692055ED /* FriendsSelfTest.swift */,
+				44221F78FB3585CCCFB9829B /* GaplessSelfTest.swift */,
 				C81726CBB84545203781C75C /* Hands.swift */,
 				6F03798D2E0871DFCE15FF63 /* HomeHeroSelfTest.swift */,
 				329D0FA5B9551CCD2A1718DE /* ImportSelfTest.swift */,
@@ -416,6 +419,7 @@
 				243BA470092BE8B508E40FE8 /* Footprint.swift in Sources */,
 				64A7B46DA22A24AE43F3ED27 /* Friends.swift in Sources */,
 				2433233A2008A8336AACD030 /* FriendsSelfTest.swift in Sources */,
+				0B9E5E13E5A699379616B69D /* GaplessSelfTest.swift in Sources */,
 				05A462C3FB25607BCB5ED070 /* Hands.swift in Sources */,
 				C3D45EF8E04EE77DA5CECD1A /* Home.swift in Sources */,
 				8BF2E46ECD073C5DCC238688 /* HomeHero.swift in Sources */,

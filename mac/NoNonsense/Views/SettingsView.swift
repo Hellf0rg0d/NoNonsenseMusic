@@ -431,6 +431,7 @@ private struct PlaybackSettings: View {
     @AppStorage("preferredSource") private var preferredSource = ""        // "" = Automatic (Track.preferredSource)
     @AppStorage("autoplay") private var autoplay = true                     // also ∞ in Up Next
     @AppStorage("autoplaySkipsRecent") private var skipsRecent = true       // Player.autoplaySkipsRecent
+    @AppStorage("gapless") private var gapless = false                       // Player.gapless
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -477,8 +478,14 @@ private struct PlaybackSettings: View {
                     Text("Catches the few peaks that would distort, so equalizer boosts and quiet songs keep their volume.")
                         .foregroundStyle(.secondary)
                 }
+                Toggle(isOn: $gapless) {
+                    Text("No gaps between songs")
+                    Text("The next song waits ready behind this one, so an album or a mix flows on without a pause.")
+                        .foregroundStyle(.secondary)
+                }
+                .onChange(of: gapless) { _, _ in player.gaplessChanged() }
             } header: {
-                Text("Volume")
+                Text("Sound")
             } footer: {
                 Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. Without the limiter, a quiet song goes up only as far as it can without distorting.")
                     .foregroundStyle(.secondary)
