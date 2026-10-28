@@ -35,14 +35,14 @@ extension SelfTest {
 
             // A. the filters, on tones, offline (as the tap runs them)
             var gains = Array(repeating: 0.0, count: 14)
-            let flat = EQProcessor(gains: gains).offline(frequency: 500)
+            let flat = SoundProcessor(gains: gains).offline(frequency: 500)
             check("flat leaves the audio as it is", near(flat, 0, 0.05), db(flat))
             gains[6] = -12
-            let cut = EQProcessor(gains: gains), cutAt500 = cut.offline(frequency: 500), cutAt2k = cut.offline(frequency: 2000)
+            let cut = SoundProcessor(gains: gains), cutAt500 = cut.offline(frequency: 500), cutAt2k = cut.offline(frequency: 2000)
             check("−12 dB at 500 Hz takes 12 dB off a 500 Hz tone and almost nothing off 2 kHz",
                   near(cutAt500, -12, 0.5) && near(cutAt2k, 0, 1), "\(db(cutAt500)), \(db(cutAt2k))")
             gains[6] = 12
-            let boost = EQProcessor(gains: gains), boostAt500 = boost.offline(frequency: 500), boostAt2k = boost.offline(frequency: 2000)
+            let boost = SoundProcessor(gains: gains), boostAt500 = boost.offline(frequency: 500), boostAt2k = boost.offline(frequency: 2000)
             check("+12 dB at 500 Hz: the preamp keeps 500 Hz where it was and turns the rest down, so nothing clips",
                   near(boostAt500, 0, 0.5) && boostAt2k < -10, "\(db(boostAt500)), \(db(boostAt2k))")
 
@@ -76,15 +76,15 @@ extension SelfTest {
             eq.setOn(true)
             var frames = 0
             let tapped = await until(5) {
-                frames = eq.liveProcessors.map { $0.takeReading().frames }.max() ?? 0
+                frames = SoundChain.shared.liveProcessors.map { $0.takeReading().frames }.max() ?? 0
                 return player.itemHasTapForTests && frames > 0
             }
             check("switched on mid-song, the song's audio goes through the tap at once", tapped,
                   "tap \(player.itemHasTapForTests), \(frames) frames\(player.isMuted ? ", muted" : "")")
             @MainActor func heard() async -> Double? {
-                _ = eq.liveProcessors.map { $0.takeReading() }                 // from now
+                _ = SoundChain.shared.liveProcessors.map { $0.takeReading() }                 // from now
                 try? await Task.sleep(for: .seconds(1.5))
-                return eq.liveProcessors.compactMap { $0.takeReading().change }.first
+                return SoundChain.shared.liveProcessors.compactMap { $0.takeReading().change }.first
             }
             let flatLive = await heard()
             check("flat, the song's audio is as it was", flatLive.map { near($0, 0, 0.3) } ?? false, db(flatLive))
@@ -100,8 +100,9 @@ extension SelfTest {
         }
     }
 
-    /// A stereo sine of `hz` as AAC in MP4, made with afconvert as the loader's test makes its file.
-    private static func tone(hz: Double, seconds: Int) -> Data? {
+    /// A stereo sine of `hz` as AAC in MP4, made with afconvert as the loader's test makes its file. `peak`: its
+    /// amplitude in 16-bit steps (8000 is −12.3 dBFS).
+    static func tone(hz: Double, seconds: Int, peak: Double = 8000) -> Data? {
         let dir = FileManager.default.temporaryDirectory.appending(path: "nn-eq-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -115,7 +116,7 @@ extension SelfTest {
         wav.append(contentsOf: Array("data".utf8)); u32(bytes)
         var samples = [Int16](repeating: 0, count: rate * seconds * 2)
         for i in 0..<(rate * seconds) {
-            let v = Int16(8000 * sin(Double(i) * 2 * .pi * hz / Double(rate)))
+            let v = Int16(peak * sin(Double(i) * 2 * .pi * hz / Double(rate)))
             samples[2 * i] = v; samples[2 * i + 1] = v
         }
         samples.withUnsafeBytes { wav.append(contentsOf: $0) }

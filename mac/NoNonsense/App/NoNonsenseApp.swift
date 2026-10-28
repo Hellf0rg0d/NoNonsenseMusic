@@ -137,6 +137,7 @@ extension NoNonsenseApp {
         SelfTest.runFriendsCheckIfAsked(account: account)
         SelfTest.runJamCheckIfAsked(player: player, library: library)
         SelfTest.runEqualizerCheckIfAsked(player: player)
+        SelfTest.runLevellingCheckIfAsked(player: player)
         SelfTest.runUpdateCheckIfAsked()
         SelfTest.runImportCheckIfAsked(library: library)
         SelfTest.runAutoplayCheckIfAsked(player: player)

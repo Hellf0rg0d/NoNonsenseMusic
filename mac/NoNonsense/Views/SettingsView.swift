@@ -463,6 +463,20 @@ private struct PlaybackSettings: View {
                 Text("For songs found on more than one source, or in both versions. Applies to songs listed from now on.")
                     .foregroundStyle(.secondary)
             }
+            Section {
+                // measured 28 Oct: 0.10 s of one core to measure a 4-minute song (12 songs from the cache), once; then the
+                // gain, 0.0009% of one core (an hour of stereo), in the equalizer's tap (0.12% with all 14 filters, 25 Oct)
+                Toggle(isOn: Binding(get: { Leveller.shared.on }, set: { Leveller.shared.setOn($0) })) {
+                    Text("Same volume for every song")
+                    Text("Measures each song once, in about 0.1 s, then plays it as loud as the rest.")
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Volume")
+            } footer: {
+                Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. A quiet song goes up only as far as it can without distorting.")
+                    .foregroundStyle(.secondary)
+            }
             EqualizerSection()
         }
         .settingsPage()
@@ -918,6 +932,11 @@ private struct FootprintSettings: View {
                 Toggle(isOn: Binding(get: { Equalizer.shared.on }, set: { Equalizer.shared.setOn($0) })) {
                     Text("Equalizer")
                     Text("Uses about 0.1% of one core while music plays. Its bands are in Settings › Playback.")
+                        .foregroundStyle(.secondary)
+                }
+                Toggle(isOn: Binding(get: { Leveller.shared.on }, set: { Leveller.shared.setOn($0) })) {
+                    Text("Same volume for every song")
+                    Text("About 0.1 s of one core to measure each new song, and under 0.1% while music plays.")
                         .foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {

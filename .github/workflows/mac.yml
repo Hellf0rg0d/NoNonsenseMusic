@@ -302,6 +302,16 @@ jobs:
             -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > eq.log 2>&1 || true
           grep SELFTEST eq.log
           grep -q "eq: all checks pass" eq.log
+      - name: Self-test, same volume for every song (NN_SELFTEST_LEVEL), on tones made here
+        if: ${{ !cancelled() }}
+        run: |
+          lsof -ti tcp:8765 | xargs kill 2>/dev/null || true
+          env NN_SELFTEST_LEVEL=1 DATABASE_URL=postgresql:///music_test \
+            perl -e 'alarm shift; exec @ARGV' 120 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
+            -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > level.log 2>&1 || true
+          grep SELFTEST level.log
+          grep -q "level: all checks pass" level.log
       - name: Self-test, Autoplay (NN_SELFTEST_AUTOPLAY) on real songs, if YouTube Music and JioSaavn answer this runner
         if: ${{ !cancelled() }}
         continue-on-error: true

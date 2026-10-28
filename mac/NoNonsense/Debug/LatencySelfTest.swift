@@ -177,11 +177,11 @@ extension SelfTest {
             if heard != nil, let item = probe.currentItem {
                 let wasOn = Equalizer.shared.on
                 Equalizer.shared.setOn(true)
-                Equalizer.shared.apply(to: item)
+                SoundChain.shared.apply(to: item, key: "selftest-loader")
                 var frames = 0
                 for _ in 0..<50 where frames == 0 {
                     try? await Task.sleep(for: .milliseconds(100))
-                    frames = Equalizer.shared.liveProcessors.map { $0.takeReading().frames }.max() ?? 0
+                    frames = SoundChain.shared.liveProcessors.map { $0.takeReading().frames }.max() ?? 0
                 }
                 check("the equalizer's tap gets the audio of a stream through the loader", frames > 0, "no frames in 5 s")
                 item.audioMix = nil

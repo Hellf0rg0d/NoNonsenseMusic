@@ -22,8 +22,12 @@ actor AudioCache {
     }()
 
     /// "ytmusic:J7p4bzqLvCw" → ".../ytmusic_J7p4bzqLvCw.m4a" (the extension tells AVPlayer what the file is)
-    nonisolated func path(for key: String) -> URL {
-        folder.appending(path: String(key.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" }) + ".m4a")
+    nonisolated func path(for key: String) -> URL { folder.appending(path: Self.name(for: key) + ".m4a") }
+
+    /// "ytmusic:J7p4bzqLvCw" → "ytmusic_J7p4bzqLvCw": a song's file name, without its extension. Leveller keeps its
+    /// readings by it, so a song in the cache is known by its file alone.
+    nonisolated static func name(for key: String) -> String {
+        String(key.map { $0.isLetter || $0.isNumber || $0 == "-" ? $0 : "_" })
     }
 
     /// The song's file, if it is here; marked as just played (eviction goes by that date).
@@ -42,7 +46,15 @@ actor AudioCache {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try? data.write(to: path(for: key), options: .atomic)
         evict()
-        return FileManager.default.fileExists(atPath: path(for: key).path)
+        let file = path(for: key)
+        guard FileManager.default.fileExists(atPath: file.path) else { return false }
+        Task { @MainActor in Leveller.shared.measure(key, file: file) }       // nothing while levelling is off
+        return true
+    }
+
+    /// Every song here: its name (`name(for:)`) and file.
+    func contents() -> [(name: String, file: URL)] {
+        files().map { ($0.url.deletingPathExtension().lastPathComponent, $0.url) }
     }
 
     /// A cached file that would not play: gone, so the next play fetches it again.
