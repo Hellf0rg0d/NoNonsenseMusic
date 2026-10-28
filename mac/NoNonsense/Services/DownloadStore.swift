@@ -1,4 +1,7 @@
+import Foundation
+#if os(macOS)
 import AppKit
+#endif
 import Observation
 
 /// Songs kept on this Mac, to play without the server or the internet.
@@ -65,7 +68,7 @@ final class DownloadStore {
     /// downloads.
     convenience init() {
         let app = URL.applicationSupportDirectory.appending(path: "NoNonsense")
-        #if DEBUG
+        #if DEBUG && os(macOS)        // the self-tests are the Mac app's
         if SelfTest.isRunning {
             self.init(folder: nil, defaultFolder: app.appending(path: "Downloads-selftest"), dataFolder: app.appending(path: "DownloadData-selftest"))
             return
@@ -273,10 +276,12 @@ final class DownloadStore {
     /// The song's file in the Finder, selected (its menu › Show in Finder). Nothing when it is not downloaded.
     func revealInFinder(_ track: Track) {
         guard let url = file(for: track)?.url else { return }
-        #if DEBUG
+        #if DEBUG && os(macOS)        // the self-tests are the Mac app's
         if SelfTest.isRunning { SelfTest.revealed = url; return }          // a test opens no Finder windows
         #endif
+        #if os(macOS)
         NSWorkspace.shared.activateFileViewerSelecting([url])
+        #endif
     }
 
     /// Downloads the song: its best copy, else the others in turn. Says so when done or when no copy works. Refuses

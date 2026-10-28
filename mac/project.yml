@@ -4,6 +4,7 @@ options:
   bundleIdPrefix: app.nononsense
   deploymentTarget:
     macOS: "15.0"
+    iOS: "18.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -80,3 +81,38 @@ targets:
           DEPLOYMENT_POSTPROCESSING: YES
           STRIP_INSTALLED_PRODUCT: YES
           STRIP_STYLE: non-global
+  # The iPhone app (28 Oct): the Mac app's engine, its Models and Services, shared file for file; screens of its own.
+  # Mac-only services (Sparkle's updates, the local server) stay out; the rest builds for both, AppKit behind #if os(macOS)
+  NoNonsenseiOS:
+    type: application
+    platform: iOS
+    sources:
+      - NoNonsense-iOS
+      - path: NoNonsense/Models
+      - path: NoNonsense/Services
+        excludes: [Updater.swift, ServerLauncher.swift]
+    info:
+      path: NoNonsense-iOS/Info.plist
+      properties:
+        CFBundleDisplayName: NoNonsenseMusic
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        CFBundleURLTypes:
+          - CFBundleURLName: app.nononsense.music
+            CFBundleURLSchemes: [nononsense]
+        NSAppTransportSecurity:
+          # a server you run yourself may be plain http on your network or the internet
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: To reach a NoNonsenseMusic server on your network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.nononsense.music
+        PRODUCT_NAME: NoNonsenseMusic
+        MARKETING_VERSION: "0.5.0"
+        CURRENT_PROJECT_VERSION: "13"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: NO          # unsigned: AltStore or SideStore signs it with your own Apple ID
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

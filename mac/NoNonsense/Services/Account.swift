@@ -211,8 +211,12 @@ final class Account {
 
     /// The computer's name, at most 64 characters (the server's limit). Not Host.current(): it can wait on DNS lookups.
     static var computerName: String {
+        #if os(macOS)
         let name = (SCDynamicStoreCopyComputerName(nil, nil) as String?) ?? ""
         return String((name.isEmpty ? "Mac" : name).prefix(64))
+        #else
+        return "iPhone"          // iOS gives apps only the model's name since iOS 16; you can rename it in Settings
+        #endif
     }
 }
 

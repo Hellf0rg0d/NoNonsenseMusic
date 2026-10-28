@@ -34,6 +34,15 @@ jobs:
           grep -E "warning:" debug.log | grep -v "appintentsmetadataprocessor" | sort -u | head -40
           grep -E "\*\* BUILD" debug.log
           grep -q "BUILD SUCCEEDED" debug.log
+      - name: Build the iPhone app (the shared engine and its screens, for the simulator)
+        if: ${{ !cancelled() }}
+        working-directory: mac
+        run: |
+          xcodebuild -project NoNonsense.xcodeproj -scheme NoNonsenseiOS -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-ios build > ios.log 2>&1 || true
+          grep -E "error:" ios.log | sort -u | head -40
+          grep -E "\*\* BUILD" ios.log
+          grep -q "BUILD SUCCEEDED" ios.log
       - name: Build Release (daily use)
         working-directory: mac
         run: |

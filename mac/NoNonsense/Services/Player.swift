@@ -1,4 +1,7 @@
+import Foundation
+#if os(macOS)
 import AppKit
+#endif
 import AVFoundation
 import MediaPlayer
 import Observation
@@ -404,6 +407,7 @@ final class Player {
     /// still be 0 from the song's start (it changes only on events), so nothing would change. Lyrics follow this.
     private(set) var seeks = 0
 
+    #if os(macOS)
     /// Space plays/pauses anywhere in the window, ← → seek 5 s, L likes or unlikes the song, M mutes or unmutes, and /
     /// puts the keyboard in the command bar, except while typing in a text field. And while typing, ⌘← ⌘→ ⌘↑ ⌘↓
     /// move the cursor, as in any text field: menus answer their shortcuts before the field sees the key, so the
@@ -491,6 +495,7 @@ final class Player {
             return consumed ? nil : event
         }
     }
+    #endif
 
     // MARK: - loading
 

@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Covers, downloaded once and kept in memory, and the colours the background and the accents are made from.
@@ -9,12 +8,12 @@ final class ArtworkCache {
     static let shared = ArtworkCache()
 
     /// Decoded covers, at most 96 MB of pixels: past that the least used are dropped (they download again if needed).
-    private let images: NSCache<NSString, NSImage> = {
-        let cache = NSCache<NSString, NSImage>()
+    private let images: NSCache<NSString, PlatformImage> = {
+        let cache = NSCache<NSString, PlatformImage>()
         cache.totalCostLimit = 96 * 1024 * 1024
         return cache
     }()
-    private var loading: [String: Task<NSImage?, Never>] = [:]
+    private var loading: [String: Task<PlatformImage?, Never>] = [:]
     /// The file a download keeps for a cover (DownloadStore.keptCover): read before the network, so it shows offline.
     var keptCover: ((URL) -> URL?)?
     private var grids: [URL: [Color]] = [:]
@@ -48,19 +47,19 @@ final class ArtworkCache {
         return URL(string: resized) ?? url
     }
 
-    func cached(_ url: URL, size points: CGFloat = 1000) -> NSImage? {
+    func cached(_ url: URL, size points: CGFloat = 1000) -> PlatformImage? {
         images.object(forKey: Self.key(url, Self.pixels(for: points)) as NSString)
     }
 
     /// The cover, decoded for `size` points. Two views asking for the same one at once share one download.
-    func image(for url: URL, size points: CGFloat = 1000) async -> NSImage? {
+    func image(for url: URL, size points: CGFloat = 1000) async -> PlatformImage? {
         let pixels = Self.pixels(for: points), key = Self.key(url, pixels)
         if let hit = images.object(forKey: key as NSString) { return hit }
         if let running = loading[key] { return await running.value }
         let kept = keptCover?(url)
-        let task = Task { () -> NSImage? in
+        let task = Task { () -> PlatformImage? in
             // a kept cover is read off the main thread, with the decoding (#12: this Task runs on the main thread)
-            if let kept, let image = await Task.detached(priority: .utility, operation: { () -> NSImage? in
+            if let kept, let image = await Task.detached(priority: .utility, operation: { () -> PlatformImage? in
                 guard let local = try? Data(contentsOf: kept) else { return nil }
                 return Self.decoded(local, maxPixels: pixels)
             }).value {
@@ -72,7 +71,7 @@ final class ArtworkCache {
         loading[key] = task
         let image = await task.value
         loading[key] = nil
-        if let image, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+        if let image, let cg = image.readableCGImage {
             images.setObject(image, forKey: key as NSString, cost: cg.bytesPerRow * cg.height)
         }
         return image
@@ -81,7 +80,7 @@ final class ArtworkCache {
     /// A cover ready to draw: decoded once, at most 1,200 px (the largest it is ever shown: 560 pt on a Retina
     /// screen), already in sRGB. `NSImage(data:)` kept the compressed JPEG, so every repaint decoded it again and
     /// converted its colours: that was most of Now Playing's CPU (profiled 7 Oct).
-    nonisolated static func decoded(_ data: Data, maxPixels: Int = 1200) -> NSImage? {
+    nonisolated static func decoded(_ data: Data, maxPixels: Int = 1200) -> PlatformImage? {
         let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
                                         kCGImageSourceCreateThumbnailWithTransform: true,
                                         kCGImageSourceThumbnailMaxPixelSize: maxPixels]
@@ -90,10 +89,10 @@ final class ArtworkCache {
               let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
                                       space: space, bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
-        else { return NSImage(data: data) }
+        else { return PlatformImage(data: data) }
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-        guard let ready = context.makeImage() else { return NSImage(data: data) }
-        return NSImage(cgImage: ready, size: NSSize(width: image.width, height: image.height))
+        guard let ready = context.makeImage() else { return PlatformImage(data: data) }
+        return PlatformImage.make(ready)
     }
 
     /// The cover shrunk to 3×3 pixels: nine colours, each where it sits on the cover, row by row from the top.
@@ -101,7 +100,7 @@ final class ArtworkCache {
     func colorGrid(for url: URL) async -> [Color]? {
         if let hit = grids[url] { return hit }
         guard let image = await image(for: url, size: 64),                 // 3×3 colours need only the small one
-              let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+              let cg = image.readableCGImage else { return nil }
         var pixels = [UInt8](repeating: 0, count: 3 * 3 * 4)
         let grid: [Color]? = pixels.withUnsafeMutableBytes { buffer in
             guard let context = CGContext(data: buffer.baseAddress, width: 3, height: 3, bitsPerComponent: 8, bytesPerRow: 12,
@@ -119,7 +118,7 @@ final class ArtworkCache {
 
     #if DEBUG
     /// Self-tests: a made-up cover for `url`, at every size, so nothing is fetched (#20: no internet needed).
-    func keepForSelfTest(_ image: NSImage, for url: URL) {
+    func keepForSelfTest(_ image: PlatformImage, for url: URL) {
         for pixels in [64, 128, 256, 512, 1200] {                     // every size pixels(for:) gives
             images.setObject(image, forKey: Self.key(url, pixels) as NSString, cost: Int(image.size.width * image.size.height) * 4)
         }
@@ -131,9 +130,9 @@ final class ArtworkCache {
     /// made readable on this background. A grey cover keeps the system accent.
     func accent(for url: URL?, dark: Bool) async -> Color? {
         guard let url, let grid = await colorGrid(for: url) else { return nil }
-        let colors = grid.compactMap { NSColor($0).usingColorSpace(.deviceRGB) }
-        guard let best = colors.max(by: { $0.saturationComponent * $0.brightnessComponent < $1.saturationComponent * $1.brightnessComponent }),
-              best.saturationComponent > 0.15 else { return nil }
-        return Color(hue: best.hueComponent, saturation: min(max(best.saturationComponent, 0.45), 0.8), brightness: dark ? 0.92 : 0.6)
+        let colors = grid.compactMap(hueSaturationBrightness)
+        guard let best = colors.max(by: { $0.saturation * $0.brightness < $1.saturation * $1.brightness }),
+              best.saturation > 0.15 else { return nil }
+        return Color(hue: best.hue, saturation: min(max(best.saturation, 0.45), 0.8), brightness: dark ? 0.92 : 0.6)
     }
 }

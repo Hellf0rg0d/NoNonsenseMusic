@@ -1164,23 +1164,6 @@ struct VolumeControl: View {
     }
 }
 
-extension Color {
-    /// "#RRGGBB" (the # is optional) to a colour; nil when it is not six hex digits.
-    init?(hex: String) {
-        var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if digits.hasPrefix("#") { digits.removeFirst() }
-        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
-        self.init(red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
-    }
-
-    /// The colour as "#RRGGBB" (sRGB).
-    var hexString: String {
-        let c = NSColor(self).usingColorSpace(.sRGB) ?? .black
-        return String(format: "#%02X%02X%02X", Int((c.redComponent * 255).rounded()),
-                      Int((c.greenComponent * 255).rounded()), Int((c.blueComponent * 255).rounded()))
-    }
-}
-
 // MARK: - Text size (Settings › Appearance › Text size)
 
 /// How much bigger or smaller the app's text is than the Mac's: 0.85…1.4. macOS ignores SwiftUI's dynamicTypeSize

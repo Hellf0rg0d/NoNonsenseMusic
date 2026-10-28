@@ -46,12 +46,26 @@ final class FootprintMeter {
     /// CPU seconds used so far, and memory (the "physical footprint" Activity Monitor shows), for one process of
     /// this user. The kernel counts CPU in Mach clock units: 125/3 ns each on Apple silicon (checked 7 Oct against getrusage).
     private static func sample(_ pid: pid_t) -> (cpu: Double, memory: UInt64)? {
+        #if os(iOS)
+        // an iPhone app can read only itself: CPU from getrusage, memory as Activity Monitor counts it (phys_footprint)
+        guard pid == getpid() else { return nil }
+        var usage = rusage()
+        getrusage(RUSAGE_SELF, &usage)
+        let cpu = Double(usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) + Double(usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) / 1e6
+        var vm = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let status = withUnsafeMutablePointer(to: &vm) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return status == KERN_SUCCESS ? (cpu, vm.phys_footprint) : nil
+        #else
         var info = rusage_info_v2()
         let status = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V2, $0) }
         }
         guard status == 0 else { return nil }
         return (Double(info.ri_user_time + info.ri_system_time) * nanosecondsPerTick / 1e9, info.ri_phys_footprint)
+        #endif
     }
 
     private static let nanosecondsPerTick: Double = {

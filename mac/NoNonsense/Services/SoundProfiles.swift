@@ -1,4 +1,7 @@
+import AVFoundation
+#if os(macOS)
 import CoreAudio
+#endif
 import Foundation
 import Observation
 
@@ -31,15 +34,23 @@ final class SoundProfiles {
             output = Output(id: id, name: defaults.string(forKey: "soundOutputName") ?? "")
         }
         if let now = Self.systemOutput() { switched(to: now) }
+        #if os(macOS)
         var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
                                                  mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main) { @Sendable _, _ in
-            MainActor.assumeIsolated {
-                let shared = SoundProfiles.shared
-                guard shared.followsSystem, let now = Self.systemOutput() else { return }
-                shared.switched(to: now)
-            }
+            MainActor.assumeIsolated { SoundProfiles.shared.systemChanged() }
         }
+        #else
+        // the iPhone: the audio route changed (AirPods connected, a cable out, the speaker)
+        NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { SoundProfiles.shared.systemChanged() }
+        }
+        #endif
+    }
+
+    private func systemChanged() {
+        guard followsSystem, let now = Self.systemOutput() else { return }
+        switched(to: now)
     }
 
     func setOn(_ value: Bool) {
@@ -86,6 +97,13 @@ final class SoundProfiles {
         defaults.set(all, forKey: "soundProfiles")
     }
 
+    #if os(iOS)
+    /// The audio route's output: its port's id (an AirPods pair keeps its own) and name.
+    nonisolated static func systemOutput() -> Output? {
+        guard let port = AVAudioSession.sharedInstance().currentRoute.outputs.first else { return nil }
+        return Output(id: port.uid, name: port.portName)
+    }
+    #else
     /// The default output device's unique id and name, from Core Audio.
     nonisolated static func systemOutput() -> Output? {
         var device = AudioObjectID(kAudioObjectUnknown)
@@ -105,4 +123,5 @@ final class SoundProfiles {
         guard let id = text(kAudioDevicePropertyDeviceUID) else { return nil }
         return Output(id: id, name: text(kAudioObjectPropertyName) ?? "This output")
     }
+    #endif
 }
