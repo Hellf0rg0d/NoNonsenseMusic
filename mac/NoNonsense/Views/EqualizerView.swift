@@ -24,7 +24,8 @@ struct EqualizerSection: View {
         } header: {
             Text("Equalizer")
         } footer: {
-            Text("A boost turns the rest of the song down by as much, so nothing distorts.")
+            Text(Leveller.shared.limiting ? "A boost keeps its volume: the limiter (Volume, above) catches the peaks that would distort."
+                                          : "A boost turns the rest of the song down by as much, so nothing distorts. The limiter (Volume, above) keeps it loud instead.")
                 .foregroundStyle(.secondary)
         }
     }

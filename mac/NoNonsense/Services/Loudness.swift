@@ -23,6 +23,9 @@ final class Leveller {
     nonisolated static let headroom = 1.0
 
     private(set) var on: Bool
+    /// Settings › Playback › Limiter: the last step of the chain (PeakLimiter) catches peaks, so the equalizer's boosts
+    /// keep their volume and a quiet song is brought all the way up. Off by default.
+    private(set) var limiting: Bool
     /// Copies measured, by their names in the cache (AudioCache.name: the listing key, made a file name).
     @ObservationIgnored private var readings: [String: LoudnessMeter.Reading] = [:]
     @ObservationIgnored private var waiting: [(name: String, file: URL)] = []
@@ -38,6 +41,7 @@ final class Leveller {
 
     private init() {
         on = UserDefaults.standard.bool(forKey: "levelOn")
+        limiting = UserDefaults.standard.bool(forKey: "limiterOn")
         if let data = try? Data(contentsOf: Self.file),
            let saved = try? JSONDecoder().decode([String: LoudnessMeter.Reading].self, from: data) {
             readings = saved
@@ -52,18 +56,25 @@ final class Leveller {
         if value { Task { await measureCache() } }
     }
 
-    /// The gain for a copy, in dB: to the target, a boost no higher than its peak allows. A copy not measured yet gets
-    /// the median of the measured ones' (0 before any).
+    func setLimiting(_ value: Bool) {
+        guard value != limiting else { return }
+        limiting = value
+        UserDefaults.standard.set(value, forKey: "limiterOn")
+        changed?()
+    }
+
+    /// The gain for a copy, in dB: to the target, a boost no higher than its peak allows (with the limiter, as high as
+    /// the target asks). A copy not measured yet gets the median of the measured ones' (0 before any).
     func gain(for key: String) -> Double {
-        if let reading = readings[AudioCache.name(for: key)] { return Self.gain(reading) }
-        let all = readings.values.map(Self.gain).sorted()
+        if let reading = readings[AudioCache.name(for: key)] { return Self.gain(reading, limiting: limiting) }
+        let all = readings.values.map { Self.gain($0, limiting: limiting) }.sorted()
         return all.isEmpty ? 0 : all[all.count / 2]
     }
 
     func isMeasured(_ key: String) -> Bool { readings[AudioCache.name(for: key)] != nil }
 
-    nonisolated static func gain(_ reading: LoudnessMeter.Reading) -> Double {
-        min(max(target - reading.lufs, -20), -reading.peak - headroom, 12)
+    nonisolated static func gain(_ reading: LoudnessMeter.Reading, limiting: Bool = false) -> Double {
+        min(max(target - reading.lufs, -20), limiting ? 12 : -reading.peak - headroom, 12)
     }
 
     /// Measures a copy's file, unless it is measured already: next, before the cache's backlog (it is playing, or about

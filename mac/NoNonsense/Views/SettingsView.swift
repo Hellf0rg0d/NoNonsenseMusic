@@ -471,10 +471,16 @@ private struct PlaybackSettings: View {
                     Text("Measures each song once, in about 0.1 s, then plays it as loud as the rest.")
                         .foregroundStyle(.secondary)
                 }
+                // measured 28 Oct: 0.040% of one core (an hour of stereo through it, offline); 5 ms of delay
+                Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
+                    Text("Limiter")
+                    Text("Catches the few peaks that would distort, so equalizer boosts and quiet songs keep their volume.")
+                        .foregroundStyle(.secondary)
+                }
             } header: {
                 Text("Volume")
             } footer: {
-                Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. A quiet song goes up only as far as it can without distorting.")
+                Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. Without the limiter, a quiet song goes up only as far as it can without distorting.")
                     .foregroundStyle(.secondary)
             }
             EqualizerSection()
@@ -937,6 +943,11 @@ private struct FootprintSettings: View {
                 Toggle(isOn: Binding(get: { Leveller.shared.on }, set: { Leveller.shared.setOn($0) })) {
                     Text("Same volume for every song")
                     Text("About 0.1 s of one core to measure each new song, and under 0.1% while music plays.")
+                        .foregroundStyle(.secondary)
+                }
+                Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
+                    Text("Limiter")
+                    Text("Uses about 0.04% of one core while music plays.")
                         .foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {

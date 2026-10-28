@@ -2,10 +2,10 @@
 import AppKit
 
 /// With `NN_SELFTEST_LEVEL=1` (no internet: tones made here, played from the audio cache): Settings › Playback › Same
-/// volume for every song. The gain rules; the processor's gain and its glide, offline; the meter on two AAC tones 23.5 dB
-/// apart; then the player: no tap while off, the playing song measured when switched on and brought to −14 LUFS, a song
-/// stored in the cache measured before it plays and started at its level, and the tap gone when switched off. Muted;
-/// the settings it changes are put back.
+/// volume for every song, and the limiter. The gain rules; the processor's gain, its glide and the limiter, offline; the
+/// meter on two AAC tones 23.5 dB apart; then the player: no tap while off, the playing song measured when switched on
+/// and brought to −14 LUFS, a song stored in the cache measured before it plays and started at its level, and the tap
+/// gone when switched off. Muted; the settings it changes are put back.
 extension SelfTest {
     private static var startedLevelling = false
 
@@ -26,10 +26,11 @@ extension SelfTest {
             func db(_ value: Double?) -> String { value.map { String(format: "%+.2f dB", $0) } ?? "no audio" }
             let leveller = Leveller.shared, chain = SoundChain.shared
             try? await Task.sleep(for: .seconds(2))
-            borrowDefaults(["levelOn", "eqOn", "audioCacheMB", "autoplay"])
+            borrowDefaults(["levelOn", "limiterOn", "eqOn", "audioCacheMB", "autoplay"])
             var keys: [String] = []
             @MainActor func finish() {
                 leveller.setOn(false)
+                leveller.setLimiting(false)
                 for key in keys {
                     leveller.setForTests(nil, for: key)
                     Task { await AudioCache.shared.remove(key) }
@@ -39,6 +40,7 @@ extension SelfTest {
                 NSApp.terminate(nil)
             }
             Equalizer.shared.setOn(false)
+            leveller.setLimiting(false)
 
             // A. the gain rules
             typealias Reading = LoudnessMeter.Reading
@@ -62,6 +64,19 @@ extension SelfTest {
             let both = SoundProcessor(gains: boosted, level: -6).offline(frequency: 500)
             check("with the equalizer: its preamp and the level add up (+12 dB at 500 Hz, level −6 dB: −6 dB at 500 Hz)",
                   near(both, -6, 0.5), db(both))
+
+            // B2. the limiter: a boost keeps its volume, no sample past −1 dBFS, quiet audio untouched
+            check("with the limiter, a quiet song is brought all the way up (−20 LUFS, −3 dBFS: +6 dB)",
+                  Leveller.gain(Reading(lufs: -20, peak: -3), limiting: true) == 6)
+            let limited = SoundProcessor(gains: boosted, limiting: true)
+            let limitedChange = limited.offline(frequency: 500)                  // a −12 dBFS tone, +12 dB: 0 dBFS
+            check("with the limiter, +12 dB at 500 Hz keeps its volume up to the −1 dBFS ceiling (+11 dB, not 0)",
+                  limitedChange > 10 && limitedChange <= 11.1, db(limitedChange))
+            check("…and the limiter took the peak down", (limited.limiterDeepestForTests ?? 0) < -0.5, db(limited.limiterDeepestForTests))
+            let clean = SoundProcessor(gains: flat, limiting: true)
+            let cleanChange = clean.offline(frequency: 1000)
+            check("the limiter leaves audio under its ceiling as it is", near(cleanChange, 0, 0.01) && clean.limiterDeepestForTests == 0,
+                  "\(db(cleanChange)), deepest \(db(clean.limiterDeepestForTests))")
 
             // C. the meter, on 1 kHz tones through AAC
             let loudPeak = 30000.0, quietPeak = 2000.0

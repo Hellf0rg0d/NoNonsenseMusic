@@ -5,7 +5,8 @@ import os
 
 /// What happens to a song's audio between its file and the speakers: one audio processing tap per AVPlayerItem, which
 /// runs the equalizer's filters (Equalizer), then one gain: the equalizer's preamp times the song's levelling gain
-/// (Leveller). Attached only while one of them is on; with both off a song has no tap and costs nothing.
+/// (Leveller), then the limiter (PeakLimiter) in place of the preamp, when on. Attached only while one of them is on;
+/// with all off a song has no tap and costs nothing.
 @MainActor
 final class SoundChain {
     static let shared = SoundChain()
@@ -22,7 +23,7 @@ final class SoundChain {
         Leveller.shared.measured = { [weak self] key in self?.measured(key) }
     }
 
-    var active: Bool { Equalizer.shared.on || Leveller.shared.on }
+    var active: Bool { Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting }
 
     /// The tap for `item`, the copy `key`, when either is on (none when both are off): attached once its audio track is
     /// known. A copy playing from a file not measured yet is measured now.
@@ -30,7 +31,8 @@ final class SoundChain {
         guard active else { item.audioMix = nil; return }
         let eq = Equalizer.shared, leveller = Leveller.shared
         if leveller.on, let url = (item.asset as? AVURLAsset)?.url, url.isFileURL { leveller.measure(key, file: url) }
-        let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0)
+        let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0,
+                                       limiting: leveller.limiting)
         processors.removeAll { $0.processor.processor == nil }
         processors.append((key, Weak(processor: processor)))
         Task {
@@ -79,16 +81,19 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock()
     private var gains: [Double]
     private var level: Float                       // the levelling gain, linear
+    private let limiting: Bool                     // the limiter instead of the equalizer's preamp
+    private var limiter: PeakLimiter?
     private var applied: Float?                    // the gain applied to the last buffer; nil before the first
     private var sampleRate = 44_100.0
     private var channels = 0
     private var usable = false                     // Float32, one buffer per channel: what AVFoundation's taps give
     private var cascade: Cascade?
 
-    /// `level`: the levelling gain in dB.
-    init(gains: [Double], level: Double = 0) {
+    /// `level`: the levelling gain in dB. `limiting`: a limiter last, and no preamp (a boost keeps its volume).
+    init(gains: [Double], level: Double = 0, limiting: Bool = false) {
         self.gains = gains
         self.level = Float(pow(10, level / 20))
+        self.limiting = limiting
     }
 
     /// The filters of one sample rate: the biquad setup, each channel's delay line, and the preamp.
@@ -151,7 +156,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             self.gains = gains
             return (sampleRate, channels)
         }
-        install(Self.build(gains: gains, sampleRate: rate, channels: count))
+        install(Self.build(gains: gains, sampleRate: rate, channels: count, limiting: limiting))
     }
 
     /// The levelling gain, in dB: the audio glides to it.
@@ -170,29 +175,32 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             usable = float && separate
             return gains
         }
-        install(Self.build(gains: current, sampleRate: format.mSampleRate, channels: Int(format.mChannelsPerFrame)))
+        let channels = Int(format.mChannelsPerFrame)
+        install(Self.build(gains: current, sampleRate: format.mSampleRate, channels: channels, limiting: limiting),
+                limiter: limiting && channels > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: channels) : nil)
     }
 
-    private static func build(gains: [Double], sampleRate: Double, channels: Int) -> Cascade? {
+    private static func build(gains: [Double], sampleRate: Double, channels: Int, limiting: Bool) -> Cascade? {
         guard channels > 0 else { return nil }
         let coefficients = coefficients(gains: gains, sampleRate: sampleRate)
-        let preamp = Float(pow(10, -peak(coefficients: coefficients, sampleRate: sampleRate) / 20))
+        let preamp = limiting ? 1 : Float(pow(10, -peak(coefficients: coefficients, sampleRate: sampleRate) / 20))
         return Cascade(coefficients: coefficients, sections: coefficients.count / 5, channels: channels, preamp: preamp)
     }
 
-    /// Swapped in under the lock; the old one is let go here, never on the audio thread.
-    private func install(_ new: Cascade?) {
-        let old = lock.withLockUnchecked { () -> Cascade? in
-            let old = cascade
+    /// Swapped in under the lock; the old ones are let go here, never on the audio thread.
+    private func install(_ new: Cascade?, limiter newLimiter: PeakLimiter? = nil) {
+        let old = lock.withLockUnchecked { () -> (Cascade?, PeakLimiter?) in
+            let old = (cascade, limiter)
             cascade = new
+            if newLimiter != nil { limiter = newLimiter }
             return old
         }
         _ = old
     }
 
     /// The audio thread: each channel's buffer through the cascade, in place, then the gain (the preamp times the
-    /// level). The first buffer starts at the gain; a later change glides there (`glideSeconds`). A flat curve at
-    /// 0 dB leaves the audio untouched.
+    /// level). The first buffer starts at the gain; a later change glides there (`glideSeconds`). Then the limiter, when
+    /// on. A flat curve at 0 dB with no limiter leaves the audio untouched.
     fileprivate func process(_ buffers: UnsafeMutableAudioBufferListPointer, frames: Int) {
         lock.withLockUnchecked {
             #if DEBUG
@@ -222,6 +230,15 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                         }
                     }
                 }
+                if let limiter, limiter.channels == buffers.count {
+                    withUnsafeTemporaryAllocation(of: UnsafeMutablePointer<Float>.self, capacity: buffers.count) { pointers in
+                        for (i, buffer) in buffers.enumerated() {
+                            guard let samples = buffer.mData?.assumingMemoryBound(to: Float.self) else { return }
+                            pointers[i] = samples
+                        }
+                        limiter.process(pointers, frames: frames)
+                    }
+                }
             }
             #if DEBUG
             measure(buffers, frames: frames, into: &energyOut)
@@ -249,6 +266,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return (processedFrames, change)
         }
     }
+
+    /// The limiter's lowest gain so far, in dB (nil without a limiter).
+    var limiterDeepestForTests: Double? { lock.withLockUnchecked { limiter.map { 20 * log10(Double($0.deepest)) } } }
 
     /// The gain the last buffer ended at, in dB (nil before any audio).
     var appliedForTests: Double? { lock.withLockUnchecked { applied.map { 20 * log10(Double($0)) } } }
@@ -294,6 +314,83 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return nil
         }
         return tap
+    }
+}
+
+/// A look-ahead peak limiter (Settings › Playback › Limiter): no sample leaves above −1 dBFS. The audio is held back
+/// 5 ms, so the gain is already down when a peak arrives: each sample's needed gain (the ceiling over its loudest
+/// channel), the lowest of those over the next 5 ms, averaged over 5 ms (Rudrich's construction: the average at a
+/// peak only covers values at or under that peak's own, so it never lets one through), then a release of 80 ms back
+/// up, so the gain does not move within a bass note. Allocated off the audio thread; a sample at a time on it.
+nonisolated final class PeakLimiter {
+    static let ceiling = Float(pow(10, -1.0 / 20))
+    static let lookahead = 0.005, release = 0.08
+
+    let channels: Int
+    private let latency: Int                       // L: samples the audio is held back
+    private let window: Int                        // L + 1: the minimum's and the average's span
+    private let delay: UnsafeMutablePointer<Float>         // channels × L
+    private let held: UnsafeMutablePointer<Float>          // the last `window` minimums, for the average
+    private let order: UnsafeMutablePointer<Int>           // the sliding minimum: sample numbers…
+    private let lows: UnsafeMutablePointer<Float>          // …and their needed gains, rising from the front
+    private var front = 0, count = 0
+    private var sum: Double
+    private var at = 0, delayAt = 0, sample = 0
+    private var gain: Float = 1
+    private let rise: Float
+    #if DEBUG
+    private(set) var deepest: Float = 1            // self-tests: the lowest gain so far
+    #endif
+
+    init(sampleRate: Double, channels: Int) {
+        self.channels = channels
+        latency = max(1, Int((sampleRate * Self.lookahead).rounded()))
+        window = latency + 1
+        delay = .allocate(capacity: channels * latency)
+        delay.initialize(repeating: 0, count: channels * latency)
+        held = .allocate(capacity: window)
+        held.initialize(repeating: 1, count: window)
+        order = .allocate(capacity: window)
+        lows = .allocate(capacity: window)
+        sum = Double(window)
+        rise = Float(1 - exp(-1 / (sampleRate * Self.release)))
+    }
+
+    deinit {
+        delay.deallocate(); held.deallocate(); order.deallocate(); lows.deallocate()
+    }
+
+    /// `samples`: one pointer per channel (from the stack: nothing is allocated on the audio thread).
+    func process(_ samples: UnsafeMutableBufferPointer<UnsafeMutablePointer<Float>>, frames: Int) {
+        guard samples.count == channels else { return }
+        for i in 0..<frames {
+            var loudest: Float = 0
+            for c in 0..<channels { loudest = max(loudest, abs(samples[c][i])) }
+            let need = loudest > Self.ceiling ? Self.ceiling / loudest : 1
+            // the sliding minimum of the last `window` needs: a queue kept rising, so its front is the minimum
+            while count > 0, lows[(front + count - 1) % window] >= need { count -= 1 }
+            order[(front + count) % window] = sample
+            lows[(front + count) % window] = need
+            count += 1
+            while order[front] <= sample - window { front = (front + 1) % window; count -= 1 }
+            let low = lows[front]
+            sum += Double(low - held[at])
+            held[at] = low
+            at = (at + 1) % window
+            let smooth = Float(sum / Double(window))
+            gain = smooth < gain ? smooth : gain + (smooth - gain) * rise
+            #if DEBUG
+            deepest = min(deepest, gain)
+            #endif
+            for c in 0..<channels {
+                let slot = c * latency + delayAt
+                let late = delay[slot]
+                delay[slot] = samples[c][i]
+                samples[c][i] = late * gain
+            }
+            delayAt = (delayAt + 1) % latency
+            sample += 1
+        }
     }
 }
 
