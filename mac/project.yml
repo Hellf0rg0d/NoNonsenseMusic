@@ -91,6 +91,7 @@ targets:
       - path: NoNonsense/Models
       - path: NoNonsense/Services
         excludes: [Updater.swift, ServerLauncher.swift]
+      - path: NoNonsense/Views/Compat.swift     # Liquid Glass on iOS 26, a material in the same shape before
     info:
       path: NoNonsense-iOS/Info.plist
       properties:

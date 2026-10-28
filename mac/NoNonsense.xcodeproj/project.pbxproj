@@ -91,6 +91,7 @@
 		AB757A5B421B253B7D246E6E /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8186E89FB9026CB640031 /* Player.swift */; };
 		ABC21877BBFAF7C2D3926F94 /* Prefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C1A9DC93EAF19E0637D439 /* Prefetcher.swift */; };
 		AC27727CE31320E20CA90F5F /* Connectivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1CCB0A2FA5D8AEBEEC6204F /* Connectivity.swift */; };
+		AC4DCAE526D0F6A760E43034 /* Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073460EB5596CE556DF8D082 /* Compat.swift */; };
 		AE2446E87AE50D3E1F6FAE13 /* ThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B2FE4C7E6EEAA589159B7F /* ThemeStore.swift */; };
 		AE3BED94038EABB185F4AA59 /* AuthSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A703D577EE9786A17B32B2 /* AuthSelfTest.swift */; };
 		B0073B8CE34A1CACCC8CA353 /* LevellingSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0BA2A7A3BEC964097F9736 /* LevellingSelfTest.swift */; };
@@ -571,6 +572,7 @@
 				3F2F7E1C5040BE4EC6FC272A /* ArtworkCache.swift in Sources */,
 				1E4B7B182C081FAFF58AE848 /* AudioCache.swift in Sources */,
 				573F346B9BD2A4769B2B6C19 /* BoundedRangeLoader.swift in Sources */,
+				AC4DCAE526D0F6A760E43034 /* Compat.swift in Sources */,
 				5747924482C44768D03C6130 /* Connectivity.swift in Sources */,
 				474617AF6DD565D08BA8B785 /* DownloadStore.swift in Sources */,
 				E6CB162CD9456A9FBAC68BE0 /* Equalizer.swift in Sources */,
