@@ -63,8 +63,13 @@ private struct EqualizerBands: View {
         .selfTestFrame("eq.bands")
     }
 
+    /// "31", "1.25k", "3.15k", "12.5k": the band's centre in full (two digits read 1250 Hz as "1.2k", 28 Oct).
     static func frequency(_ hz: Double) -> String {
-        hz >= 1000 ? (hz.truncatingRemainder(dividingBy: 1000) == 0 ? "\(Int(hz / 1000))k" : String(format: "%.2gk", hz / 1000)) : "\(Int(hz))"
+        guard hz >= 1000 else { return "\(Int(hz))" }
+        var text = String(format: "%.2f", hz / 1000)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text + "k"
     }
 
     static func decibels(_ gain: Double) -> String {
