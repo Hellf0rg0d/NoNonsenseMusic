@@ -27,11 +27,11 @@ extension PlatformImage {
 func hueSaturationBrightness(_ color: Color) -> (hue: Double, saturation: Double, brightness: Double)? {
     #if os(macOS)
     guard let rgb = NSColor(color).usingColorSpace(.deviceRGB) else { return nil }
-    return (rgb.hueComponent, rgb.saturationComponent, rgb.brightnessComponent)
+    return (Double(rgb.hueComponent), Double(rgb.saturationComponent), Double(rgb.brightnessComponent))   // explicit: Xcode 26.6
     #else
     var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
     guard UIColor(color).getHue(&h, saturation: &s, brightness: &b, alpha: &a) else { return nil }
-    return (h, s, b)
+    return (Double(h), Double(s), Double(b))
     #endif
 }
 
