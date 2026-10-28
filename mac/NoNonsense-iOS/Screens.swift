@@ -2,30 +2,45 @@ import SwiftUI
 
 // MARK: - Home
 
-/// What you played lately, and your playlists.
+/// What you were playing (when nothing plays), what you played lately as covers, and your playlists as a grid.
 struct HomeScreen: View {
     @Environment(LibraryStore.self) private var library
     @Environment(Player.self) private var player
 
     var body: some View {
-        List {
-            if !library.recent.isEmpty {
-                Section("Recently played") {
-                    ForEach(Array(library.recent.prefix(10).enumerated()), id: \.element.id) { i, track in
-                        TrackRow(track: track) { player.play(Array(library.recent.prefix(10)), startAt: i) }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                if player.current == nil, let last = library.recent.first {
+                    ResumeCard(track: last) { player.play(Array(library.recent.prefix(20)), startAt: 0) }
+                }
+                if !library.recent.isEmpty {
+                    Shelf(title: "Recently played") {
+                        ForEach(Array(library.recent.prefix(20).enumerated()), id: \.offset) { i, track in
+                            CoverTile(url: track.image, title: track.title, subtitle: track.artistLine, size: 132) {
+                                player.play(Array(library.recent.prefix(20)), startAt: i)
+                            }
+                            .songMenu(track)
+                        }
                     }
                 }
-            }
-            if !library.playlists.isEmpty {
-                Section("Playlists") {
-                    ForEach(library.playlists) { playlist in
-                        NavigationLink(value: playlist) { PlaylistRow(playlist: playlist) }
+                if !library.playlists.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Playlists").font(.title3.weight(.bold)).padding(.horizontal)
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
+                            ForEach(library.playlists) { playlist in
+                                NavigationLink(value: playlist) { PlaylistTile(playlist: playlist) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
                     }
                 }
+                if library.recent.isEmpty && library.playlists.isEmpty {
+                    ContentUnavailableView("Nothing played yet", systemImage: "music.note", description: Text("Search for a song to start."))
+                        .padding(.top, 80)
+                }
             }
-            if library.recent.isEmpty && library.playlists.isEmpty {
-                ContentUnavailableView("Nothing played yet", systemImage: "music.note", description: Text("Search for a song to start."))
-            }
+            .padding(.vertical)
         }
         .navigationTitle("Home")
         .navigationDestination(for: PlaylistSummary.self) { PlaylistScreen(playlist: $0) }
@@ -36,6 +51,89 @@ struct HomeScreen: View {
             }
         }
         .refreshable { await library.refresh(); await library.refreshPlaylists() }
+    }
+}
+
+/// The last song you played, large, to pick up where you left off.
+private struct ResumeCard: View {
+    let track: Track
+    let play: () -> Void
+
+    var body: some View {
+        Button(action: play) {
+            HStack(spacing: 14) {
+                Cover(url: track.image, size: 76)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Resume").font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                    Text(track.title).font(.headline).lineLimit(1)
+                    Text(track.artistLine).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "play.fill").font(.title2)
+                    .frame(width: 52, height: 52)
+                    .compatGlass(in: Circle(), interactive: true)
+            }
+            .padding(12)
+            .compatGlass(in: RoundedRectangle(cornerRadius: 22))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal)
+        .accessibilityLabel("Resume \(track.title), \(track.artistLine)")
+    }
+}
+
+/// A titled row of tiles that scrolls sideways.
+private struct Shelf<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.title3.weight(.bold)).padding(.horizontal)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 14) { content }
+                    .padding(.horizontal)
+            }
+        }
+    }
+}
+
+/// A cover with its title under it; a tap plays.
+struct CoverTile: View {
+    let url: URL?
+    let title: String
+    let subtitle: String
+    let size: CGFloat
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 6) {
+                Cover(url: url, size: size)
+                Text(title).font(.subheadline.weight(.medium)).lineLimit(1)
+                Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .frame(width: size, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(subtitle)")
+    }
+}
+
+private struct PlaylistTile: View {
+    let playlist: PlaylistSummary
+
+    var body: some View {
+        GeometryReader { geo in
+            VStack(alignment: .leading, spacing: 6) {
+                Cover(url: playlist.thumbnail.flatMap(URL.init(string:)), size: geo.size.width,
+                      symbol: playlist.isAlbum ? "square.stack" : "music.note.list")
+                Text(playlist.name).font(.subheadline.weight(.medium)).lineLimit(1)
+                Text("\(playlist.songCount) songs").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .aspectRatio(0.78, contentMode: .fit)
     }
 }
 
@@ -86,20 +184,28 @@ struct SearchScreen: View {
 
 struct LibraryScreen: View {
     @Environment(LibraryStore.self) private var library
-    @Environment(Player.self) private var player
 
     var body: some View {
         List {
             Section {
                 NavigationLink {
-                    SongsScreen(title: "Liked Songs", tracks: library.liked)
+                    SongsScreen(title: "Liked Songs", tracks: library.liked, source: "liked")
                 } label: {
-                    Label("Liked Songs", systemImage: "heart.fill")
+                    Label { Text("Liked Songs") } icon: { Image(systemName: "heart.fill").foregroundStyle(.pink) }
                 }
             }
-            Section("Playlists") {
-                ForEach(library.playlists) { playlist in
-                    NavigationLink(value: playlist) { PlaylistRow(playlist: playlist) }
+            if !library.ownPlaylists.isEmpty {
+                Section("Your playlists") {
+                    ForEach(library.ownPlaylists) { playlist in
+                        NavigationLink(value: playlist) { PlaylistRow(playlist: playlist) }
+                    }
+                }
+            }
+            if !library.sharedPlaylists.isEmpty {
+                Section("Shared with you") {
+                    ForEach(library.sharedPlaylists) { playlist in
+                        NavigationLink(value: playlist) { PlaylistRow(playlist: playlist) }
+                    }
                 }
             }
         }
@@ -109,27 +215,66 @@ struct LibraryScreen: View {
     }
 }
 
-/// A list of songs that plays from the one tapped.
+/// Songs under a header (cover, name, count and length), with Play and Shuffle; a tapped song plays from there.
 struct SongsScreen: View {
     @Environment(Player.self) private var player
     let title: String
     let tracks: [Track]
     var source: String? = nil
+    var cover: URL? = nil
+    var symbol = "music.note.list"
+    var remove: ((Int) -> Void)? = nil
 
     var body: some View {
         List {
-            if !tracks.isEmpty {
-                Button {
-                    player.play(tracks, startAt: 0, source: source)
-                } label: {
-                    Label("Play", systemImage: "play.fill")
-                }
+            Section {
+                header.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             }
-            ForEach(Array(tracks.enumerated()), id: \.offset) { i, track in
-                TrackRow(track: track) { player.play(tracks, startAt: i, source: source) }
+            Section {
+                ForEach(Array(tracks.enumerated()), id: \.offset) { i, track in
+                    TrackRow(track: track, remove: remove.map { remove in { remove(i) } }) {
+                        player.play(tracks, startAt: i, source: source)
+                    }
+                }
             }
         }
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var header: some View {
+        VStack(spacing: 14) {
+            Cover(url: cover ?? tracks.first?.image, size: 200, symbol: symbol)
+                .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+            VStack(spacing: 3) {
+                Text(title).font(.title2.weight(.bold)).multilineTextAlignment(.center)
+                Text(Self.summary(tracks)).font(.subheadline).foregroundStyle(.secondary)
+            }
+            if !tracks.isEmpty {
+                CompatGlassGroup(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button { player.playInOrder(tracks, source: source) } label: {
+                            Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity)
+                        }
+                        .compatGlassButton(prominent: true)
+                        Button { player.shufflePlay(tracks, source: source) } label: {
+                            Label("Shuffle", systemImage: "shuffle").frame(maxWidth: .infinity)
+                        }
+                        .compatGlassButton()
+                    }
+                    .controlSize(.large)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    /// "12 songs, 43 min" / "1 song, 3 min" / "120 songs, 7 h 5 min"
+    static func summary(_ tracks: [Track]) -> String {
+        let minutes = tracks.reduce(0) { $0 + $1.duration } / 60
+        let length = minutes >= 60 ? "\(minutes / 60) h \(minutes % 60) min" : "\(max(minutes, tracks.isEmpty ? 0 : 1)) min"
+        return "\(tracks.count) song\(tracks.count == 1 ? "" : "s"), \(length)"
     }
 }
 
@@ -139,8 +284,15 @@ struct PlaylistScreen: View {
     @State private var loaded = false
 
     var body: some View {
-        let tracks = library.details[playlist.id]?.items.map { Track($0.song) } ?? []
-        SongsScreen(title: playlist.name, tracks: tracks, source: "playlist:\(playlist.id.uuidString)")
+        let detail = library.details[playlist.id]
+        let tracks = detail?.items.map { Track($0.song) } ?? []
+        SongsScreen(title: playlist.name, tracks: tracks, source: "playlist:\(playlist.id.uuidString)",
+                    cover: playlist.thumbnail.flatMap(URL.init(string:)),
+                    symbol: playlist.isAlbum ? "square.stack" : "music.note.list",
+                    remove: playlist.canEdit ? { i in
+                        guard let entry = detail?.items[safe: i] else { return }
+                        Task { await library.remove(entry, from: playlist.id) }
+                    } : nil)
             .overlay { if !loaded && tracks.isEmpty { ProgressView() } }
             .task {
                 _ = await library.loadPlaylist(playlist.id)
@@ -149,11 +301,16 @@ struct PlaylistScreen: View {
     }
 }
 
+extension Array {
+    subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil }
+}
+
 // MARK: - Rows
 
 struct TrackRow: View {
     @Environment(Player.self) private var player
     let track: Track
+    var remove: (() -> Void)? = nil
     let play: () -> Void
 
     var body: some View {
@@ -172,6 +329,50 @@ struct TrackRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(track.title), \(track.artistLine)\(track.isExplicit ? ", explicit" : "")")
+        // swipe right: play next; swipe left: add to the queue (and remove, in a playlist you can edit)
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button { player.playNext(track) } label: { Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") }
+                .tint(.indigo)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if let remove { Button(role: .destructive, action: remove) { Label("Remove", systemImage: "trash") } }
+            Button { player.addToQueue(track) } label: { Label("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") }
+                .tint(.orange)
+        }
+        .songMenu(track)
+    }
+}
+
+extension View {
+    /// Long-press: the song's menu, the same everywhere.
+    func songMenu(_ track: Track) -> some View { modifier(SongMenu(track: track)) }
+}
+
+private struct SongMenu: ViewModifier {
+    @Environment(Player.self) private var player
+    @Environment(LibraryStore.self) private var library
+    let track: Track
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            Button { player.playNext(track) } label: { Label("Play Next", systemImage: "text.line.first.and.arrowtriangle.forward") }
+            Button { player.addToQueue(track) } label: { Label("Add to Queue", systemImage: "text.line.last.and.arrowtriangle.forward") }
+            Divider()
+            let liked = library.isLiked(track)
+            Button { Task { await library.toggleLike(track) } } label: {
+                Label(liked ? "Unlike" : "Like", systemImage: liked ? "heart.slash" : "heart")
+            }
+            if !library.playlists.filter(\.canEdit).isEmpty {
+                Menu {
+                    ForEach(library.playlists.filter(\.canEdit)) { playlist in
+                        Button(playlist.name) { Task { await library.add(track, to: playlist) } }
+                    }
+                } label: {
+                    Label("Add to Playlist", systemImage: "text.badge.plus")
+                }
+            }
+        }
     }
 }
 
