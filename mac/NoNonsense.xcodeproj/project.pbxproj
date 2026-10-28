@@ -57,6 +57,7 @@
 		5747924482C44768D03C6130 /* Connectivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1CCB0A2FA5D8AEBEEC6204F /* Connectivity.swift */; };
 		5F89837B84C463967C2AB6E7 /* Social.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC180CBD9CAE5022E863BAD /* Social.swift */; };
 		613193FB7E14FC5C4BB443D8 /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8186E89FB9026CB640031 /* Player.swift */; };
+		6366FF184A4C90D05197A932 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 697F60B31855BC706E31C261 /* Assets.xcassets */; };
 		646E0989884970389B751CCE /* TranslationSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45C9839E6D148278A97358A /* TranslationSelfTest.swift */; };
 		646EF41031A48DC63DD7031B /* ShellSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98DB0EEED76BDE29D7783DAB /* ShellSelfTest.swift */; };
 		64A7B46DA22A24AE43F3ED27 /* Friends.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B8A4A9A119C1AD9B27D65C /* Friends.swift */; };
@@ -166,6 +167,7 @@
 		618A1D0EE3F89CF391B14495 /* SoundChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundChain.swift; sourceTree = "<group>"; };
 		61B7B9C798BEEEDC810D3C7C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		64644A6F445A2930DAA0F336 /* NowPlaying.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlaying.swift; sourceTree = "<group>"; };
+		697F60B31855BC706E31C261 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6C1793902EFA792B2E0C4600 /* PlaybackTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackTimeline.swift; sourceTree = "<group>"; };
 		6D233642141D053435470851 /* HomeHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHero.swift; sourceTree = "<group>"; };
 		6F03798D2E0871DFCE15FF63 /* HomeHeroSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHeroSelfTest.swift; sourceTree = "<group>"; };
@@ -232,6 +234,7 @@
 		07509021D3C28B65ED4FE465 /* NoNonsense-iOS */ = {
 			isa = PBXGroup;
 			children = (
+				697F60B31855BC706E31C261 /* Assets.xcassets */,
 				C4D0EDC1F1A2DCFB703EC77D /* Info.plist */,
 				6FA964C6D8C9D0DB68A0AE95 /* NoNonsenseApp.swift */,
 				64644A6F445A2930DAA0F336 /* NowPlaying.swift */,
@@ -396,6 +399,7 @@
 			buildConfigurationList = 96A02A465B5DF9745C5D1656 /* Build configuration list for PBXNativeTarget "NoNonsenseiOS" */;
 			buildPhases = (
 				BD47BD033DCBBA99AD601485 /* Sources */,
+				055D825665FAC512982278C2 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -466,6 +470,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		055D825665FAC512982278C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6366FF184A4C90D05197A932 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6AC872CC6D858ED48A5DA8F1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;

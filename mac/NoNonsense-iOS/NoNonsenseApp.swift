@@ -69,26 +69,29 @@ private struct MainTabs: View {
             Tab("Library", systemImage: "square.stack") { NavigationStack { LibraryScreen() }.playerBarBefore26() }
             Tab(role: .search) { NavigationStack { SearchScreen() }.playerBarBefore26() }
         }
-        .playerAccessory26()
+        .playerAccessory26(playing: player.current != nil)
         .sheet(isPresented: $player.showNowPlaying) { NowPlayingScreen() }
     }
 }
 
 extension View {
-    /// iOS 26: the player on the tab bar (its bottom accessory, glass), and the tab bar shrinking as you scroll down.
+    /// iOS 26.1+: the player on the tab bar (its bottom accessory, glass), shown only while a song is loaded (26.1's
+    /// `isEnabled`; 26.0's accessory has no off, and showed as an empty pill). iOS 26: the tab bar shrinks as you scroll.
     @ViewBuilder
-    func playerAccessory26() -> some View {
-        if #available(iOS 26, *) {
-            self.tabViewBottomAccessory { MiniPlayer(docked: true) }
+    func playerAccessory26(playing: Bool) -> some View {
+        if #available(iOS 26.1, *) {
+            self.tabViewBottomAccessory(isEnabled: playing) { MiniPlayer(docked: true) }
                 .tabBarMinimizeBehavior(.onScrollDown)
+        } else if #available(iOS 26, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
         } else {
             self
         }
     }
 
-    /// Before iOS 26: the player as a glass bar just above the tab bar, over each tab's content.
+    /// Before iOS 26.1: the player as a glass bar of its own just above the tab bar, over each tab's content.
     @ViewBuilder
     func playerBarBefore26() -> some View {
-        if #available(iOS 26, *) { self } else { safeAreaInset(edge: .bottom) { MiniPlayer(docked: false) } }
+        if #available(iOS 26.1, *) { self } else { safeAreaInset(edge: .bottom) { MiniPlayer(docked: false) } }
     }
 }

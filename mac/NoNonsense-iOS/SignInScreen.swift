@@ -9,6 +9,8 @@ struct SignInScreen: View {
     @State private var creating = false
     @State private var working = false
     @State private var problem: String?
+    @FocusState private var focus: Field?
+    private enum Field { case server, username, password }
 
     var body: some View {
         NavigationStack {
@@ -19,6 +21,9 @@ struct SignInScreen: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($focus, equals: .server)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .username }
                 } header: {
                     Text("Server")
                 } footer: {
@@ -29,8 +34,14 @@ struct SignInScreen: View {
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($focus, equals: .username)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .password }
                     SecureField("Password", text: $password)
                         .textContentType(creating ? .newPassword : .password)
+                        .focused($focus, equals: .password)
+                        .submitLabel(.go)
+                        .onSubmit { if ready { Task { await go() } } }
                     Toggle("New account", isOn: $creating)
                 }
                 if let problem = problem ?? account.notice {
@@ -44,13 +55,19 @@ struct SignInScreen: View {
                         if working { Spacer(); ProgressView() }
                     }
                 }
-                .disabled(working || server.trimmingCharacters(in: .whitespaces).isEmpty || username.isEmpty || password.isEmpty)
+                .disabled(!ready)
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("NoNonsenseMusic")
         }
     }
 
+    private var ready: Bool {
+        !working && !server.trimmingCharacters(in: .whitespaces).isEmpty && !username.isEmpty && !password.isEmpty
+    }
+
     private func go() async {
+        focus = nil
         working = true
         defer { working = false }
         server = API.address(server)                  // "music.example.com" becomes https://music.example.com

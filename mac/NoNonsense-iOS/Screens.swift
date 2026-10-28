@@ -48,6 +48,7 @@ struct SearchScreen: View {
     @State private var songs: [Track] = []
     @State private var searching = false
     @State private var problem: String?
+    @FocusState private var typing: Bool
 
     var body: some View {
         List {
@@ -59,6 +60,9 @@ struct SearchScreen: View {
         .overlay { if searching && songs.isEmpty { ProgressView() } }
         .navigationTitle("Search")
         .searchable(text: $query, prompt: "Songs, artists, albums")
+        .searchFocused($typing)
+        .scrollDismissesKeyboard(.immediately)                  // the results scroll: the keyboard goes
+        .onAppear { if query.isEmpty { typing = true } }         // opening Search with nothing typed: straight to typing
         .task(id: query) {
             let typed = query.trimmingCharacters(in: .whitespaces)
             guard !typed.isEmpty else { songs = []; problem = nil; return }
@@ -204,9 +208,10 @@ struct Cover: View {
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size / 8))
         .task(id: url) {
-            image = nil
-            guard let url else { return }
-            image = await ArtworkCache.shared.image(for: url, size: size * 2)
+            guard let url else { image = nil; return }
+            // a smaller copy already in the cache (the row's, the player's) at once, then the sharp one
+            image = [size * 2, 256, 128, 64, 32].lazy.compactMap { ArtworkCache.shared.cached(url, size: $0) }.first
+            if let sharp = await ArtworkCache.shared.image(for: url, size: size * 2) { image = sharp }
         }
     }
 }
