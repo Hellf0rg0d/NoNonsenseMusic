@@ -4,7 +4,7 @@ import MediaToolbox
 import os
 
 /// What happens to a song's audio between its file and the speakers: one audio processing tap per AVPlayerItem, which
-/// runs the equalizer's filters (Equalizer), then one gain: the equalizer's preamp times the song's levelling gain
+/// runs your headphones' correction (HeadphoneCorrection) and the equalizer's filters (Equalizer), then one gain: the equalizer's preamp times the song's levelling gain
 /// (Leveller), then crossfeed for headphones (Crossfeed) and the limiter (PeakLimiter, in place of the preamp), when on.
 /// Attached only while one of them is on; with all off a song has no tap and costs nothing.
 @MainActor
@@ -23,12 +23,14 @@ final class SoundChain {
         Leveller.shared.measured = { [weak self] key in self?.measured(key) }
     }
 
-    var active: Bool { Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding }
+    var active: Bool {
+        Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
+    }
 
     /// Settings › Playback › Crossfeed (off by default).
     static var crossfeeding: Bool { UserDefaults.standard.bool(forKey: "crossfeed") }
 
-    /// A setting kept here (crossfeed) changed: the playing song's tap is made again.
+    /// Crossfeed or the headphone correction changed: the playing song's tap is made again.
     func settingChanged() { changed?() }
 
     /// The tap for `item`, the copy `key`, when either is on (none when both are off): attached once its audio track is
@@ -38,7 +40,8 @@ final class SoundChain {
         let eq = Equalizer.shared, leveller = Leveller.shared
         if leveller.on, let url = (item.asset as? AVURLAsset)?.url, url.isFileURL { leveller.measure(key, file: url) }
         let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0,
-                                       limiting: leveller.limiting, crossfeeding: Self.crossfeeding)
+                                       limiting: leveller.limiting, crossfeeding: Self.crossfeeding,
+                                       correction: HeadphoneCorrection.shared.filters)
         processors.removeAll { $0.processor.processor == nil }
         processors.append((key, Weak(processor: processor)))
         Task {
@@ -91,6 +94,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var limiter: PeakLimiter?
     private let crossfeeding: Bool
     private var crossfeed: Crossfeed?
+    private let correction: [CorrectionFilter]     // headphone correction, before the equalizer's bands
     private var applied: Float?                    // the gain applied to the last buffer; nil before the first
     private var sampleRate = 44_100.0
     private var channels = 0
@@ -98,8 +102,10 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var cascade: Cascade?
 
     /// `level`: the levelling gain in dB. `limiting`: a limiter last, and no preamp (a boost keeps its volume).
-    init(gains: [Double], level: Double = 0, limiting: Bool = false, crossfeeding: Bool = false) {
+    init(gains: [Double], level: Double = 0, limiting: Bool = false, crossfeeding: Bool = false,
+         correction: [CorrectionFilter] = []) {
         self.gains = gains
+        self.correction = correction
         self.level = Float(pow(10, level / 20))
         self.limiting = limiting
         self.crossfeeding = crossfeeding
@@ -165,7 +171,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             self.gains = gains
             return (sampleRate, channels)
         }
-        install(Self.build(gains: gains, sampleRate: rate, channels: count, limiting: limiting))
+        install(Self.build(gains: gains, correction: correction, sampleRate: rate, channels: count, limiting: limiting))
     }
 
     /// The levelling gain, in dB: the audio glides to it.
@@ -185,14 +191,16 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return gains
         }
         let count = Int(format.mChannelsPerFrame)
-        install(Self.build(gains: current, sampleRate: format.mSampleRate, channels: count, limiting: limiting),
+        install(Self.build(gains: current, correction: correction, sampleRate: format.mSampleRate, channels: count, limiting: limiting),
                 limiter: limiting && count > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: count) : nil,
                 crossfeed: crossfeeding && count == 2 ? Crossfeed(sampleRate: format.mSampleRate) : nil)
     }
 
-    private static func build(gains: [Double], sampleRate: Double, channels: Int, limiting: Bool) -> Cascade? {
+    /// The headphone correction's filters, then the bands', in one cascade; the preamp lowers the whole curve by its peak.
+    private static func build(gains: [Double], correction: [CorrectionFilter] = [], sampleRate: Double, channels: Int,
+                              limiting: Bool) -> Cascade? {
         guard channels > 0 else { return nil }
-        let coefficients = coefficients(gains: gains, sampleRate: sampleRate)
+        let coefficients = correction.flatMap { $0.coefficients(sampleRate: sampleRate) } + coefficients(gains: gains, sampleRate: sampleRate)
         let preamp = limiting ? 1 : Float(pow(10, -peak(coefficients: coefficients, sampleRate: sampleRate) / 20))
         return Cascade(coefficients: coefficients, sections: coefficients.count / 5, channels: channels, preamp: preamp)
     }

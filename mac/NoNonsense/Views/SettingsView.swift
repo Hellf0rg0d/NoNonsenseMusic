@@ -498,6 +498,7 @@ private struct PlaybackSettings: View {
                 Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. Without the limiter, a quiet song goes up only as far as it can without distorting.")
                     .foregroundStyle(.secondary)
             }
+            HeadphoneSection()
             EqualizerSection()
         }
         .settingsPage()

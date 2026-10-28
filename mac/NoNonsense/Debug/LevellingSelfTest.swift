@@ -26,7 +26,7 @@ extension SelfTest {
             func db(_ value: Double?) -> String { value.map { String(format: "%+.2f dB", $0) } ?? "no audio" }
             let leveller = Leveller.shared, chain = SoundChain.shared
             try? await Task.sleep(for: .seconds(2))
-            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "eqOn", "audioCacheMB", "autoplay"])
+            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "headphoneCorrection", "eqOn", "audioCacheMB", "autoplay"])
             var keys: [String] = []
             @MainActor func finish() {
                 leveller.setOn(false)
@@ -100,6 +100,31 @@ extension SelfTest {
             check("…10 kHz stays on its side (under −20 dB)", treble.other < -20, db(treble.other))
             check("…and bass in both ears stays as loud", near(mono.same, 0, 0.3), db(mono.same))
 
+            // B4. headphone correction: AutoEq's AirPods Pro file (crinacle's measurement), as fetched
+            let airpods = """
+                Preamp: -6.0 dB
+                Filter 1: ON LSC Fc 105 Hz Gain 2.6 dB Q 0.70
+                Filter 2: ON PK Fc 514 Hz Gain -4.4 dB Q 0.68
+                Filter 3: ON PK Fc 8903 Hz Gain 6.0 dB Q 1.66
+                Filter 4: ON PK Fc 183 Hz Gain 2.0 dB Q 0.77
+                Filter 5: ON PK Fc 4613 Hz Gain 3.4 dB Q 2.46
+                Filter 6: ON HSC Fc 10000 Hz Gain -0.5 dB Q 0.70
+                Filter 7: ON PK Fc 1517 Hz Gain -1.0 dB Q 2.33
+                Filter 8: ON PK Fc 929 Hz Gain 1.2 dB Q 2.75
+                Filter 9: ON PK Fc 44 Hz Gain -0.5 dB Q 2.16
+                Filter 10: ON PK Fc 618 Hz Gain -0.5 dB Q 2.86
+                """
+            let filters = CorrectionFilter.parse(airpods)
+            check("a ParametricEQ.txt gives its 10 filters, shelves and peaks", filters.count == 10
+                  && filters.first?.kind == .lowShelf && filters[5].kind == .highShelf, "\(filters.count)")
+            let curvePeak = SoundProcessor.peak(coefficients: filters.flatMap { $0.coefficients(sampleRate: 44_100) }, sampleRate: 44_100)
+            check("its curve peaks where AutoEq says (preamp −6.0 dB: the shelves and peaks are AutoEq's own)",
+                  near(curvePeak, 6, 0.1), db(curvePeak))
+            let corrected = SoundProcessor(gains: flat, correction: filters)
+            let at8k = corrected.offline(frequency: 8903), at514 = corrected.offline(frequency: 514)
+            check("in the chain: 8.9 kHz (+6 dB filter) comes out louder than 514 Hz (−4.4 dB filter), under the preamp",
+                  at8k > at514 + 6 && at8k <= 0.1, "\(db(at8k)), \(db(at514))")
+
             // C. the meter, on 1 kHz tones through AAC
             let loudPeak = 30000.0, quietPeak = 2000.0
             guard let loud = tone(hz: 1000, seconds: 30, peak: loudPeak), let quiet = tone(hz: 1000, seconds: 30, peak: quietPeak) else {
@@ -165,6 +190,20 @@ extension SelfTest {
 
             leveller.setOn(false)
             check("switched off, the song's tap is taken away", await until(3) { !player.itemHasTapForTests })
+
+            // E. headphone correction, live from GitHub: the list, then one model's filters, and the tap for it
+            let correction = HeadphoneCorrection.shared
+            await correction.loadModels()
+            check("AutoEq's list of headphones loads (over 5,000 models)", correction.models.count > 5000,
+                  "\(correction.models.count)\(correction.problem.map { ", \($0)" } ?? "")")
+            if let model = correction.models.first(where: { $0.name == "Apple AirPods Pro" }) ?? correction.models.first {
+                await correction.choose(model)
+                check("choosing \(model.name) fetches its filters", correction.model == model && correction.filters.count >= 5,
+                      "\(correction.filters.count) filters\(correction.problem.map { ", \($0)" } ?? "")")
+                check("…and the playing song gets a tap for it", await until(3) { player.itemHasTapForTests })
+                await correction.choose(nil)
+                check("turned off, the tap goes", await until(3) { !player.itemHasTapForTests })
+            }
             if player.isPlaying { player.togglePlayPause() }
             finish()
         }

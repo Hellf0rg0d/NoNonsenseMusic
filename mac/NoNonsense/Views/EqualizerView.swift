@@ -107,3 +107,85 @@ private struct BandSlider: View {
         }
     }
 }
+
+/// Settings › Playback › Headphones: the model chosen for correction (HeadphoneCorrection), and the picker.
+struct HeadphoneSection: View {
+    private var correction: HeadphoneCorrection { .shared }
+    @State private var picking = false
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                Button(correction.model == nil ? "Choose…" : "Change…") { picking = true }
+            } label: {
+                Text(correction.model?.name ?? "No correction")
+                if let model = correction.model {
+                    Text("Measured by \(model.measuredBy), \(correction.filters.count) filters").foregroundStyle(.secondary)
+                }
+            }
+            if correction.model != nil {
+                Button("Turn off correction") { Task { await correction.choose(nil) } }
+            }
+            if let problem = correction.problem { Text(problem).foregroundStyle(.red) }
+        } header: {
+            Text("Headphones")
+        } footer: {
+            Text("Corrects your headphones' measured flaws, so they sound neutral. Corrections come from AutoEq, downloaded from GitHub when you choose; your equalizer works on top.")
+                .foregroundStyle(.secondary)
+        }
+        .sheet(isPresented: $picking) { HeadphonePicker(done: { picking = false }) }
+    }
+}
+
+private struct HeadphonePicker: View {
+    let done: () -> Void
+    private var correction: HeadphoneCorrection { .shared }
+    @State private var typed = ""
+
+    private var shown: [HeadphoneCorrection.Model] {
+        let words = typed.lowercased().split(separator: " ")
+        let all = words.isEmpty ? correction.models
+                                : correction.models.filter { model in words.allSatisfy { model.name.lowercased().contains($0) } }
+        return Array(all.prefix(200))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your headphones").font(.headline)
+            TextField("Search 6,000 models", text: $typed)
+                .textFieldStyle(.roundedBorder)
+            if correction.loading && correction.models.isEmpty {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let problem = correction.problem, correction.models.isEmpty {
+                Text(problem).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(shown) { model in
+                    Button {
+                        Task {
+                            await correction.choose(model)
+                            if correction.problem == nil { done() }
+                        }
+                    } label: {
+                        HStack {
+                            Text(model.name)
+                            Spacer()
+                            Text(model.measuredBy).foregroundStyle(.secondary)
+                            if model == correction.model { Image(systemName: "checkmark") }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            HStack {
+                if correction.loading && !correction.models.isEmpty { ProgressView().controlSize(.small) }
+                if let problem = correction.problem, !correction.models.isEmpty { Text(problem).foregroundStyle(.red) }
+                Spacer()
+                Button("Cancel", action: done).keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding()
+        .frame(width: 460, height: 480)
+        .task { await correction.loadModels() }
+    }
+}
