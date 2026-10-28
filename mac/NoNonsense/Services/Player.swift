@@ -922,7 +922,14 @@ final class Player {
             if !playReported, let track = current { playReported = true; report("play", track, at: 0) }
             // its length as it will play (the audio's, or the end set in `load` when that comes first): the bar, the
             // times and Control Center follow it from here. An end time that is not set reads as nan
-            let end = loaded.forwardPlaybackEndTime.seconds
+            var end = loaded.forwardPlaybackEndTime.seconds
+            // a file that ends before the listed length + 1 s plays to its own end: past it, AVPlayer played silence up
+            // to that time, so even a gapless change had up to a second of silence (measured 28 Oct: a 3 s file with its
+            // end time at 4 s ended at 4.2 s). The end time stays only for audio that runs on past it (Redbone)
+            if end.isFinite, loaded.duration.seconds.isFinite, loaded.duration.seconds <= end {
+                loaded.forwardPlaybackEndTime = .invalid
+                end = .nan
+            }
             let length = end.isFinite ? min(loaded.duration.seconds, end) : loaded.duration.seconds
             if length.isFinite, length > 0, length != audioLength { audioLength = length; publish() }
             planFade(for: loaded)                                 // needs the length, just set
