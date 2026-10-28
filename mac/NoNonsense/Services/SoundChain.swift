@@ -175,9 +175,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             usable = float && separate
             return gains
         }
-        let channels = Int(format.mChannelsPerFrame)
-        install(Self.build(gains: current, sampleRate: format.mSampleRate, channels: channels, limiting: limiting),
-                limiter: limiting && channels > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: channels) : nil)
+        let count = Int(format.mChannelsPerFrame)
+        install(Self.build(gains: current, sampleRate: format.mSampleRate, channels: count, limiting: limiting),
+                limiter: limiting && count > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: count) : nil)
     }
 
     private static func build(gains: [Double], sampleRate: Double, channels: Int, limiting: Bool) -> Cascade? {

@@ -223,7 +223,8 @@ nonisolated enum LoudnessMeter {
             var remaining = frames
             while remaining > 0 {
                 let count = min(step - at, remaining)
-                stepPower += power[slot] * weight
+                let weighted: Double = power[slot] * weight      // its own line: Xcode 26.6 timed out type-checking it inline
+                stepPower += weighted
                 at += count; remaining -= count
                 if at == step { steps.append(stepPower / Double(step)); stepPower = 0; at = 0 }
                 slot += 1
