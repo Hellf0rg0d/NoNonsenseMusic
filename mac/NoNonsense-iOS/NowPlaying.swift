@@ -87,6 +87,7 @@ struct NowPlayingScreen: View {
     @State private var dragging: Double?
     @State private var swipe: CGFloat = 0
     @State private var queueShown = false
+    @State private var lyricsShown = false
     @AppStorage("movingBackground") private var moving = false
 
     var body: some View {
@@ -96,7 +97,7 @@ struct NowPlayingScreen: View {
                     // wide (an iPad, or landscape): the cover on the left, the rest beside it
                     let side = min(geo.size.height - 80, geo.size.width * 0.45)
                     HStack(spacing: 40) {
-                        cover(track, side: side)
+                        coverOrLyrics(track, side: side)
                         VStack(spacing: 0) {
                             Spacer()
                             titleRow(track)
@@ -113,7 +114,7 @@ struct NowPlayingScreen: View {
                     let side = min(geo.size.width - 48, geo.size.height * 0.46)
                     VStack(spacing: 0) {
                         Spacer(minLength: 12)
-                        cover(track, side: side)
+                        coverOrLyrics(track, side: side)
                         Spacer(minLength: 16)
                         titleRow(track)
                         timeline.padding(.top, 18)
@@ -136,6 +137,16 @@ struct NowPlayingScreen: View {
             .sheet(isPresented: $queueShown) { UpNextSheet() }
         } else {
             ContentUnavailableView("Nothing playing", systemImage: "music.note")
+        }
+    }
+
+    @ViewBuilder
+    private func coverOrLyrics(_ track: Track, side: CGFloat) -> some View {
+        if lyricsShown {
+            LyricsPanel(track: track).frame(width: side, height: side)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        } else {
+            cover(track, side: side).transition(.opacity.combined(with: .scale(scale: 0.96)))
         }
     }
 
@@ -252,6 +263,12 @@ struct NowPlayingScreen: View {
             RoutePicker().frame(width: 30, height: 30)
                 .accessibilityLabel("Output")
             Spacer()
+            Button { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { lyricsShown.toggle() } } label: {
+                Image(systemName: lyricsShown ? "quote.bubble.fill" : "quote.bubble").font(.title3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(lyricsShown ? "Hide lyrics" : "Lyrics")
+            Spacer()
             Button { queueShown = true } label: { Image(systemName: "list.bullet").font(.title3) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Up Next")
@@ -362,5 +379,77 @@ private struct Scrubber: View {
         }
         .frame(height: 24)
         .sensoryFeedback(.impact(weight: .light), trigger: released)
+    }
+}
+
+/// The song's lyrics in place of its cover. Timed: the line being sung bright and large, the rest dim, kept in view as
+/// it moves; a tap on a line goes there. Plain: just the text. Asked for when first shown.
+private struct LyricsPanel: View {
+    @Environment(LyricsStore.self) private var lyrics
+    @Environment(Player.self) private var player
+    let track: Track
+
+    var body: some View {
+        Group {
+            switch lyrics.state(for: track) {
+            case .found(let found) where found.lines.isEmpty:
+                message("No lyrics for this song.")
+            case .found(let found):
+                if found.synced { timed(found) } else { plain(found) }
+            case .unreachable:
+                message("Couldn't reach the server for lyrics.")
+            case .loading, nil:
+                ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: track.id) { if lyrics.state(for: track) == nil { lyrics.fetch(track) } }
+    }
+
+    private func timed(_ found: Lyrics) -> some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+            let now = found.line(at: player.livePosition)
+            ScrollViewReader { reader in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(Array(found.lines.enumerated()), id: \.offset) { i, line in
+                            Button {
+                                if let ms = line.startMs { player.seek(to: Double(ms) / 1000) }
+                            } label: {
+                                Text(line.text.isEmpty ? "♪" : line.text)
+                                    .font(.title2.weight(.bold))
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .opacity(i == now ? 1 : 0.35)
+                                    .scaleEffect(i == now ? 1 : 0.96, anchor: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            .id(i)
+                        }
+                    }
+                    .padding(.vertical, 120)
+                }
+                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.15),
+                                             .init(color: .black, location: 0.85), .init(color: .clear, location: 1)],
+                                     startPoint: .top, endPoint: .bottom))
+                .onChange(of: now) { _, line in
+                    guard let line else { return }
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { reader.scrollTo(line, anchor: .center) }
+                }
+                .animation(.easeOut(duration: 0.3), value: now)
+            }
+        }
+    }
+
+    private func plain(_ found: Lyrics) -> some View {
+        ScrollView(showsIndicators: false) {
+            Text(found.lines.map(\.text).joined(separator: "\n"))
+                .font(.title3.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 24)
+        }
+    }
+
+    private func message(_ text: String) -> some View {
+        Text(text).font(.headline).opacity(0.7).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

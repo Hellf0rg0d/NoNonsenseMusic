@@ -9,6 +9,7 @@ struct NoNonsensePhoneApp: App {
     @State private var player: Player
     @State private var downloads: DownloadStore
     @State private var account: Account
+    @State private var lyrics: LyricsStore
 
     init() {
         // music, not a sound effect: plays on with the screen locked and through the silent switch, and stops others
@@ -17,6 +18,9 @@ struct NoNonsensePhoneApp: App {
         let library = LibraryStore()
         let downloads = DownloadStore()
         downloads.notify = { [weak library] text, symbol in library?.notify(text, symbol: symbol) }
+        let lyrics = LyricsStore(downloads: downloads)
+        downloads.downloaded = { [weak lyrics] track in Task { await lyrics?.keep(for: track) } }   // offline lyrics
+        _lyrics = State(initialValue: lyrics)
         let player = Player(library: library, presence: Presence(), downloads: downloads)
         #if DEBUG && targetEnvironment(simulator)
         // test builds in the simulator play muted: the simulator's sound comes out of the Mac's speakers
@@ -42,6 +46,7 @@ struct NoNonsensePhoneApp: App {
                 .environment(player)
                 .environment(library)
                 .environment(downloads)
+                .environment(lyrics)
                 .task { await account.start() }
         }
     }
