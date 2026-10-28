@@ -18,6 +18,10 @@ struct NoNonsensePhoneApp: App {
         let downloads = DownloadStore()
         downloads.notify = { [weak library] text, symbol in library?.notify(text, symbol: symbol) }
         let player = Player(library: library, presence: Presence(), downloads: downloads)
+        #if DEBUG && targetEnvironment(simulator)
+        // test builds in the simulator play muted: the simulator's sound comes out of the Mac's speakers
+        player.toggleMute()
+        #endif
         let account = Account()
         account.onEnded = { [weak player, weak library] in
             player?.stop()
