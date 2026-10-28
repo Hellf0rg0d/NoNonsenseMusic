@@ -140,44 +140,254 @@ private struct PlaylistTile: View {
 
 // MARK: - Search
 
-/// Songs as you type, a moment after you stop. A song plays on its own, then Autoplay (as on the Mac).
+/// Your recent searches until you type; then, a moment after you stop: the top result, artists, albums and songs.
+/// A song plays on its own, then Autoplay (as on the Mac).
 struct SearchScreen: View {
     @Environment(Player.self) private var player
     @State private var query = ""
-    @State private var songs: [Track] = []
+    @State private var found: SearchResponse?
     @State private var searching = false
     @State private var problem: String?
     @FocusState private var typing: Bool
+    @AppStorage("recentSearches") private var recentText = ""
+
+    private var recent: [String] { recentText.split(separator: "\n").map(String.init) }
+    private var songs: [Track] { found?.songs.map(Track.init) ?? [] }
 
     var body: some View {
         List {
-            if let problem { Text(problem).foregroundStyle(.secondary) }
-            ForEach(songs) { track in
-                TrackRow(track: track) { player.play([track], source: "search") }
+            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                if !recent.isEmpty {
+                    Section("Recent") {
+                        ForEach(recent, id: \.self) { text in
+                            Button { query = text } label: {
+                                Label(text, systemImage: "clock.arrow.circlepath").foregroundStyle(.primary)
+                            }
+                        }
+                        .onDelete { offsets in
+                            var all = recent
+                            all.remove(atOffsets: offsets)
+                            recentText = all.joined(separator: "\n")
+                        }
+                    }
+                }
+            } else {
+                if let problem { Text(problem).foregroundStyle(.secondary) }
+                if let top = songs.first {
+                    Section {
+                        TopResult(track: top) { remember(); player.play([top], source: "search") }
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
+                }
+                if let artists = found?.artists, !artists.isEmpty {
+                    Section("Artists") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 16) {
+                                ForEach(artists, id: \.best) { artist in
+                                    NavigationLink(value: artist.best) { ArtistBubble(name: artist.name, image: artist.image) }
+                                        .buttonStyle(.plain)
+                                        .simultaneousGesture(TapGesture().onEnded { remember() })
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    }
+                }
+                if let albums = found?.albums, !albums.isEmpty {
+                    Section("Albums") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(alignment: .top, spacing: 14) {
+                                ForEach(albums, id: \.best) { album in
+                                    NavigationLink(value: album.best) {
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Cover(url: album.best.image.flatMap(URL.init(string:)), size: 120, symbol: "square.stack")
+                                            Text(album.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                                            Text(album.best.artists.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                        }
+                                        .frame(width: 120, alignment: .leading)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .simultaneousGesture(TapGesture().onEnded { remember() })
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    }
+                }
+                if songs.count > 1 {
+                    Section("Songs") {
+                        ForEach(songs.dropFirst()) { track in
+                            TrackRow(track: track) { remember(); player.play([track], source: "search") }
+                        }
+                    }
+                }
             }
         }
-        .overlay { if searching && songs.isEmpty { ProgressView() } }
+        .overlay { if searching && found == nil { ProgressView() } }
         .navigationTitle("Search")
+        .navigationDestination(for: ArtistRef.self) { ArtistScreen(ref: $0) }
+        .navigationDestination(for: AlbumRef.self) { AlbumScreen(ref: $0) }
         .searchable(text: $query, prompt: "Songs, artists, albums")
         .searchFocused($typing)
         .scrollDismissesKeyboard(.immediately)                  // the results scroll: the keyboard goes
         .onAppear { if query.isEmpty { typing = true } }         // opening Search with nothing typed: straight to typing
+        .onSubmit(of: .search) { remember() }
         .task(id: query) {
             let typed = query.trimmingCharacters(in: .whitespaces)
-            guard !typed.isEmpty else { songs = []; problem = nil; return }
+            guard !typed.isEmpty else { found = nil; problem = nil; return }
             try? await Task.sleep(for: .milliseconds(350))                    // the rest of the word first
             guard !Task.isCancelled else { return }
             searching = true
             defer { searching = false }
             do {
-                let found = try await API.search(typed)
+                let answer = try await API.search(typed)
                 guard !Task.isCancelled else { return }
-                songs = found.songs.map(Track.init)
-                problem = songs.isEmpty ? "No songs found." : nil
+                found = answer
+                problem = answer.songs.isEmpty && (answer.artists ?? []).isEmpty ? "Nothing found for “\(typed)”." : nil
             } catch {
-                if !Task.isCancelled { problem = "Couldn't search: \(error.localizedDescription)" }
+                if !Task.isCancelled { problem = "Couldn't search. Check your connection or the server in Settings." }
             }
         }
+    }
+
+    /// The search, kept at the top of Recent (once, the last 10) when you act on its results.
+    private func remember() {
+        let typed = query.trimmingCharacters(in: .whitespaces)
+        guard !typed.isEmpty else { return }
+        recentText = ([typed] + recent.filter { $0.caseInsensitiveCompare(typed) != .orderedSame }).prefix(10).joined(separator: "\n")
+    }
+}
+
+/// The first song, large, with a play button.
+private struct TopResult: View {
+    let track: Track
+    let play: () -> Void
+
+    var body: some View {
+        Button(action: play) {
+            HStack(spacing: 14) {
+                Cover(url: track.image, size: 88)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(track.title).font(.title3.weight(.bold)).lineLimit(2)
+                    Text(track.artistLine).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "play.fill").font(.title3)
+                    .frame(width: 48, height: 48)
+                    .compatGlass(in: Circle(), interactive: true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .songMenu(track)
+        .accessibilityLabel("Top result: \(track.title), \(track.artistLine)")
+    }
+}
+
+private struct ArtistBubble: View {
+    let name: String
+    let image: String?
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Cover(url: image.flatMap(URL.init(string:)), size: 84, symbol: "person.fill")
+                .clipShape(Circle())
+            Text(name).font(.caption.weight(.medium)).lineLimit(1).frame(width: 90)
+        }
+    }
+}
+
+/// An artist: photo, name and listeners, Play and Shuffle, their songs, their albums.
+struct ArtistScreen: View {
+    @Environment(Player.self) private var player
+    let ref: ArtistRef
+    @State private var detail: ArtistDetail?
+    @State private var problem: String?
+
+    var body: some View {
+        let songs = detail?.songs.map(Track.init) ?? []
+        List {
+            Section {
+                VStack(spacing: 12) {
+                    Cover(url: (detail?.image ?? ref.image).flatMap(URL.init(string:)), size: 160, symbol: "person.fill")
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.2), radius: 16, y: 8)
+                    Text(detail?.name ?? ref.name).font(.title.weight(.bold))
+                    if let listeners = detail?.monthlyListeners {
+                        Text("\(listeners.formatted(.number.notation(.compactName))) monthly listeners")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if !songs.isEmpty {
+                        CompatGlassGroup(spacing: 12) {
+                            HStack(spacing: 12) {
+                                Button { player.playInOrder(songs, source: "artist") } label: {
+                                    Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity)
+                                }
+                                .compatGlassButton(prominent: true)
+                                Button { player.shufflePlay(songs, source: "artist") } label: {
+                                    Label("Shuffle", systemImage: "shuffle").frame(maxWidth: .infinity)
+                                }
+                                .compatGlassButton()
+                            }
+                            .controlSize(.large)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+            }
+            if let problem { Text(problem).foregroundStyle(.secondary) }
+            if !songs.isEmpty {
+                Section("Songs") {
+                    ForEach(Array(songs.enumerated()), id: \.offset) { i, track in
+                        TrackRow(track: track) { player.play(songs, startAt: i, source: "artist") }
+                    }
+                }
+            }
+            if let albums = detail?.albums, !albums.isEmpty {
+                Section("Albums") {
+                    ForEach(albums, id: \.self) { album in
+                        NavigationLink(value: album) {
+                            HStack(spacing: 12) {
+                                Cover(url: album.image.flatMap(URL.init(string:)), size: 52, symbol: "square.stack")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(album.title).lineLimit(1)
+                                    if let year = album.year { Text(String(year)).font(.subheadline).foregroundStyle(.secondary) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(detail?.name ?? ref.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay { if detail == nil && problem == nil { ProgressView() } }
+        .task {
+            do { detail = try await API.artist(ref) } catch { problem = "Couldn't load this artist. Pull to try again." }
+        }
+        .refreshable { detail = try? await API.artist(ref) }
+    }
+}
+
+/// An album: its songs under its cover, with Play and Shuffle.
+struct AlbumScreen: View {
+    let ref: AlbumRef
+    @State private var detail: AlbumDetail?
+    @State private var problem: String?
+
+    var body: some View {
+        SongsScreen(title: detail?.title ?? ref.title, tracks: detail?.songs.map(Track.init) ?? [],
+                    source: "album:\(ref.source):\(ref.id)", cover: (detail?.image ?? ref.image).flatMap(URL.init(string:)),
+                    symbol: "square.stack")
+            .overlay {
+                if let problem { Text(problem).foregroundStyle(.secondary) } else if detail == nil { ProgressView() }
+            }
+            .task {
+                do { detail = try await API.album(ref) } catch { problem = "Couldn't load this album." }
+            }
     }
 }
 
