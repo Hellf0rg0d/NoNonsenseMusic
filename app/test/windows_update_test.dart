@@ -49,7 +49,8 @@ void main() {
       request.response.close();
     });
 
-    final update = await checkForUpdate(current: before!, feed: Uri.parse('$base/update.json'));
+    // the test runner is not the installed app, so the file is named here (platformFile offers it to the installed one)
+    final update = await checkForUpdate(current: before!, feed: Uri.parse('$base/update.json'), file: 'NoNonsenseMusic-Setup.exe');
     expect(update?.file, isNotNull);
     final folder = Directory.systemTemp.createTempSync('nn-update');
     final downloaded = await downloadUpdate(update!.file!, folder,

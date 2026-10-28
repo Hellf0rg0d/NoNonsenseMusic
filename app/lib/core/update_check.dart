@@ -47,12 +47,15 @@ final latestFeed = Uri.parse('$_releases/latest/download/update.json');
 /// --dart-define=NN_UPDATE_KEY=… replaces it for a test build.
 const releaseKey = String.fromEnvironment('NN_UPDATE_KEY', defaultValue: 'y+sgiLPBeRJEb6RlazvQX1I7wFl2CpuBdxUGl6eViJs=');
 
-/// This platform's file in a release.
-String? get platformFile => Platform.isWindows
-    ? 'NoNonsenseMusic-Setup.exe'
-    : Platform.isAndroid
-        ? 'NoNonsenseMusic-Android.apk'
-        : null;
+/// This platform's file in a release. On Windows only for the installed app (installer.iss puts it in
+/// %LOCALAPPDATA%\Programs\NoNonsenseMusic): the setup installs there, so run from an unzipped folder it would leave
+/// that copy as it was and install a second one. An unzipped copy gets the release page instead.
+String? get platformFile {
+  if (Platform.isAndroid) return 'NoNonsenseMusic-Android.apk';
+  if (!Platform.isWindows) return null;
+  final installed = '${Platform.environment['LOCALAPPDATA'] ?? ''}\\Programs\\NoNonsenseMusic\\'.toLowerCase();
+  return Platform.resolvedExecutable.toLowerCase().startsWith(installed) ? 'NoNonsenseMusic-Setup.exe' : null;
+}
 
 /// A newer release than [current] that is not [skipped], or null (none, skipped, or GitHub not reachable).
 Future<UpdateInfo?> checkForUpdate(
