@@ -11,13 +11,15 @@ on:
 
 jobs:
   build:
-    runs-on: macos-26
+    # Xcode 27, as releases are built with (macOS 27 underneath; GitHub's preview image, 28 Oct): on macos-26's 26.6, code
+    # that 27.1 accepts failed to compile three times in one day
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Xcode (the newest on the runner)
         run: |
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_27*.app | sort -V | tail -1)"
           xcodebuild -version
       - name: Project file (cd mac && xcodegen)
         working-directory: mac
