@@ -433,6 +433,7 @@ private struct PlaybackSettings: View {
     @AppStorage("autoplaySkipsRecent") private var skipsRecent = true       // Player.autoplaySkipsRecent
     @AppStorage("gapless") private var gapless = false                       // Player.gapless
     @AppStorage("crossfeed") private var crossfeed = false                   // SoundChain.crossfeeding
+    @AppStorage("crossfadeSeconds") private var crossfade = 0.0              // Player.crossfade
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -485,6 +486,14 @@ private struct PlaybackSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: gapless) { _, _ in player.gaplessChanged() }
+                Picker(selection: $crossfade) {
+                    Text("Off").tag(0.0)
+                    ForEach([2.0, 4, 6, 8, 12], id: \.self) { Text("\(Int($0)) seconds").tag($0) }
+                } label: {
+                    Text("Crossfade")
+                    Text("Each song fades out as the next fades in.").foregroundStyle(.secondary)
+                }
+                .onChange(of: crossfade) { _, _ in SoundChain.shared.settingChanged() }
                 // measured 28 Oct: 0.026% of one core (an hour of stereo through it, offline)
                 Toggle(isOn: $crossfeed) {
                     Text("Crossfeed for headphones")

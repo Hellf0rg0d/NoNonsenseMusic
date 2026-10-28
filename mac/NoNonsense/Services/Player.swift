@@ -59,8 +59,10 @@ final class Player {
         return library.playlists.first { $0.id == id }?.name ?? library.details[id]?.name
     }
 
-    /// A queue player, so the next song can wait behind the playing one (gapless); otherwise it holds one item.
-    @ObservationIgnored private let player = AVQueuePlayer()
+    /// A queue player, so the next song can wait behind the playing one (gapless); otherwise it holds one item. During a
+    /// crossfade the song fading out plays on on the last one (`outgoing`) while this is a new one, with the next song.
+    @ObservationIgnored private var player = AVQueuePlayer()
+    @ObservationIgnored private var outgoing: AVQueuePlayer?
     @ObservationIgnored private let library: LibraryStore
     @ObservationIgnored private let downloads: DownloadStore
     /// True while the playing copy is a downloaded file (no server, no internet needed).
@@ -89,21 +91,10 @@ final class Player {
         self.library = library
         self.downloads = downloads
         self.presence = presence
-        // start as soon as audio arrives, instead of first buffering several seconds (the CDN answers in ~0.26 s)
-        player.automaticallyWaitsToMinimizeStalling = false
-        player.actionAtItemEnd = .pause                     // as AVPlayer: an ended song stays loaded; `.advance` only while one is queued
-        player.volume = Self.gain(volume)
+        setUp(player)
         order.repeatMode = UserDefaults.standard.string(forKey: "repeat").flatMap(PlayQueue.Repeat.init(rawValue:)) ?? .off
         // the equalizer switched on or off: the song playing gets its tap, or loses it, at once
         SoundChain.shared.changed = { [weak self] in self?.soundChanged() }
-        // No periodic time observer: it set `position` twice a second and every view reading it redrew, the app's
-        // biggest steady cost while playing (7 Oct). `position` now changes only on events; the progress line and
-        // times are drawn by Core Animation (PlaybackTimeline), and code that needs the exact time reads livePosition.
-        // @Sendable: KVO calls this on whatever thread changed the status (as for the item's status, below)
-        controlStatusObservation = player.observe(\.timeControlStatus, options: [.new]) { @Sendable [weak self] avPlayer, _ in
-            let status = avPlayer.timeControlStatus
-            Task { @MainActor in self?.controlStatusChanged(status) }
-        }
         endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification,
                                                              object: nil, queue: .main) { [weak self] note in
             let item = note.object as? AVPlayerItem
@@ -117,6 +108,23 @@ final class Player {
         // a playlist you edit while it plays: the queue follows (PlayQueue.sync ignores other playlists)
         library.playlistChanged = { [weak self] detail in
             self?.syncQueue(source: detail.queueSource, items: zip(detail.keys, detail.tracks).map { (key: $0, track: $1) })
+        }
+    }
+
+    /// A player as every one is: the active one at launch, and each new one a crossfade starts.
+    private func setUp(_ new: AVQueuePlayer) {
+        // start as soon as audio arrives, instead of first buffering several seconds (the CDN answers in ~0.26 s)
+        new.automaticallyWaitsToMinimizeStalling = false
+        new.actionAtItemEnd = .pause                        // as AVPlayer: an ended song stays loaded; `.advance` only while one is queued
+        new.volume = Self.gain(volume)
+        new.isMuted = isMuted || jamSilent
+        // No periodic time observer: it set `position` twice a second and every view reading it redrew, the app's
+        // biggest steady cost while playing (7 Oct). `position` now changes only on events; the progress line and
+        // times are drawn by Core Animation (PlaybackTimeline), and code that needs the exact time reads livePosition.
+        // @Sendable: KVO calls this on whatever thread changed the status (as for the item's status, below)
+        controlStatusObservation = new.observe(\.timeControlStatus, options: [.new]) { @Sendable [weak self] avPlayer, _ in
+            let status = avPlayer.timeControlStatus
+            Task { @MainActor in self?.controlStatusChanged(status) }
         }
     }
 
@@ -294,6 +302,7 @@ final class Player {
         if !isPlaying, player.currentItem?.status == .failed { startCurrent(); return }
         // the same when the server gave it no address (nothing loaded): play() on no item did nothing
         if !isPlaying, !resolving, player.currentItem == nil { startCurrent(); return }
+        if isPlaying { endFade() }                                  // a pause mid-crossfade: the song going out stops
         isPlaying ? player.pause() : player.play()
         isPlaying.toggle()
         refreshBuffering()
@@ -329,7 +338,8 @@ final class Player {
     func setVolume(_ level: Float) {
         volume = min(1, max(0, level))
         player.volume = Self.gain(volume)
-        if isMuted { isMuted = false; player.isMuted = jamSilent }
+        outgoing?.volume = player.volume
+        if isMuted { isMuted = false; player.isMuted = jamSilent; outgoing?.isMuted = jamSilent }
         // saved once the slider settles, not on every pointer move of a drag
         volumeSave?.cancel()
         volumeSave = Task { [volume] in
@@ -359,12 +369,14 @@ final class Player {
     func toggleMute() {
         isMuted.toggle()
         player.isMuted = isMuted || jamSilent
+        outgoing?.isMuted = player.isMuted
     }
 
     func jamSetSilent(_ silent: Bool) {
         guard silent != jamSilent else { return }
         jamSilent = silent
         player.isMuted = isMuted || silent
+        outgoing?.isMuted = player.isMuted
     }
 
     /// Where the song is right now, read from the audio player itself: `position` changes only on events (play,
@@ -383,6 +395,7 @@ final class Player {
         if let jam, !jamApplying { jam.seek(to: seconds); return }
         position = seconds
         seeks += 1
+        endFade()
         player.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
         publish()
     }
@@ -488,6 +501,8 @@ final class Player {
         resolving = false
         player.pause()
         unqueue()
+        endFade()
+        cancelFadePlan()
         player.replaceCurrentItem(with: nil)
         let repeatMode = order.repeatMode
         order = PlayQueue()
@@ -538,6 +553,8 @@ final class Player {
     private func load(_ listing: Listing, fromFile: Bool = true, start: Bool = true) {
         unqueue()                                                 // first: a queue player replacing its item would go into it
         switchObservation = nil
+        endFade()
+        cancelFadePlan()
         position = 0
         audioLength = nil                                         // the listed length, until this copy says its own
         isBuffering = true                                        // the spinner, until audio arrives
@@ -656,7 +673,7 @@ final class Player {
     }
 
     /// Set up as every song is, playing now or queued.
-    private func prepare(_ item: AVPlayerItem, for listing: Listing) {
+    private func prepare(_ item: AVPlayerItem, for listing: Listing, fadeIn: Double? = nil) {
         // no time-stretching: the default algorithm processed every sample to allow speed changes we never make
         // (MEMixerChannel::TimePitch, a steady share of the audio thread, profiled 7 Oct). Varispeed at 1x is a pass-through
         item.audioTimePitchAlgorithm = .varispeed
@@ -666,7 +683,7 @@ final class Player {
         if listing.duration > 0 {
             item.forwardPlaybackEndTime = CMTime(seconds: Double(listing.duration) + 1, preferredTimescale: 600)
         }
-        SoundChain.shared.apply(to: item, key: listing.key)       // its tap when the equalizer or levelling is on; none when off
+        SoundChain.shared.apply(to: item, key: listing.key, fadeIn: fadeIn)   // its tap when any of the chain is on; none when off
     }
 
     private func observe(_ item: AVPlayerItem) {
@@ -692,10 +709,19 @@ final class Player {
     @ObservationIgnored private var switchObservation: NSKeyValueObservation?
 
     /// The song that plays when this one ends, and the copy it would start with, when gapless can play it.
-    private func gaplessNext() -> (index: Int, listing: Listing)? {
-        guard Self.gapless, jam == nil, let i = order.indexAfterEnd(), i != order.index, order.tracks.indices.contains(i) else { return nil }
+    private func gaplessNext() -> (index: Int, listing: Listing)? { Self.gapless ? nextSong() : nil }
+
+    /// The song that plays when this one ends, and the copy it would start with; none in a jam or on repeat one.
+    private func nextSong() -> (index: Int, listing: Listing)? {
+        guard jam == nil, let i = order.indexAfterEnd(), i != order.index, order.tracks.indices.contains(i) else { return nil }
         let track = order.tracks[i]
         return (i, downloads.file(for: track)?.listing ?? track.best)
+    }
+
+    /// The next song's file, if it is on this Mac (Downloads or the cache).
+    private func localFile(for listing: Listing) async -> URL? {
+        if let downloaded = downloads.localURL(for: listing) { return downloaded }
+        return await AudioCache.shared.file(for: listing.key)
     }
 
     /// Queues the next song if its file is here and the playing one has loaded; a queued song that is no longer next
@@ -708,8 +734,7 @@ final class Player {
         guard let wanted, switchObservation == nil, let playing = player.currentItem, playing.status == .readyToPlay else { return }
         let mine = loads
         Task {
-            let file: URL? = if let downloaded = downloads.localURL(for: wanted.listing) { downloaded }
-                             else { await AudioCache.shared.file(for: wanted.listing.key) }
+            let file = await localFile(for: wanted.listing)
             guard let file, mine == loads, queued == nil, player.currentItem === playing,
                   let now = gaplessNext(), now.index == wanted.index, now.listing.key == wanted.listing.key else { return }
             let item = AVPlayerItem(url: file)
@@ -746,25 +771,30 @@ final class Player {
         report("finish", track, at: Int(duration))
         queued = nil
         player.actionAtItemEnd = .pause
-        order.move(to: next.index)
-        resumeAt = nil
-        resumeFromRoom = false
-        fallbacksTried = 0
-        freshRetried = []
-        firstCopy = next.listing.key
-        position = 0
-        audioLength = nil
-        playingListing = next.listing
-        playingFile = downloads.localURL(for: next.listing) != nil
-        resolving = false
-        loads += 1
-        playReported = false
+        moved(to: next.index, playing: next.listing)
         // the rest once the queued song is current: its status, and the song after it queued behind it, not the old one
         let expected = ObjectIdentifier(next.item)
         switchObservation = player.observe(\.currentItem, options: [.initial, .new]) { @Sendable [weak self] player, _ in
             let now = player.currentItem.map(ObjectIdentifier.init)
             Task { @MainActor in self?.switched(to: now, expecting: expected) }
         }
+    }
+
+    /// What a load does to the player's state, for a song that is already playing (gapless, crossfade).
+    private func moved(to index: Int, playing listing: Listing) {
+        order.move(to: index)
+        resumeAt = nil
+        resumeFromRoom = false
+        fallbacksTried = 0
+        freshRetried = []
+        firstCopy = listing.key
+        position = 0
+        audioLength = nil
+        playingListing = listing
+        playingFile = downloads.localURL(for: listing) != nil
+        resolving = false
+        loads += 1
+        playReported = false
     }
 
     private func switched(to now: ObjectIdentifier?, expecting expected: ObjectIdentifier) {
@@ -777,10 +807,91 @@ final class Player {
         publish()
     }
 
+    // MARK: - crossfade
+
+    /// Settings › Playback › Crossfade (28 Oct): seconds over which a song fades out as the next fades in; 0 (the
+    /// default) is off. The next song starts on a second player `crossfade` seconds before this one ends, both through
+    /// the sound chain's taps, which shape the fades (equal power: the two together are as loud as one). Only for a next
+    /// song whose file is on this Mac, as gapless; a song shorter than two fades, a jam, repeat one, or a seek into the
+    /// last seconds ends as before. Pausing, seeking or skipping mid-fade stops the song going out.
+    static var crossfade: Double { UserDefaults.standard.double(forKey: "crossfadeSeconds") }
+
+    /// The boundary observer on the playing song: on the player it was added to, for that item.
+    @ObservationIgnored private var fadePlan: (player: AVQueuePlayer, item: ObjectIdentifier, token: Any)?
+    @ObservationIgnored private var fadeEnd: Task<Void, Never>?
+
+    /// The song is ready: the crossfade's start is set at its length less the fade.
+    private func planFade(for item: AVPlayerItem) {
+        cancelFadePlan()
+        let seconds = Self.crossfade, length = audioLength ?? 0
+        guard seconds > 0, jam == nil, length > 2 * seconds else { return }
+        let at = NSValue(time: CMTime(seconds: length - seconds, preferredTimescale: 600))
+        let token = player.addBoundaryTimeObserver(forTimes: [at], queue: .main) { [weak self] in
+            MainActor.assumeIsolated { self?.crossfadeNow() }
+        }
+        fadePlan = (player, ObjectIdentifier(item), token)
+    }
+
+    private func cancelFadePlan() {
+        guard let plan = fadePlan else { return }
+        plan.player.removeTimeObserver(plan.token)
+        fadePlan = nil
+    }
+
+    /// The fade's start: the song playing goes on fading out on its player; the next one starts, fading in, on a new one.
+    private func crossfadeNow() {
+        guard let plan = fadePlan, plan.player === player, let item = player.currentItem, ObjectIdentifier(item) == plan.item,
+              let next = nextSong(), isPlaying, outgoing == nil, let track = current else { return }
+        cancelFadePlan()
+        let seconds = Self.crossfade
+        let mine = loads
+        Task {
+            guard let file = await localFile(for: next.listing), mine == loads, isPlaying, player.currentItem === item,
+                  let now = nextSong(), now.index == next.index, now.listing.key == next.listing.key else { return }
+            unqueue()                                         // gapless's item: the next song plays on the new player instead
+            SoundChain.shared.fade(item, outOver: seconds)
+            let old = player
+            let new = AVQueuePlayer()
+            setUp(new)
+            player = new
+            outgoing = old
+            report("finish", track, at: Int(duration))
+            moved(to: next.index, playing: next.listing)
+            let incoming = AVPlayerItem(url: file)
+            prepare(incoming, for: next.listing, fadeIn: seconds)
+            observe(incoming)
+            player.replaceCurrentItem(with: incoming)
+            player.play()
+            announceNext()
+            refreshBuffering()
+            publish()
+            fadeEnd = Task {
+                try? await Task.sleep(for: .seconds(seconds + 0.3))
+                if !Task.isCancelled { endFade() }
+            }
+        }
+    }
+
+    /// The song going out stops now (its fade is over, or you paused, seeked or skipped), and its player goes.
+    private func endFade() {
+        fadeEnd?.cancel()
+        fadeEnd = nil
+        guard let old = outgoing else { return }
+        outgoing = nil
+        old.pause()
+        old.removeAllItems()
+    }
+
+    #if DEBUG
+    /// Self-tests: a second player is playing the song going out.
+    var fadingForTests: Bool { outgoing != nil }
+    #endif
+
     private func soundChanged() {
         if let item = player.currentItem, let key = playingListing?.key { SoundChain.shared.apply(to: item, key: key) }
         unqueue()
         queueNext()                                               // the queued song gets the new chain too
+        if let item = player.currentItem, item.status == .readyToPlay { planFade(for: item) }   // crossfade on, off or longer
     }
 
     /// A copy loaded (its real length is now known), or would not play (MUS-1, rule 7). For a failed copy the server is
@@ -800,6 +911,7 @@ final class Player {
             let end = loaded.forwardPlaybackEndTime.seconds
             let length = end.isFinite ? min(loaded.duration.seconds, end) : loaded.duration.seconds
             if length.isFinite, length > 0, length != audioLength { audioLength = length; publish() }
+            planFade(for: loaded)                                 // needs the length, just set
             // another copy chosen mid-song: it carries on from the same moment
             if let saved = resumeAt {
                 let at = resumeFromRoom ? jam?.playhead ?? saved : saved

@@ -322,6 +322,16 @@ jobs:
             -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > gapless.log 2>&1 || true
           grep SELFTEST gapless.log
           grep -q "gapless: all checks pass" gapless.log
+      - name: Self-test, crossfade (NN_SELFTEST_CROSSFADE), on tones made here
+        if: ${{ !cancelled() }}
+        run: |
+          lsof -ti tcp:8765 | xargs kill 2>/dev/null || true
+          env NN_SELFTEST_CROSSFADE=1 DATABASE_URL=postgresql:///music_test \
+            perl -e 'alarm shift; exec @ARGV' 120 mac/build/Build/Products/Debug/NoNonsenseMusic.app/Contents/MacOS/NoNonsenseMusic \
+            -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
+            -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > crossfade.log 2>&1 || true
+          grep SELFTEST crossfade.log
+          grep -q "crossfade: all checks pass" crossfade.log
       - name: Self-test, Autoplay (NN_SELFTEST_AUTOPLAY) on real songs, if YouTube Music and JioSaavn answer this runner
         if: ${{ !cancelled() }}
         continue-on-error: true

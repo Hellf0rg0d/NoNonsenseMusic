@@ -139,6 +139,7 @@ extension NoNonsenseApp {
         SelfTest.runEqualizerCheckIfAsked(player: player)
         SelfTest.runLevellingCheckIfAsked(player: player)
         SelfTest.runGaplessCheckIfAsked(player: player)
+        SelfTest.runCrossfadeCheckIfAsked(player: player)
         SelfTest.runUpdateCheckIfAsked()
         SelfTest.runImportCheckIfAsked(library: library)
         SelfTest.runAutoplayCheckIfAsked(player: player)

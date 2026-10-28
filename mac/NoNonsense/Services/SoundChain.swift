@@ -14,7 +14,7 @@ final class SoundChain {
     /// Player: the playing song's tap is attached again (or taken away) after a switch.
     var changed: (() -> Void)?
     /// The taps of the songs loaded now, with their copies' keys.
-    private var processors: [(key: String, processor: Weak)] = []
+    private var processors: [(key: String, item: ObjectIdentifier, processor: Weak)] = []
     private struct Weak { weak var processor: SoundProcessor? }
 
     private init() {
@@ -25,6 +25,7 @@ final class SoundChain {
 
     var active: Bool {
         Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
+            || Player.crossfade > 0                       // its fades are shaped in the taps
     }
 
     /// Settings › Playback › Crossfeed (off by default).
@@ -34,16 +35,18 @@ final class SoundChain {
     func settingChanged() { changed?() }
 
     /// The tap for `item`, the copy `key`, when either is on (none when both are off): attached once its audio track is
-    /// known. A copy playing from a file not measured yet is measured now.
-    func apply(to item: AVPlayerItem, key: String) {
+    /// known. A copy playing from a file not measured yet is measured now. `fadeIn`: it starts silent and fades in over
+    /// that many seconds (a crossfade).
+    func apply(to item: AVPlayerItem, key: String, fadeIn: Double? = nil) {
         guard active else { item.audioMix = nil; return }
         let eq = Equalizer.shared, leveller = Leveller.shared
         if leveller.on, let url = (item.asset as? AVURLAsset)?.url, url.isFileURL { leveller.measure(key, file: url) }
         let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0,
                                        limiting: leveller.limiting, crossfeeding: Self.crossfeeding,
                                        correction: HeadphoneCorrection.shared.filters)
+        if let fadeIn { processor.fade(in: true, over: fadeIn) }
         processors.removeAll { $0.processor.processor == nil }
-        processors.append((key, Weak(processor: processor)))
+        processors.append((key, ObjectIdentifier(item), Weak(processor: processor)))
         Task {
             guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first, active,
                   let tap = processor.makeTap() else { return }
@@ -56,6 +59,12 @@ final class SoundChain {
     }
 
     private static let flat = Array(repeating: 0.0, count: Equalizer.bands.count)
+
+    /// A crossfade: the song going out fades to silence over `seconds`.
+    func fade(_ item: AVPlayerItem, outOver seconds: Double) {
+        let id = ObjectIdentifier(item)
+        for entry in processors where entry.item == id { entry.processor.processor?.fade(in: false, over: seconds) }
+    }
 
     /// Equalizer: a band or preset changed; every tap follows.
     func equalizerChanged(_ gains: [Double]) {
@@ -95,6 +104,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private let crossfeeding: Bool
     private var crossfeed: Crossfeed?
     private let correction: [CorrectionFilter]     // headphone correction, before the equalizer's bands
+    /// A crossfade's fade: in (from silence) or out (to silence), its length, and how far along it is, in frames.
+    private var fading: (incoming: Bool, seconds: Double, done: Int)?
+    private var silenced = false                   // a fade out is over: silence from here
     private var applied: Float?                    // the gain applied to the last buffer; nil before the first
     private var sampleRate = 44_100.0
     private var channels = 0
@@ -174,6 +186,19 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
         install(Self.build(gains: gains, correction: correction, sampleRate: rate, channels: count, limiting: limiting))
     }
 
+    /// A crossfade's fade from here: equal power (a sine in, a cosine out), so the two songs together are as loud as one.
+    func fade(in incoming: Bool, over seconds: Double) {
+        lock.withLockUnchecked { fading = (incoming, max(seconds, 0.01), 0) }
+    }
+
+    /// The fade's gain after `done` frames of it.
+    private func fadeGain(_ done: Int) -> Float {
+        guard let fading else { return silenced ? 0 : 1 }
+        let share = min(1, Double(done) / (fading.seconds * sampleRate))
+        let angle: Double = share * Double.pi / 2
+        return Float(fading.incoming ? sin(angle) : cos(angle))
+    }
+
     /// The levelling gain, in dB: the audio glides to it.
     func update(level: Double) {
         let linear = Float(pow(10, level / 20))
@@ -238,15 +263,24 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                 var to: Float = target + (from - target) * keep
                 if abs(to - target) <= target * 0.001 { to = target }
                 applied = to
-                if from != 1 || to != 1 {
+                // the crossfade's fade, on top: its gain at this buffer's start and end
+                let done = fading?.done ?? 0
+                let fadeFrom = fadeGain(done), fadeTo = fadeGain(done + frames)
+                if let current = fading {
+                    let finished = Double(done + frames) >= current.seconds * sampleRate
+                    fading = finished ? nil : (current.incoming, current.seconds, done + frames)
+                    if finished, !current.incoming { silenced = true }
+                }
+                let start: Float = from * fadeFrom, finish: Float = to * fadeTo
+                if start != 1 || finish != 1 {
                     for buffer in buffers {
                         guard let samples = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
-                        if from == to {
-                            var gain = to
+                        if start == finish {
+                            var gain = finish
                             vDSP_vsmul(samples, 1, &gain, samples, 1, vDSP_Length(frames))
                         } else {
-                            var start = from, step = (to - from) / Float(frames)
-                            vDSP_vrampmul(samples, 1, &start, &step, samples, 1, vDSP_Length(frames))
+                            var first = start, step = (finish - start) / Float(frames)
+                            vDSP_vrampmul(samples, 1, &first, &step, samples, 1, vDSP_Length(frames))
                         }
                     }
                 }
@@ -293,6 +327,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
 
     /// The limiter's lowest gain so far, in dB (nil without a limiter).
     var limiterDeepestForTests: Double? { lock.withLockUnchecked { limiter.map { 20 * log10(Double($0.deepest)) } } }
+
+    /// The crossfade's gain now, 0 to 1.
+    var fadeForTests: Double { lock.withLockUnchecked { Double(fadeGain(fading?.done ?? 0)) } }
 
     /// The gain the last buffer ended at, in dB (nil before any audio).
     var appliedForTests: Double? { lock.withLockUnchecked { applied.map { 20 * log10(Double($0)) } } }
