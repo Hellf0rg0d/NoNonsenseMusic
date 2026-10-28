@@ -26,7 +26,7 @@ extension SelfTest {
             func db(_ value: Double?) -> String { value.map { String(format: "%+.2f dB", $0) } ?? "no audio" }
             let leveller = Leveller.shared, chain = SoundChain.shared
             try? await Task.sleep(for: .seconds(2))
-            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "headphoneCorrection", "eqOn", "audioCacheMB", "autoplay"])
+            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "vocalClarity", "headphoneCorrection", "eqOn", "audioCacheMB", "autoplay"])
             var keys: [String] = []
             @MainActor func finish() {
                 leveller.setOn(false)
@@ -99,6 +99,25 @@ extension SelfTest {
             check("crossfeed: 100 Hz in one ear reaches the other 4.5 dB down", near(bass.other, -4.5, 0.6), db(bass.other))
             check("…10 kHz stays on its side (under −20 dB)", treble.other < -20, db(treble.other))
             check("…and bass in both ears stays as loud", near(mono.same, 0, 0.3), db(mono.same))
+
+            // B3b. vocal clarity: a centred voice up by the boost, the side as it was, bass untouched
+            @MainActor func clarified(_ hz: Double, right sign: Float) -> Double {
+                let rate = 44_100.0, frames = Int(rate)
+                var left = (0..<frames).map { Float(0.25 * sin(2 * .pi * hz * Double($0) / rate)) }
+                var right = left.map { $0 * sign }
+                let before = left
+                let clarity = VocalClarity(gain: 6, sampleRate: rate)
+                left.withUnsafeMutableBufferPointer { l in
+                    right.withUnsafeMutableBufferPointer { r in clarity.process(l.baseAddress!, r.baseAddress!, frames: frames) }
+                }
+                var after = 0.0, was = 0.0
+                for i in (frames / 2)..<frames { after += Double(left[i] * left[i]); was += Double(before[i] * before[i]) }
+                return 10 * log10(after / was)
+            }
+            let voice = clarified(2500, right: 1), side = clarified(2500, right: -1), lows = clarified(100, right: 1)
+            check("vocal clarity +6 dB: a centred voice at 2.5 kHz comes up 6 dB", near(voice, 6, 0.3), db(voice))
+            check("…what differs between the ears (the side) stays as it was", near(side, 0, 0.3), db(side))
+            check("…and centred bass is untouched", near(lows, 0, 0.3), db(lows))
 
             // B4. headphone correction: AutoEq's AirPods Pro file (crinacle's measurement), as fetched
             let airpods = """

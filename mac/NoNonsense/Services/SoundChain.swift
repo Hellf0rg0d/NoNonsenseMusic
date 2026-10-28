@@ -5,7 +5,7 @@ import os
 
 /// What happens to a song's audio between its file and the speakers: one audio processing tap per AVPlayerItem, which
 /// runs your headphones' correction (HeadphoneCorrection) and the equalizer's filters (Equalizer), then one gain: the equalizer's preamp times the song's levelling gain
-/// (Leveller), then crossfeed for headphones (Crossfeed) and the limiter (PeakLimiter, in place of the preamp), when on.
+/// (Leveller), then vocal clarity (VocalClarity), crossfeed for headphones (Crossfeed) and the limiter (PeakLimiter, in place of the preamp), when on.
 /// Attached only while one of them is on; with all off a song has no tap and costs nothing.
 @MainActor
 final class SoundChain {
@@ -24,12 +24,20 @@ final class SoundChain {
     }
 
     var active: Bool {
-        Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
+        Self.vocalClarity > 0 || Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
             || Player.crossfade > 0                       // its fades are shaped in the taps
     }
 
     /// Settings › Playback › Crossfeed (off by default).
     static var crossfeeding: Bool { UserDefaults.standard.bool(forKey: "crossfeed") }
+
+    /// Settings › Playback › Vocal clarity: the mid's boost, 0 (off) to 6 dB.
+    static var vocalClarity: Double { min(max(UserDefaults.standard.double(forKey: "vocalClarity"), 0), 6) }
+
+    /// Its slider moved: every tap follows at once, without being made again.
+    func vocalClarityChanged() {
+        for entry in processors { entry.processor.processor?.update(vocal: Self.vocalClarity) }
+    }
 
     /// Crossfeed or the headphone correction changed: the playing song's tap is made again.
     func settingChanged() { changed?() }
@@ -43,7 +51,7 @@ final class SoundChain {
         if leveller.on, let url = (item.asset as? AVURLAsset)?.url, url.isFileURL { leveller.measure(key, file: url) }
         let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0,
                                        limiting: leveller.limiting, crossfeeding: Self.crossfeeding,
-                                       correction: HeadphoneCorrection.shared.filters)
+                                       correction: HeadphoneCorrection.shared.filters, vocal: Self.vocalClarity)
         if let fadeIn { processor.fade(in: true, over: fadeIn) }
         processors.removeAll { $0.processor.processor == nil }
         processors.append((key, ObjectIdentifier(item), Weak(processor: processor)))
@@ -103,6 +111,8 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var limiter: PeakLimiter?
     private let crossfeeding: Bool
     private var crossfeed: Crossfeed?
+    private var vocalGain: Double                  // vocal clarity's boost, dB; 0: none
+    private var vocal: VocalClarity?
     private let correction: [CorrectionFilter]     // headphone correction, before the equalizer's bands
     /// A crossfade's fade: in (from silence) or out (to silence), its length, and how far along it is, in frames.
     private var fading: (incoming: Bool, seconds: Double, done: Int)?
@@ -115,8 +125,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
 
     /// `level`: the levelling gain in dB. `limiting`: a limiter last, and no preamp (a boost keeps its volume).
     init(gains: [Double], level: Double = 0, limiting: Bool = false, crossfeeding: Bool = false,
-         correction: [CorrectionFilter] = []) {
+         correction: [CorrectionFilter] = [], vocal: Double = 0) {
         self.gains = gains
+        self.vocalGain = vocal
         self.correction = correction
         self.level = Float(pow(10, level / 20))
         self.limiting = limiting
@@ -183,7 +194,18 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             self.gains = gains
             return (sampleRate, channels)
         }
-        install(Self.build(gains: gains, correction: correction, sampleRate: rate, channels: count, limiting: limiting))
+        install(Self.build(gains: gains, correction: correction, sampleRate: rate, channels: count, limiting: limiting,
+                           vocal: lock.withLockUnchecked { vocalGain }))
+    }
+
+    /// Vocal clarity's boost, in dB (0: off), as its slider moves: the filter and the preamp made again.
+    func update(vocal gain: Double) {
+        let (rate, count, current) = lock.withLockUnchecked { () -> (Double, Int, [Double]) in
+            vocalGain = gain
+            return (sampleRate, channels, gains)
+        }
+        install(Self.build(gains: current, correction: correction, sampleRate: rate, channels: count, limiting: limiting, vocal: gain),
+                vocal: count == 2 && gain > 0 ? VocalClarity(gain: gain, sampleRate: rate) : nil, vocalChanges: true)
     }
 
     /// A crossfade's fade from here: equal power (a sine in, a cosine out), so the two songs together are as loud as one.
@@ -216,27 +238,36 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return gains
         }
         let count = Int(format.mChannelsPerFrame)
-        install(Self.build(gains: current, correction: correction, sampleRate: format.mSampleRate, channels: count, limiting: limiting),
+        let boost = lock.withLockUnchecked { vocalGain }
+        install(Self.build(gains: current, correction: correction, sampleRate: format.mSampleRate, channels: count, limiting: limiting,
+                           vocal: boost),
                 limiter: limiting && count > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: count) : nil,
-                crossfeed: crossfeeding && count == 2 ? Crossfeed(sampleRate: format.mSampleRate) : nil)
+                crossfeed: crossfeeding && count == 2 ? Crossfeed(sampleRate: format.mSampleRate) : nil,
+                vocal: count == 2 && boost > 0 ? VocalClarity(gain: boost, sampleRate: format.mSampleRate) : nil, vocalChanges: true)
     }
 
     /// The headphone correction's filters, then the bands', in one cascade; the preamp lowers the whole curve by its peak.
+    /// `vocal`: vocal clarity's boost, which the preamp makes room for too (the mid up by g, the side as it was: no
+    /// sample can grow by more than g).
     private static func build(gains: [Double], correction: [CorrectionFilter] = [], sampleRate: Double, channels: Int,
-                              limiting: Bool) -> Cascade? {
+                              limiting: Bool, vocal: Double = 0) -> Cascade? {
         guard channels > 0 else { return nil }
         let coefficients = correction.flatMap { $0.coefficients(sampleRate: sampleRate) } + coefficients(gains: gains, sampleRate: sampleRate)
-        let preamp = limiting ? 1 : Float(pow(10, -peak(coefficients: coefficients, sampleRate: sampleRate) / 20))
+        let room: Double = peak(coefficients: coefficients, sampleRate: sampleRate) + max(0, vocal)
+        let preamp = limiting ? 1 : Float(pow(10, -room / 20))
         return Cascade(coefficients: coefficients, sections: coefficients.count / 5, channels: channels, preamp: preamp)
     }
 
     /// Swapped in under the lock; the old ones are let go here, never on the audio thread.
-    private func install(_ new: Cascade?, limiter newLimiter: PeakLimiter? = nil, crossfeed newCrossfeed: Crossfeed? = nil) {
-        let old = lock.withLockUnchecked { () -> (Cascade?, PeakLimiter?, Crossfeed?) in
-            let old = (cascade, limiter, crossfeed)
+    /// `vocalChanges`: vocal clarity's filter is replaced by `vocal`, nil included (it was turned off).
+    private func install(_ new: Cascade?, limiter newLimiter: PeakLimiter? = nil, crossfeed newCrossfeed: Crossfeed? = nil,
+                         vocal newVocal: VocalClarity? = nil, vocalChanges: Bool = false) {
+        let old = lock.withLockUnchecked { () -> (Cascade?, PeakLimiter?, Crossfeed?, VocalClarity?) in
+            let old = (cascade, limiter, crossfeed, vocal)
             cascade = new
             if newLimiter != nil { limiter = newLimiter }
             if newCrossfeed != nil { crossfeed = newCrossfeed }
+            if vocalChanges { vocal = newVocal }
             return old
         }
         _ = old
@@ -284,9 +315,10 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                         }
                     }
                 }
-                if let crossfeed, buffers.count == 2, let left = buffers[0].mData?.assumingMemoryBound(to: Float.self),
+                if buffers.count == 2, let left = buffers[0].mData?.assumingMemoryBound(to: Float.self),
                    let right = buffers[1].mData?.assumingMemoryBound(to: Float.self) {
-                    crossfeed.process(left, right, frames: frames)
+                    vocal?.process(left, right, frames: frames)
+                    crossfeed?.process(left, right, frames: frames)
                 }
                 if let limiter, limiter.channels == buffers.count {
                     withUnsafeTemporaryAllocation(of: UnsafeMutablePointer<Float>.self, capacity: buffers.count) { pointers in
@@ -375,6 +407,34 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return nil
         }
         return tap
+    }
+}
+
+/// Settings › Playback › Vocal clarity (28 Oct): the voice brought forward without the instruments around it. The
+/// song is split into mid (what both ears share, where a lead vocal sits) and side (what differs, where most guitars,
+/// pads and reverb sit); only the mid is boosted, around 2.5 kHz (Q 0.7: about 1 to 5 kHz, the voice's presence), and
+/// the two put back together. The equalizer boosts both ears alike, so it lifts everything in that range. Stereo only.
+nonisolated final class VocalClarity {
+    static let centre = 2500.0, q = 0.7
+    private let b0, b1, b2, a1, a2: Double
+    private var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
+
+    /// `gain`: the boost in dB.
+    init(gain: Double, sampleRate rate: Double) {
+        let k = CorrectionFilter(kind: .peak, frequency: Self.centre, gain: gain, q: Self.q).coefficients(sampleRate: rate)
+        (b0, b1, b2, a1, a2) = k.count == 5 ? (k[0], k[1], k[2], k[3], k[4]) : (1, 0, 0, 0, 0)
+    }
+
+    func process(_ left: UnsafeMutablePointer<Float>, _ right: UnsafeMutablePointer<Float>, frames: Int) {
+        for i in 0..<frames {
+            let l = Double(left[i]), r = Double(right[i])
+            let mid: Double = (l + r) / 2, side: Double = (l - r) / 2
+            var out: Double = b0 * mid + b1 * x1
+            out += b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1; x1 = mid; y2 = y1; y1 = out
+            left[i] = Float(out + side)
+            right[i] = Float(out - side)
+        }
     }
 }
 

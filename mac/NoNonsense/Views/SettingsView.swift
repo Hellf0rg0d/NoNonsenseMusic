@@ -434,6 +434,7 @@ private struct PlaybackSettings: View {
     @AppStorage("gapless") private var gapless = false                       // Player.gapless
     @AppStorage("crossfeed") private var crossfeed = false                   // SoundChain.crossfeeding
     @AppStorage("crossfadeSeconds") private var crossfade = 0.0              // Player.crossfade
+    @AppStorage("vocalClarity") private var vocalClarity = 0.0               // SoundChain.vocalClarity
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -501,6 +502,19 @@ private struct PlaybackSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
+                // measured 28 Oct: 0.021% of one core (an hour of stereo through it, offline)
+                LabeledContent {
+                    Slider(value: $vocalClarity, in: 0...6, step: 0.5)
+                        .frame(maxWidth: 180)
+                } label: {
+                    Text("Vocal clarity" + (vocalClarity > 0 ? String(format: ": +%g dB", vocalClarity) : ": off"))
+                    Text("Brings the voice forward: only what's in the middle of the mix is lifted, not the instruments to the sides.")
+                        .foregroundStyle(.secondary)
+                }
+                .onChange(of: vocalClarity) { old, new in
+                    // on or off: the tap is attached or taken away; otherwise every tap follows the slider at once
+                    if (old > 0) != (new > 0) { SoundChain.shared.settingChanged() } else { SoundChain.shared.vocalClarityChanged() }
+                }
             } header: {
                 Text("Sound")
             } footer: {
@@ -982,6 +996,12 @@ private struct FootprintSettings: View {
                     Text("Crossfeed for headphones")
                     Text("Uses about 0.03% of one core while music plays.")
                         .foregroundStyle(.secondary)
+                }
+                LabeledContent {
+                    Text(SoundChain.vocalClarity > 0 ? String(format: "+%g dB", SoundChain.vocalClarity) : "Off")
+                } label: {
+                    Text("Vocal clarity")
+                    Text("About 0.02% of one core while on. Its slider is in Settings › Playback.").foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {
                     Text("None").tag(0)
