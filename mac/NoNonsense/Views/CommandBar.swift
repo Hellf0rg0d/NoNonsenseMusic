@@ -320,16 +320,16 @@ final class CommandBarState {
         }
     }
 
-    /// Runs a row. The field empties and lets go first; then the command runs, or the song plays with the other songs
-    /// found after it (`toUpNext`: it goes to Up Next instead), or Search opens with every result.
+    /// Runs a row. The field empties and lets go first; then the command runs, or the song plays alone, as on the Search
+    /// screen: Autoplay continues with songs like it, not with the other results, which are mostly other people's songs
+    /// of the same name (28 Oct). `toUpNext`: it goes to Up Next instead. Or Search opens with every result.
     func run(_ entry: CommandEntry, toUpNext: Bool = false) {
-        let found = songs
         close()
         switch entry {
         case .command(let command):
             command.run()
-        case .song(let song, let index):
-            if toUpNext { context?.player.addToQueue(song) } else { context?.player.play(found, startAt: index) }
+        case .song(let song, _):
+            if toUpNext { context?.player.addToQueue(song) } else { context?.player.play([song]) }
         case .all(let words):
             context?.search(words)
         }

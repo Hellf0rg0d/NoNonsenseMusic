@@ -242,12 +242,13 @@ class _CommandBarState extends State<CommandBar> {
 
   Future<void> _run(_Entry e, {bool toUpNext = false}) async {
     final p = Scope.of(context).player;
-    final songs = _songs;
     _close();
     if (e.command != null) {
       await e.command!.run();
     } else if (e.song != null) {
-      toUpNext ? p.addToQueue(e.song!) : p.play(songs, startAt: e.index);
+      // a song found here plays alone, as on the Search screen: Autoplay continues with songs like it, not with the
+      // other results (mostly other people's songs of the same name, 28 Oct)
+      toUpNext ? p.addToQueue(e.song!) : p.play([e.song!]);
     } else {
       widget.places.search(e.all!);
     }

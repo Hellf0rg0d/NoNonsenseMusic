@@ -335,6 +335,23 @@ extension SelfTest {
                 report("commandbar SKIP ⇧Return: the server found no songs for “abc” (no internet?)")
             }
 
+            // ── songs found: Return plays the chosen one alone; Autoplay, not the other results, comes after (28 Oct) ──
+            _ = await openList()
+            await type("abc")
+            _ = await until(8) { !bar.searching }
+            let foundSongs = bar.entries().compactMap(\.song)
+            if let index = bar.entries().firstIndex(where: { $0.song != nil }), let found = bar.entries()[index].song, foundSongs.count > 1 {
+                bar.chosen = index
+                bar.handle(.return)
+                await settle()
+                let others = Set(foundSongs.map(\.id)).subtracting([found.id])
+                check("Return plays the chosen song alone: none of the other results queued after it",
+                      player.current?.id == found.id && !player.upNext.contains { others.contains($0.id) },
+                      "playing \(player.current?.title ?? "-"), Up Next \(player.upNext.prefix(3).map(\.title))")
+            } else {
+                report("commandbar SKIP Return: fewer than two songs found for “abc” (no internet?)")
+            }
+
             // ── All results: Search, already searched; the bar is not on the Search page ──
             _ = await openList()
             await type("abc")
