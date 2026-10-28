@@ -26,7 +26,8 @@ struct HomeScreen: View {
                 if !library.playlists.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Playlists").font(.title3.weight(.bold)).padding(.horizontal)
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
+                        // two columns on an iPhone, more as the width allows (an iPad)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: 14)], spacing: 18) {
                             ForEach(library.playlists) { playlist in
                                 NavigationLink(value: playlist) { PlaylistTile(playlist: playlist) }
                                     .buttonStyle(.plain)

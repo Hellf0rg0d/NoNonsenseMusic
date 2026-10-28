@@ -92,19 +92,39 @@ struct NowPlayingScreen: View {
     var body: some View {
         if let track = player.current {
             GeometryReader { geo in
-                let side = min(geo.size.width - 48, geo.size.height * 0.46)
-                VStack(spacing: 0) {
-                    Spacer(minLength: 12)
-                    cover(track, side: side)
-                    Spacer(minLength: 16)
-                    titleRow(track)
-                    timeline.padding(.top, 18)
-                    controls.padding(.top, 14)
-                    bottomRow.padding(.top, 18)
-                    Spacer(minLength: 8)
+                if geo.size.width > geo.size.height * 1.1 {
+                    // wide (an iPad, or landscape): the cover on the left, the rest beside it
+                    let side = min(geo.size.height - 80, geo.size.width * 0.45)
+                    HStack(spacing: 40) {
+                        cover(track, side: side)
+                        VStack(spacing: 0) {
+                            Spacer()
+                            titleRow(track)
+                            timeline.padding(.top, 22)
+                            controls.padding(.top, 18)
+                            bottomRow.padding(.top, 22)
+                            Spacer()
+                        }
+                        .frame(maxWidth: 460)
+                    }
+                    .padding(.horizontal, 40)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    let side = min(geo.size.width - 48, geo.size.height * 0.46)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 12)
+                        cover(track, side: side)
+                        Spacer(minLength: 16)
+                        titleRow(track)
+                        timeline.padding(.top, 18)
+                        controls.padding(.top, 14)
+                        bottomRow.padding(.top, 18)
+                        Spacer(minLength: 8)
+                    }
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .padding(.horizontal, 24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .foregroundStyle(.white)
             .background { Backdrop(colors: colors, moving: moving) }

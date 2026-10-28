@@ -73,6 +73,7 @@ private struct MainTabs: View {
             Tab("Library", systemImage: "square.stack") { NavigationStack { LibraryScreen() }.playerBarBefore26() }
             Tab(role: .search) { NavigationStack { SearchScreen() }.playerBarBefore26() }
         }
+        .tabViewStyle(.sidebarAdaptable)                     // iPad: a sidebar (it folds to tabs); iPhone: the tab bar
         .playerAccessory26(playing: player.current != nil)
         .sheet(isPresented: $player.showNowPlaying) { NowPlayingScreen() }
     }
