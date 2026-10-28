@@ -234,7 +234,8 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                 }
                 let target = (cascade?.preamp ?? 1) * level
                 let from = applied ?? target
-                var to = target + (from - target) * Float(exp(-Double(frames) / (sampleRate * Self.glideSeconds)))
+                let keep = Float(exp(-Double(frames) / (sampleRate * Self.glideSeconds)))
+                var to: Float = target + (from - target) * keep
                 if abs(to - target) <= target * 0.001 { to = target }
                 applied = to
                 if from != 1 || to != 1 {
@@ -353,9 +354,12 @@ nonisolated final class Crossfeed {
 
     init(sampleRate rate: Double) {
         // as bs2b_init (libbs2b 3.1.0)
-        let lowDB = -Self.feed * 5 / 6 - 3, highDB = Self.feed / 6 - 3
-        let lowGain = pow(10, lowDB / 20), highGain = 1 - pow(10, highDB / 20)
-        let highCut = Self.cut * pow(2, (lowDB - 20 * log10(highGain)) / 12)
+        let lowDB: Double = -Self.feed * 5 / 6 - 3
+        let highDB: Double = Self.feed / 6 - 3
+        let lowGain: Double = pow(10, lowDB / 20)
+        let highGain: Double = 1 - pow(10, highDB / 20)
+        let octaves: Double = (lowDB - 20 * log10(highGain)) / 12
+        let highCut: Double = Self.cut * pow(2, octaves)
         var x = exp(-2 * Double.pi * Self.cut / rate)
         b1Low = Float(x)
         a0Low = Float(lowGain * (1 - x))
@@ -370,7 +374,9 @@ nonisolated final class Crossfeed {
         for i in 0..<frames {
             let l = left[i], r = right[i]
             low = (a0Low * l + b1Low * low.0, a0Low * r + b1Low * low.1)
-            high = (a0High * l + a1High * last.0 + b1High * high.0, a0High * r + a1High * last.1 + b1High * high.1)
+            let highLeft: Float = a0High * l + a1High * last.0 + b1High * high.0
+            let highRight: Float = a0High * r + a1High * last.1 + b1High * high.1
+            high = (highLeft, highRight)
             last = (l, r)
             left[i] = (high.0 + low.1) * gain
             right[i] = (high.1 + low.0) * gain

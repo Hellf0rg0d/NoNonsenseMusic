@@ -134,20 +134,24 @@ nonisolated struct CorrectionFilter: Codable, Hashable, Sendable {
     /// b0, b1, b2, a1, a2 normalised by a0, as vDSP's biquad takes them; none at or above the Nyquist frequency.
     func coefficients(sampleRate rate: Double) -> [Double] {
         guard frequency < rate / 2 * 0.95, abs(gain) >= 0.05 else { return [] }
-        let a = pow(10, gain / 40), w = 2 * Double.pi * frequency / rate, c = cos(w), alpha = sin(w) / (2 * q)
-        let b0, b1, b2, a0, a1, a2: Double
+        // one typed step at a time: Xcode 26.6 (CI) times out on long arithmetic in one expression
+        let a: Double = pow(10, gain / 40)
+        let w: Double = 2 * Double.pi * frequency / rate
+        let c: Double = cos(w)
+        let alpha: Double = sin(w) / (2 * q)
+        let r: Double = 2 * a.squareRoot() * alpha
+        let up: Double = a + 1, down: Double = a - 1
+        var b0: Double, b1: Double, b2: Double, a0: Double, a1: Double, a2: Double
         switch kind {
         case .peak:
-            (b0, b1, b2) = (1 + alpha * a, -2 * c, 1 - alpha * a)
-            (a0, a1, a2) = (1 + alpha / a, -2 * c, 1 - alpha / a)
+            b0 = 1 + alpha * a; b1 = -2 * c; b2 = 1 - alpha * a
+            a0 = 1 + alpha / a; a1 = -2 * c; a2 = 1 - alpha / a
         case .lowShelf:
-            let r = 2 * a.squareRoot() * alpha
-            (b0, b1, b2) = (a * ((a + 1) - (a - 1) * c + r), 2 * a * ((a - 1) - (a + 1) * c), a * ((a + 1) - (a - 1) * c - r))
-            (a0, a1, a2) = ((a + 1) + (a - 1) * c + r, -2 * ((a - 1) + (a + 1) * c), (a + 1) + (a - 1) * c - r)
+            b0 = a * (up - down * c + r); b1 = 2 * a * (down - up * c); b2 = a * (up - down * c - r)
+            a0 = up + down * c + r; a1 = -2 * (down + up * c); a2 = up + down * c - r
         case .highShelf:
-            let r = 2 * a.squareRoot() * alpha
-            (b0, b1, b2) = (a * ((a + 1) + (a - 1) * c + r), -2 * a * ((a - 1) + (a + 1) * c), a * ((a + 1) + (a - 1) * c - r))
-            (a0, a1, a2) = ((a + 1) - (a - 1) * c + r, 2 * ((a - 1) - (a + 1) * c), (a + 1) - (a - 1) * c - r)
+            b0 = a * (up + down * c + r); b1 = -2 * a * (down + up * c); b2 = a * (up + down * c - r)
+            a0 = up - down * c + r; a1 = 2 * (down - up * c); a2 = up - down * c - r
         }
         return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0]
     }

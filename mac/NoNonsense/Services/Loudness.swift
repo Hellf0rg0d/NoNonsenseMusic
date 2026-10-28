@@ -156,18 +156,25 @@ nonisolated enum LoudnessMeter {
     /// (The Audio EQ Cookbook's shelf, tried first, read 0.21 LU low on EBU Tech 3341's tones, 28 Oct.)
     static func kWeighting(sampleRate rate: Double) -> [Double] {
         // the high shelf: +4 dB above ~1.7 kHz, for the head
-        var k = tan(Double.pi * 1681.974450955533 / rate)
-        var q = 0.7071752369554196
-        let vh = pow(10, 3.999843853973347 / 20), vb = pow(vh, 0.4996667741545416)
-        var a0 = 1 + k / q + k * k
-        let shelf = [(vh + vb * k / q + k * k) / a0, 2 * (k * k - vh) / a0, (vh - vb * k / q + k * k) / a0,
-                     2 * (k * k - 1) / a0, (1 - k / q + k * k) / a0]
+        var k: Double = tan(Double.pi * 1681.974450955533 / rate)
+        var q: Double = 0.7071752369554196
+        let vh: Double = pow(10, 3.999843853973347 / 20)
+        let vb: Double = pow(vh, 0.4996667741545416)
+        let kk: Double = k * k, kq: Double = k / q
+        var a0: Double = 1 + kq + kk
+        let s0: Double = (vh + vb * kq + kk) / a0
+        let s1: Double = 2 * (kk - vh) / a0
+        let s2: Double = (vh - vb * kq + kk) / a0
+        let s3: Double = 2 * (kk - 1) / a0
+        let s4: Double = (1 - kq + kk) / a0
         // the high pass: −3 dB at ~38 Hz
         k = tan(Double.pi * 38.13547087602444 / rate)
         q = 0.5003270373238773
-        a0 = 1 + k / q + k * k
-        let pass = [1, -2, 1, 2 * (k * k - 1) / a0, (1 - k / q + k * k) / a0]
-        return shelf + pass
+        let pk: Double = k * k, pq: Double = k / q
+        a0 = 1 + pq + pk
+        let p3: Double = 2 * (pk - 1) / a0
+        let p4: Double = (1 - pq + pk) / a0
+        return [s0, s1, s2, s3, s4, 1, -2, 1, p3, p4]
     }
 
     /// Fed a buffer at a time; keeps each 100 ms step's weighted power (a block is four steps).
@@ -235,7 +242,15 @@ nonisolated enum LoudnessMeter {
         func result() -> LoudnessMeter.Reading? {
             guard steps.count >= 4 else { return nil }
             // 400 ms blocks every 100 ms: the mean of four steps
-            let blocks = (0...(steps.count - 4)).map { (steps[$0] + steps[$0 + 1] + steps[$0 + 2] + steps[$0 + 3]) / 4 }
+            // a loop, not a closure summing four terms: Xcode 26.6 timed out type-checking that
+            var blocks: [Double] = []
+            for i in 0...(steps.count - 4) {
+                var sum: Double = steps[i]
+                sum += steps[i + 1]
+                sum += steps[i + 2]
+                sum += steps[i + 3]
+                blocks.append(sum / 4)
+            }
             func loudness(_ power: Double) -> Double { -0.691 + 10 * log10(power) }
             let audible = blocks.filter { $0 > 0 && loudness($0) > -70 }
             guard !audible.isEmpty else { return nil }
