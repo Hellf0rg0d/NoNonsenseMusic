@@ -10,12 +10,21 @@ struct MiniPlayer: View {
     var body: some View {
         if let track = player.current {
             HStack(spacing: 10) {
-                Cover(url: track.image, size: docked ? 32 : 40)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text(track.artistLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                // the bar is a button (VoiceOver reads it as one, with what it opens); the swipe runs beside it
+                Button { player.showNowPlaying = true } label: {
+                    HStack(spacing: 10) {
+                        Cover(url: track.image, size: docked ? 32 : 40)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(track.artistLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
                 }
-                Spacer(minLength: 0)
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(track.title), \(track.artistLine)")
+                .accessibilityHint("Opens Now Playing")
                 PlayPauseButton(size: 20)
                 Button { player.next() } label: { Image(systemName: "forward.fill").font(.system(size: 18)) }
                     .buttonStyle(.plain)
@@ -24,9 +33,7 @@ struct MiniPlayer: View {
             .padding(.horizontal, docked ? 12 : 14)
             .padding(.vertical, docked ? 0 : 8)
             .modifier(OwnGlass(on: !docked))
-            .contentShape(Rectangle())
-            .onTapGesture { player.showNowPlaying = true }
-            .gesture(DragGesture(minimumDistance: 24).onEnded { drag in
+            .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { drag in
                 guard abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else {
                     if drag.translation.height < -30 { player.showNowPlaying = true }   // a swipe up opens it
                     return
@@ -157,18 +164,26 @@ struct NowPlayingScreen: View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
             let length = max(player.duration, 1)
             let now = dragging ?? min(player.livePosition, length)
-            VStack(spacing: 4) {
-                Slider(value: Binding(get: { now }, set: { dragging = $0 }), in: 0...length) { editing in
-                    if !editing, let at = dragging { player.seek(to: at); dragging = nil }
+            VStack(spacing: 6) {
+                Scrubber(share: now / length, dragging: dragging != nil) { share in
+                    dragging = share * length
+                } done: {
+                    if let at = dragging { player.seek(to: at) }
+                    dragging = nil
                 }
-                .tint(.white)
+                .accessibilityElement()
+                .accessibilityLabel("Position")
+                .accessibilityValue("\(Self.time(now)) of \(Self.time(length))")
+                .accessibilityAdjustableAction { direction in
+                    player.seek(to: min(max(0, player.livePosition + (direction == .increment ? 10 : -10)), length - 1))
+                }
                 HStack {
                     Text(Self.time(now))
                     Spacer()
                     Text("-" + Self.time(length - now))
                 }
                 .font(.caption.monospacedDigit())
-                .opacity(0.7)
+                .opacity(dragging == nil ? 0.7 : 1)
             }
         }
     }
@@ -298,5 +313,34 @@ private struct UpNextSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// A thin line: what has played in white, the rest faint. Touched, it thickens and follows the finger anywhere along
+/// it; let go, the song goes there (one tick).
+private struct Scrubber: View {
+    let share: Double
+    let dragging: Bool
+    let moved: (Double) -> Void
+    let done: () -> Void
+    @State private var released = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            let height: CGFloat = dragging ? 10 : 4
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.22))
+                Capsule().fill(.white).frame(width: max(height, geo.size.width * min(max(share, 0), 1)))
+            }
+            .frame(height: height)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { moved(min(max($0.location.x / geo.size.width, 0), 1)) }
+                .onEnded { _ in done(); released += 1 })
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: dragging)
+        }
+        .frame(height: 24)
+        .sensoryFeedback(.impact(weight: .light), trigger: released)
     }
 }
