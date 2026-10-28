@@ -600,6 +600,7 @@ class SpotifyImportSong(BaseModel):
     title : str = Field(default="", max_length=300)
     artists : list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=20)
     duration_ms : int | None = Field(default=None, ge=0, le=6 * 3600 * 1000)
+    album : str | None = Field(default=None, max_length=300)    # searched with, for a song the title alone misses
     youtube_id : str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{11}$")
 
     @model_validator(mode="after")

@@ -48,19 +48,35 @@ def _plain(text: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
 
 
-def core_title(title: str) -> str:
-    """The title without labels that leave the recording as it is ("(feat. X)", "- Remastered 2011", "(From "Film")").
-    Other labels stay as words: "Song - Remix" is "song remix", another song than "Song"."""
+# the words that join names in a credit: "(Lil Baby & Gunna)", "(Lil Baby and Gunna)", "(Lil Baby x Gunna)"
+_JOINERS = {"and", "x"}
+
+
+def core_title(title: str, artists: list[str] = ()) -> str:
+    """The title without labels that leave the recording as it is ("(feat. X)", "- Remastered 2011", "(From "Film")"),
+    nor a bracket that only names the song's own artists: Spotify's "Drip Too Hard (Lil Baby & Gunna)" is "Drip Too
+    Hard" on YouTube Music (28 Oct). Other labels stay as words: "Song - Remix" is "song remix", another song than
+    "Song"."""
+    names = {word for artist in artists for word in _plain(_unstyled(artist)).split()}
+    def credit(words: str) -> bool:
+        said = set(_plain(_unstyled(words)).split()) - _JOINERS
+        return bool(said) and bool(names) and said <= names
     bracketed = _DASHED.sub(r" (\1)", title)
-    kept = _BRACKETS.sub(lambda m: "" if _SAME_RECORDING.search(m.group(1)) else f" {m.group(1)}", bracketed)
+    kept = _BRACKETS.sub(lambda m: "" if _SAME_RECORDING.search(m.group(1)) or credit(m.group(1)) else f" {m.group(1)}",
+                         bracketed)
     return _plain(kept) or _plain(title)
+
+
+def _unstyled(name: str) -> str:
+    """An artist's name with "$" read as "s", as it is said: "Ken Car$on" is Ken Carson, "$NOT" SNOT, "A$AP" ASAP."""
+    return name.replace("$", "s")
 
 
 def same_artist(a: str, b: str) -> bool:
     """One artist written two ways: one name inside the other ("Arijit Singh", "Arijit Singh & Shreya"), the same words in
     another order ("Sukh-E Muzical Doctorz", "Muzical Doctorz Sukh-E"), or other spacing ("Sidhu Moose Wala", "Sidhu
     Moosewala"). Four of 140 real songs were missed for these two (12 Oct)."""
-    x, y = _plain(a), _plain(b)
+    x, y = _plain(_unstyled(a)), _plain(_unstyled(b))
     if not x or not y:
         return False
     if x in y or y in x or set(x.split()) == set(y.split()):
@@ -70,7 +86,7 @@ def same_artist(a: str, b: str) -> bool:
 
 def matches(song: Song, wanted: SpotifyImportSong) -> bool:
     """Whether a search result is the song Spotify named: same core title, a shared artist, and a close length."""
-    if core_title(song.title) != core_title(wanted.title):
+    if core_title(song.title, song.artists) != core_title(wanted.title, wanted.artists):
         return False
     if wanted.artists and not any(same_artist(a, t) for a in wanted.artists for t in song.artists):
         return False
@@ -79,8 +95,13 @@ def matches(song: Song, wanted: SpotifyImportSong) -> bool:
     return True
 
 
-def query_for(wanted: SpotifyImportSong) -> str:
-    return f"{core_title(wanted.title)} {wanted.artists[0] if wanted.artists else ''}".strip()
+def query_for(wanted: SpotifyImportSong, album: bool = False) -> str:
+    """Title and first artist; with album=True its album too, for a song the first search misses: "immortal J. Cole"
+    finds other people's songs called Immortal, with "4 Your Eyez Only" it finds J. Cole's (28 Oct)."""
+    words = [core_title(wanted.title, wanted.artists), wanted.artists[0] if wanted.artists else ""]
+    if album and wanted.album:
+        words.append(core_title(wanted.album))
+    return " ".join(w for w in words if w)
 
 
 # ---------- the job ----------
@@ -108,7 +129,10 @@ async def find(wanted: SpotifyImportSong, search: Search, youtube: YouTube) -> S
     """The song this entry names. By title, artist and length (matches); a YouTube entry by its video id, with the same
     song's other copies when a search finds it, else on its own."""
     if not wanted.youtube_id:
-        return next((s for s in await search(query_for(wanted)) if matches(s, wanted)), None)
+        found = next((s for s in await search(query_for(wanted)) if matches(s, wanted)), None)
+        if found is None and wanted.album:                 # once more, with its album: only for a song not found
+            found = next((s for s in await search(query_for(wanted, album=True)) if matches(s, wanted)), None)
+        return found
     video = None
     if not wanted.title:                                   # a Takeout file may name only the video
         video = await youtube.track(wanted.youtube_id)

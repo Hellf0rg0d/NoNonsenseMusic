@@ -150,3 +150,37 @@ def test_one_artist_written_two_ways_is_the_same_artist():
     assert spotify_import.matches(song("Jaguar", ["Muzical Doctorz Sukh-E", "Bohemia"], 167), wanted("Jaguar", ["Sukh-E Muzical Doctorz"], 166_995))
     assert spotify_import.matches(song("Jaat Da Muqabala", ["Sidhu Moosewala"], 205), wanted("Jaat Da Muqabala", ["Sidhu Moose Wala"], 204_360))
     assert not spotify_import.matches(song("Jaguar", ["L.D Sarda"], 167), wanted("Jaguar", ["Sukh-E Muzical Doctorz"], 166_995))
+
+
+# ---------- 28 Oct: songs a real import missed (1,180 songs, 28 not found) ----------
+
+def test_a_bracket_that_only_names_the_songs_artists_is_its_credit():
+    # Spotify: "Drip Too Hard (Lil Baby & Gunna)"; YouTube Music: "Drip Too Hard" by Gunna, LiL Baby
+    assert spotify_import.matches(song("Drip Too Hard", ["Gunna", "LiL Baby"], 146),
+                                  wanted("Drip Too Hard (Lil Baby & Gunna)", ["Lil Baby", "Gunna"], 145_000))
+    # a bracket naming someone else stays: another version of the song
+    assert not spotify_import.matches(song("Drip Too Hard", ["Gunna", "LiL Baby"], 146),
+                                      wanted("Drip Too Hard (Metro Boomin Remix)", ["Lil Baby", "Gunna"], 145_000))
+
+
+def test_a_dollar_sign_in_a_name_is_an_s():
+    assert spotify_import.same_artist("Ken Carson", "Ken Car$on")
+    assert spotify_import.same_artist("$NOT", "SNOT")
+    assert spotify_import.matches(song("Teen Bean", ["Ken Car$on"], 120), wanted("Teen Bean", ["Ken Carson"], 119_000))
+
+
+@pytest.mark.anyio
+async def test_a_song_the_title_misses_is_searched_again_with_its_album():
+    asked = []
+    immortal = song("Immortal", ["J. Cole"], 202)
+
+    async def search(query):
+        asked.append(query)
+        return [immortal] if "4 your eyez only" in query else [song("Immortal", ["Shaheen"], 212)]
+
+    found = await spotify_import.find(
+        SpotifyImportSong(title="Immortal", artists=["J. Cole"], duration_ms=201_000, album="4 Your Eyez Only"), search, None)
+    assert found is immortal and asked == ["immortal J. Cole", "immortal J. Cole 4 your eyez only"]
+    asked.clear()
+    assert await spotify_import.find(SpotifyImportSong(title="Immortal", artists=["J. Cole"], duration_ms=201_000), search, None) is None
+    assert asked == ["immortal J. Cole"], "no album: one search, as before"

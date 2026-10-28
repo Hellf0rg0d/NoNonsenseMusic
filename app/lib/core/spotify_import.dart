@@ -10,13 +10,14 @@ import 'api.dart';
 /// /import/spotify) and is asked how far it has got. Two kinds of file: Exportify's CSV (one per playlist, "Liked Songs"
 /// among them) and Spotify's own data download (YourLibrary.json for liked songs, Playlist1.json… for playlists).
 class ImportSong {
-  const ImportSong(this.title, this.artists, [this.durationMs, this.youtubeId]);
+  const ImportSong(this.title, this.artists, [this.durationMs, this.youtubeId, this.album]);
   final String title; // empty for a YouTube video named only by its id
   final List<String> artists;
   final int? durationMs;
   final String? youtubeId;
+  final String? album; // when the file says: the server searches with it for a song the title alone misses
   Map<String, dynamic> toJson() =>
-      {'title': title, 'artists': artists, 'duration_ms': ?durationMs, 'youtube_id': ?youtubeId};
+      {'title': title, 'artists': artists, 'duration_ms': ?durationMs, 'youtube_id': ?youtubeId, 'album': ?album};
 }
 
 /// One list to import: into [playlistId] (an existing playlist), else a new playlist [name], else Liked Songs.
@@ -79,7 +80,7 @@ List<ImportGroup>? _exportify(String text, String name) {
   final header = [for (final h in rows.first) h.trim()];
   int column(List<String> names) => header.indexWhere((h) => names.any(h.startsWith));
   final title = column(['Track Name', 'Song Title', 'Title']), artists = column(['Artist Name']);
-  final video = column(['Video ID', 'Video Id']), duration = column(['Duration']);
+  final video = column(['Video ID', 'Video Id']), duration = column(['Duration']), album = column(['Album Name']);
   if (video < 0 && (title < 0 || artists < 0)) return null;
   String? cell(List<String> row, int i) => i >= 0 && i < row.length && row[i].isNotEmpty ? row[i] : null;
   final songs = <ImportSong>[];
@@ -89,7 +90,7 @@ List<ImportGroup>? _exportify(String text, String name) {
     if (youtubeId == null && named == null) continue;
     // Exportify separates artists with ";" and a name may hold a comma ("Tyler, The Creator"): never split on ","
     final who = [for (final a in (cell(row, artists) ?? '').split(';')) if (a.trim().isNotEmpty) a.trim()];
-    songs.add(ImportSong(named ?? '', who, int.tryParse(cell(row, duration) ?? ''), youtubeId));
+    songs.add(ImportSong(named ?? '', who, int.tryParse(cell(row, duration) ?? ''), youtubeId, cell(row, album)));
   }
   var plain = name.replaceAll('_', ' ');
   if (plain.endsWith('-videos')) plain = plain.substring(0, plain.length - '-videos'.length); // Takeout's file names
@@ -116,7 +117,7 @@ List<ImportGroup>? _spotifyJson(String text) {
               (t['track'] as String).isNotEmpty)
             ImportSong(t['track'] as String, [
               if (t['artist'] is String) t['artist'] as String,
-            ]),
+            ], null, null, t['album'] as String?),
       ]),
     ];
   }
@@ -134,7 +135,7 @@ List<ImportGroup>? _spotifyJson(String text) {
             ImportSong(item['track']['trackName'] as String, [
               if (item['track']['artistName'] is String)
                 item['track']['artistName'] as String,
-            ]),
+            ], null, null, item['track']['albumName'] as String?),
       ];
       if (songs.isNotEmpty) groups.add(ImportGroup(p['name'] as String, songs));
     }

@@ -11,7 +11,9 @@ struct SpotifyImportSong: Codable, Sendable {
     var artists: [String] = []
     var durationMs: Int? = nil
     var youtubeID: String? = nil
-    enum CodingKeys: String, CodingKey { case title, artists; case durationMs = "duration_ms"; case youtubeID = "youtube_id" }
+    /// The song's album, when the file says: the server searches with it for a song the title alone misses
+    var album: String? = nil
+    enum CodingKeys: String, CodingKey { case title, artists, album; case durationMs = "duration_ms"; case youtubeID = "youtube_id" }
 }
 
 struct SpotifyImportGroup: Codable, Sendable {
@@ -75,7 +77,7 @@ enum SpotifyFile {
         guard let header = rows.first?.map({ $0.trimmingCharacters(in: .whitespaces) }) else { return nil }
         let column = { (names: [String]) in header.firstIndex { h in names.contains { h.hasPrefix($0) } } }
         let title = column(["Track Name", "Song Title", "Title"]), artists = column(["Artist Name"])
-        let video = column(["Video ID", "Video Id"]), duration = column(["Duration"])
+        let video = column(["Video ID", "Video Id"]), duration = column(["Duration"]), album = column(["Album Name"])
         guard video != nil || (title != nil && artists != nil) else { return nil }
         let songs = rows.dropFirst().compactMap { row -> SpotifyImportSong? in
             func cell(_ i: Int?) -> String? { i.flatMap { row.indices.contains($0) ? row[$0] : nil }.flatMap { $0.isEmpty ? nil : $0 } }
@@ -84,7 +86,7 @@ enum SpotifyFile {
             // Exportify separates artists with ";" and a name may hold a comma ("Tyler, The Creator"): never split on ","
             let named = cell(artists).map { $0.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) } } ?? []
             return SpotifyImportSong(title: cell(title) ?? "", artists: named,
-                                     durationMs: cell(duration).flatMap { Int($0) }, youtubeID: id)
+                                     durationMs: cell(duration).flatMap { Int($0) }, youtubeID: id, album: cell(album))
         }
         var plain = name.replacingOccurrences(of: "_", with: " ")
         if plain.hasSuffix("-videos") { plain.removeLast("-videos".count) }   // Takeout: "<playlist>-videos.csv"
@@ -98,7 +100,8 @@ enum SpotifyFile {
         if let tracks = root["tracks"] as? [[String: Any]] {
             let songs = tracks.compactMap { t -> SpotifyImportSong? in
                 guard let title = t["track"] as? String, !title.isEmpty else { return nil }
-                return SpotifyImportSong(title: title, artists: [t["artist"] as? String].compactMap { $0 }, durationMs: nil)
+                return SpotifyImportSong(title: title, artists: [t["artist"] as? String].compactMap { $0 }, durationMs: nil,
+                                         album: t["album"] as? String)
             }
             return [SpotifyImportGroup(name: nil, songs: songs)]
         }
@@ -108,7 +111,8 @@ enum SpotifyFile {
                 let songs = (p["items"] as? [[String: Any]] ?? []).compactMap { item -> SpotifyImportSong? in
                     guard let t = item["track"] as? [String: Any], let title = t["trackName"] as? String, !title.isEmpty
                     else { return nil }                                   // podcast episodes and local files: skipped
-                    return SpotifyImportSong(title: title, artists: [t["artistName"] as? String].compactMap { $0 }, durationMs: nil)
+                    return SpotifyImportSong(title: title, artists: [t["artistName"] as? String].compactMap { $0 }, durationMs: nil,
+                                             album: t["albumName"] as? String)
                 }
                 return songs.isEmpty ? nil : SpotifyImportGroup(name: name, songs: songs)
             }

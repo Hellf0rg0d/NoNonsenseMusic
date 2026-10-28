@@ -13,6 +13,7 @@ void main() {
     expect(groups.single.songs[1].artists, ['Mithoon', 'Arijit Singh']);
     expect(groups.single.songs.last.artists, ['Tyler, The Creator', 'Daniel Caesar'], reason: 'artists split at ";", never at ","');
     expect(groups.single.songs.first.durationMs, 200040);
+    expect(groups.single.songs.first.toJson()['album'], 'After Hours', reason: 'sent: the server searches with it when the title alone misses');
     expect(importGroups('Road_Trip.csv', csv).single.name, 'Road Trip');
   });
 
@@ -20,6 +21,7 @@ void main() {
     final liked = importGroups('YourLibrary.json', '{"tracks":[{"artist":"Ed Sheeran","album":"x","track":"Shape of You"}]}');
     expect((liked.single.name, liked.single.songs.single.title), (null, 'Shape of You'));
     expect(liked.single.songs.single.artists, ['Ed Sheeran']);
+    expect(liked.single.songs.single.album, 'x');
     final lists = importGroups('Playlist1.json',
         '{"playlists":[{"name":"Gym","items":[{"track":{"trackName":"Faded","artistName":"Alan Walker"}},{"episode":{"name":"a podcast"}}]}]}');
     expect((lists.single.name, lists.single.songs.length), ('Gym', 1));
