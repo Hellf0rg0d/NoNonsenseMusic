@@ -11,11 +11,14 @@ struct AccountGate<Content: View>: View {
         Group {
             switch account.state {
             case .checking:
-                // a moment at launch, longer while the app starts your server
-                Text(server.state == .starting ? "Starting Server…" : "")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background { WindowSurface() }
+                // only before the first sign-in on this Mac (a session signed in before opens at once): a spinner, not an
+                // empty window, longer while the app starts your server
+                VStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    if server.state == .starting { Text("Starting Server…").foregroundStyle(.secondary) }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background { WindowSurface() }
             case .signedOut:
                 SignInView()
             case .signedIn:
@@ -30,8 +33,14 @@ struct AccountGate<Content: View>: View {
             }
         }
         .task {
-            // the server first: the stored token is checked with it, and signing in needs it
-            await server.ensureRunning()
+            // a server this app runs on this Mac starts first: the stored token is checked with it, and signing in needs
+            // it. A server elsewhere needs nothing from here, so its health check runs alongside instead of before (it
+            // held every launch up to 3 s, 28 Oct)
+            if ServerLauncher.isLocal(API.baseURL) {
+                await server.ensureRunning()
+            } else {
+                Task { await server.ensureRunning() }
+            }
             await account.start()
             #if DEBUG
             if SelfTest.isRunning, account.state == .signedOut { await SelfTest.signUpTestAccount(account) }

@@ -41,15 +41,29 @@ final class Account {
         guard let token = await stored({ $0.read() }) else { state = .signedOut; return }
         API.token = token
         user = savedUser
+        // signed in on this Mac before: the library at once, and the session checked meanwhile. Launch waited for the
+        // server's answer with a blank window: a round trip through the server's tunnel, and up to 20 s on a slow
+        // network (28 Oct). A session the server no longer knows ends at its answer (401: the sign-in screen, saying why)
+        if savedUser != nil {
+            state = .signedIn
+            Task { await confirm() }
+            return
+        }
+        await confirm()
+    }
+
+    /// The server's word on the stored session: who it is now, or (401) signed out through API.onSignedOut. Unreachable,
+    /// the session stands: songs downloaded here still play.
+    private func confirm() async {
         do {
             let me = try await API.me()
             user = me
             savedUser = me
-            state = .signedIn
+            if state == .checking { state = .signedIn }
         } catch API.Failure.http(401, _) {
             // ended() has run (through API.onSignedOut): the sign-in screen, saying why
         } catch {
-            state = .signedIn
+            if state == .checking { state = .signedIn }
         }
     }
 

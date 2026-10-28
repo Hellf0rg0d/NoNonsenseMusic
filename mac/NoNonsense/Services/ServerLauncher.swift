@@ -79,11 +79,14 @@ final class ServerLauncher {
     /// Settings › Server › Reload when the backend's code changes. Off: one lean process. On: `fastapi dev`.
     static var reloads: Bool { UserDefaults.standard.bool(forKey: "serverReload") }
 
+    /// Whether `url` is this Mac: the only server this app starts.
+    nonisolated static func isLocal(_ url: URL) -> Bool { ["127.0.0.1", "localhost", "::1"].contains(url.host() ?? "") }
+
     private func startIfNeeded() async -> Bool {
         // the address first: a server on another machine needs none here, and one this app started for this Mac is
         // stopped. Checked after the health check, a remote server's answer counted as ours "started", and the local
         // one ran on, unused, until the app quit (12 Oct)
-        guard let host = API.baseURL.host(), ["127.0.0.1", "localhost", "::1"].contains(host) else {
+        guard Self.isLocal(API.baseURL) else {
             if process != nil { await stopWithoutBlocking() }
             state = .notLocal
             return await API.health()
