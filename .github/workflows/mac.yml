@@ -288,7 +288,7 @@ jobs:
           grep -q "update: ready to install 999" update.log || fail "Sparkle did not get the update ready"
           grep -q "GET /NoNonsenseMusic-macOS.zip" "$T/bad.log" || fail "the tampered file was never asked for"
           grep -qi "update: aborted.*sign" update-bad.log || fail "the tampered update was not refused for its signature"
-          [ "$(version "$T/old2/NoNonsenseMusic.app")" = 10 ] || fail "the tampered update was installed"
+          [ "$(version "$T/old2/NoNonsenseMusic.app")" = "$(version "$APP")" ] || fail "the tampered update was installed"   # the build it started as (it said 10 until 0.5.0 made it 13)
           [ ! -e "$T/old2/NoNonsenseMusic.app/Contents/Resources/changed.txt" ] || fail "the tampered app is on disk"
         env:
           GH_TOKEN: ${{ github.token }}
