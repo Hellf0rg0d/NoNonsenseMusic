@@ -432,6 +432,7 @@ private struct PlaybackSettings: View {
     @AppStorage("autoplay") private var autoplay = true                     // also ∞ in Up Next
     @AppStorage("autoplaySkipsRecent") private var skipsRecent = true       // Player.autoplaySkipsRecent
     @AppStorage("gapless") private var gapless = false                       // Player.gapless
+    @AppStorage("crossfeed") private var crossfeed = false                   // SoundChain.crossfeeding
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -484,6 +485,13 @@ private struct PlaybackSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: gapless) { _, _ in player.gaplessChanged() }
+                // measured 28 Oct: 0.026% of one core (an hour of stereo through it, offline)
+                Toggle(isOn: $crossfeed) {
+                    Text("Crossfeed for headphones")
+                    Text("A little of each side's bass reaches the other ear, as from speakers, so songs panned hard to one side are easier to listen to.")
+                        .foregroundStyle(.secondary)
+                }
+                .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
             } header: {
                 Text("Sound")
             } footer: {
@@ -955,6 +963,14 @@ private struct FootprintSettings: View {
                 Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
                     Text("Limiter")
                     Text("Uses about 0.04% of one core while music plays.")
+                        .foregroundStyle(.secondary)
+                }
+                Toggle(isOn: Binding(get: { SoundChain.crossfeeding }, set: {
+                    UserDefaults.standard.set($0, forKey: "crossfeed")
+                    SoundChain.shared.settingChanged()
+                })) {
+                    Text("Crossfeed for headphones")
+                    Text("Uses about 0.03% of one core while music plays.")
                         .foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {

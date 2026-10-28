@@ -5,8 +5,8 @@ import os
 
 /// What happens to a song's audio between its file and the speakers: one audio processing tap per AVPlayerItem, which
 /// runs the equalizer's filters (Equalizer), then one gain: the equalizer's preamp times the song's levelling gain
-/// (Leveller), then the limiter (PeakLimiter) in place of the preamp, when on. Attached only while one of them is on;
-/// with all off a song has no tap and costs nothing.
+/// (Leveller), then crossfeed for headphones (Crossfeed) and the limiter (PeakLimiter, in place of the preamp), when on.
+/// Attached only while one of them is on; with all off a song has no tap and costs nothing.
 @MainActor
 final class SoundChain {
     static let shared = SoundChain()
@@ -23,7 +23,13 @@ final class SoundChain {
         Leveller.shared.measured = { [weak self] key in self?.measured(key) }
     }
 
-    var active: Bool { Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting }
+    var active: Bool { Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding }
+
+    /// Settings › Playback › Crossfeed (off by default).
+    static var crossfeeding: Bool { UserDefaults.standard.bool(forKey: "crossfeed") }
+
+    /// A setting kept here (crossfeed) changed: the playing song's tap is made again.
+    func settingChanged() { changed?() }
 
     /// The tap for `item`, the copy `key`, when either is on (none when both are off): attached once its audio track is
     /// known. A copy playing from a file not measured yet is measured now.
@@ -32,7 +38,7 @@ final class SoundChain {
         let eq = Equalizer.shared, leveller = Leveller.shared
         if leveller.on, let url = (item.asset as? AVURLAsset)?.url, url.isFileURL { leveller.measure(key, file: url) }
         let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0,
-                                       limiting: leveller.limiting)
+                                       limiting: leveller.limiting, crossfeeding: Self.crossfeeding)
         processors.removeAll { $0.processor.processor == nil }
         processors.append((key, Weak(processor: processor)))
         Task {
@@ -83,6 +89,8 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var level: Float                       // the levelling gain, linear
     private let limiting: Bool                     // the limiter instead of the equalizer's preamp
     private var limiter: PeakLimiter?
+    private let crossfeeding: Bool
+    private var crossfeed: Crossfeed?
     private var applied: Float?                    // the gain applied to the last buffer; nil before the first
     private var sampleRate = 44_100.0
     private var channels = 0
@@ -90,10 +98,11 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var cascade: Cascade?
 
     /// `level`: the levelling gain in dB. `limiting`: a limiter last, and no preamp (a boost keeps its volume).
-    init(gains: [Double], level: Double = 0, limiting: Bool = false) {
+    init(gains: [Double], level: Double = 0, limiting: Bool = false, crossfeeding: Bool = false) {
         self.gains = gains
         self.level = Float(pow(10, level / 20))
         self.limiting = limiting
+        self.crossfeeding = crossfeeding
     }
 
     /// The filters of one sample rate: the biquad setup, each channel's delay line, and the preamp.
@@ -177,7 +186,8 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
         }
         let count = Int(format.mChannelsPerFrame)
         install(Self.build(gains: current, sampleRate: format.mSampleRate, channels: count, limiting: limiting),
-                limiter: limiting && count > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: count) : nil)
+                limiter: limiting && count > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: count) : nil,
+                crossfeed: crossfeeding && count == 2 ? Crossfeed(sampleRate: format.mSampleRate) : nil)
     }
 
     private static func build(gains: [Double], sampleRate: Double, channels: Int, limiting: Bool) -> Cascade? {
@@ -188,19 +198,20 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     }
 
     /// Swapped in under the lock; the old ones are let go here, never on the audio thread.
-    private func install(_ new: Cascade?, limiter newLimiter: PeakLimiter? = nil) {
-        let old = lock.withLockUnchecked { () -> (Cascade?, PeakLimiter?) in
-            let old = (cascade, limiter)
+    private func install(_ new: Cascade?, limiter newLimiter: PeakLimiter? = nil, crossfeed newCrossfeed: Crossfeed? = nil) {
+        let old = lock.withLockUnchecked { () -> (Cascade?, PeakLimiter?, Crossfeed?) in
+            let old = (cascade, limiter, crossfeed)
             cascade = new
             if newLimiter != nil { limiter = newLimiter }
+            if newCrossfeed != nil { crossfeed = newCrossfeed }
             return old
         }
         _ = old
     }
 
     /// The audio thread: each channel's buffer through the cascade, in place, then the gain (the preamp times the
-    /// level). The first buffer starts at the gain; a later change glides there (`glideSeconds`). Then the limiter, when
-    /// on. A flat curve at 0 dB with no limiter leaves the audio untouched.
+    /// level). The first buffer starts at the gain; a later change glides there (`glideSeconds`). Then crossfeed and the
+    /// limiter, when on. A flat curve at 0 dB with neither leaves the audio untouched.
     fileprivate func process(_ buffers: UnsafeMutableAudioBufferListPointer, frames: Int) {
         lock.withLockUnchecked {
             #if DEBUG
@@ -229,6 +240,10 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                             vDSP_vrampmul(samples, 1, &start, &step, samples, 1, vDSP_Length(frames))
                         }
                     }
+                }
+                if let crossfeed, buffers.count == 2, let left = buffers[0].mData?.assumingMemoryBound(to: Float.self),
+                   let right = buffers[1].mData?.assumingMemoryBound(to: Float.self) {
+                    crossfeed.process(left, right, frames: frames)
                 }
                 if let limiter, limiter.channels == buffers.count {
                     withUnsafeTemporaryAllocation(of: UnsafeMutablePointer<Float>.self, capacity: buffers.count) { pointers in
@@ -314,6 +329,44 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return nil
         }
         return tap
+    }
+}
+
+/// Crossfeed for headphones (Settings › Playback): a little of each channel's bass goes to the other ear, as from
+/// speakers in a room, so a song panned hard to one side is less tiring. Bauer's stereophonic-to-binaural filter as
+/// libbs2b (MIT) builds it, at its default level (cut at 700 Hz, fed 4.5 dB under the direct sound): each channel through
+/// a one-pole low pass to the other side, and a high boost on its own side, then a gain that keeps the bass where it was.
+/// Stereo only.
+nonisolated final class Crossfeed {
+    static let cut = 700.0, feed = 4.5
+
+    private let a0Low: Float, b1Low: Float, a0High: Float, a1High: Float, b1High: Float, gain: Float
+    private var low: (Float, Float) = (0, 0), high: (Float, Float) = (0, 0), last: (Float, Float) = (0, 0)
+
+    init(sampleRate rate: Double) {
+        // as bs2b_init (libbs2b 3.1.0)
+        let lowDB = -Self.feed * 5 / 6 - 3, highDB = Self.feed / 6 - 3
+        let lowGain = pow(10, lowDB / 20), highGain = 1 - pow(10, highDB / 20)
+        let highCut = Self.cut * pow(2, (lowDB - 20 * log10(highGain)) / 12)
+        var x = exp(-2 * Double.pi * Self.cut / rate)
+        b1Low = Float(x)
+        a0Low = Float(lowGain * (1 - x))
+        x = exp(-2 * Double.pi * highCut / rate)
+        b1High = Float(x)
+        a0High = Float(1 - highGain * (1 - x))
+        a1High = Float(-x)
+        gain = Float(1 / (1 - highGain + lowGain))
+    }
+
+    func process(_ left: UnsafeMutablePointer<Float>, _ right: UnsafeMutablePointer<Float>, frames: Int) {
+        for i in 0..<frames {
+            let l = left[i], r = right[i]
+            low = (a0Low * l + b1Low * low.0, a0Low * r + b1Low * low.1)
+            high = (a0High * l + a1High * last.0 + b1High * high.0, a0High * r + a1High * last.1 + b1High * high.1)
+            last = (l, r)
+            left[i] = (high.0 + low.1) * gain
+            right[i] = (high.1 + low.0) * gain
+        }
     }
 }
 

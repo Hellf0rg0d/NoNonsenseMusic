@@ -26,7 +26,7 @@ extension SelfTest {
             func db(_ value: Double?) -> String { value.map { String(format: "%+.2f dB", $0) } ?? "no audio" }
             let leveller = Leveller.shared, chain = SoundChain.shared
             try? await Task.sleep(for: .seconds(2))
-            borrowDefaults(["levelOn", "limiterOn", "eqOn", "audioCacheMB", "autoplay"])
+            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "eqOn", "audioCacheMB", "autoplay"])
             var keys: [String] = []
             @MainActor func finish() {
                 leveller.setOn(false)
@@ -77,6 +77,28 @@ extension SelfTest {
             let cleanChange = clean.offline(frequency: 1000)
             check("the limiter leaves audio under its ceiling as it is", near(cleanChange, 0, 0.01) && clean.limiterDeepestForTests == 0,
                   "\(db(cleanChange)), deepest \(db(clean.limiterDeepestForTests))")
+
+            // B3. crossfeed (bs2b's numbers): bass reaches the other ear 4.5 dB down, highs stay on their side
+            @MainActor func crossfed(_ hz: Double, both: Bool) -> (other: Double, same: Double) {
+                let rate = 44_100.0, frames = Int(rate)
+                var left = (0..<frames).map { Float(0.5 * sin(2 * .pi * hz * Double($0) / rate)) }
+                var right = both ? left : [Float](repeating: 0, count: frames)
+                let before = left
+                let feed = Crossfeed(sampleRate: rate)
+                left.withUnsafeMutableBufferPointer { l in
+                    right.withUnsafeMutableBufferPointer { r in feed.process(l.baseAddress!, r.baseAddress!, frames: frames) }
+                }
+                func power(_ x: [Float]) -> Double {
+                    var sum = 0.0
+                    for v in x[(frames / 2)...] { sum += Double(v) * Double(v) }
+                    return sum
+                }
+                return (10 * log10(power(right) / power(left)), 10 * log10(power(left) / power(before)))
+            }
+            let bass = crossfed(100, both: false), treble = crossfed(10_000, both: false), mono = crossfed(60, both: true)
+            check("crossfeed: 100 Hz in one ear reaches the other 4.5 dB down", near(bass.other, -4.5, 0.6), db(bass.other))
+            check("…10 kHz stays on its side (under −20 dB)", treble.other < -20, db(treble.other))
+            check("…and bass in both ears stays as loud", near(mono.same, 0, 0.3), db(mono.same))
 
             // C. the meter, on 1 kHz tones through AAC
             let loudPeak = 30000.0, quietPeak = 2000.0
