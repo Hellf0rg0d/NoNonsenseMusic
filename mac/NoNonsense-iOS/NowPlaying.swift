@@ -1,37 +1,52 @@
 import SwiftUI
 
-extension View {
-    /// The song playing, in a bar at the bottom of a tab, over its content.
-    func withMiniPlayer() -> some View {
-        safeAreaInset(edge: .bottom) { MiniPlayer() }
-    }
-}
-
-/// The bar: cover, title and play/pause; a tap opens Now Playing.
+/// The player: cover, title and play/pause; a tap opens Now Playing, a swipe left or right skips. `docked`: on iOS 26's
+/// tab bar, which draws the glass itself; otherwise it is a glass bar of its own.
 struct MiniPlayer: View {
     @Environment(Player.self) private var player
+    let docked: Bool
 
     var body: some View {
         if let track = player.current {
-            HStack(spacing: 12) {
-                Cover(url: track.image, size: 40)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 10) {
+                Cover(url: track.image, size: docked ? 32 : 40)
+                VStack(alignment: .leading, spacing: 0) {
                     Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                     Text(track.artistLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                PlayPauseButton(size: 22)
-                Button { player.next() } label: { Image(systemName: "forward.fill").font(.system(size: 20)) }
+                PlayPauseButton(size: 20)
+                Button { player.next() } label: { Image(systemName: "forward.fill").font(.system(size: 18)) }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Next")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .padding(.horizontal, 10)
-            .padding(.bottom, 4)
+            .padding(.horizontal, docked ? 12 : 14)
+            .padding(.vertical, docked ? 0 : 8)
+            .modifier(OwnGlass(on: !docked))
             .contentShape(Rectangle())
             .onTapGesture { player.showNowPlaying = true }
+            .gesture(DragGesture(minimumDistance: 24).onEnded { drag in
+                guard abs(drag.translation.width) > abs(drag.translation.height) * 1.5 else {
+                    if drag.translation.height < -30 { player.showNowPlaying = true }   // a swipe up opens it
+                    return
+                }
+                drag.translation.width < 0 ? player.next() : player.previous()
+            })
+            .sensoryFeedback(.selection, trigger: track.id)
+        }
+    }
+}
+
+/// The bar's own glass, before iOS 26 (and the material in its shape where there is no glass).
+private struct OwnGlass: ViewModifier {
+    let on: Bool
+    func body(content: Content) -> some View {
+        if on {
+            content.compatGlass(in: RoundedRectangle(cornerRadius: 16), interactive: true)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 4)
+        } else {
+            content
         }
     }
 }

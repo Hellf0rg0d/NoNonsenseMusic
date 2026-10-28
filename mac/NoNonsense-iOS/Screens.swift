@@ -29,6 +29,12 @@ struct HomeScreen: View {
         }
         .navigationTitle("Home")
         .navigationDestination(for: PlaylistSummary.self) { PlaylistScreen(playlist: $0) }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { PhoneSettings() } label: { Image(systemName: "gearshape") }
+                    .accessibilityLabel("Settings")
+            }
+        }
         .refreshable { await library.refresh(); await library.refreshPlaylists() }
     }
 }
@@ -52,7 +58,7 @@ struct SearchScreen: View {
         }
         .overlay { if searching && songs.isEmpty { ProgressView() } }
         .navigationTitle("Search")
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Songs, artists")
+        .searchable(text: $query, prompt: "Songs, artists, albums")
         .task(id: query) {
             let typed = query.trimmingCharacters(in: .whitespaces)
             guard !typed.isEmpty else { songs = []; problem = nil; return }

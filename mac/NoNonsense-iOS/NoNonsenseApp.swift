@@ -65,11 +65,30 @@ private struct MainTabs: View {
     var body: some View {
         @Bindable var player = player
         TabView {
-            Tab("Home", systemImage: "house") { NavigationStack { HomeScreen() }.withMiniPlayer() }
-            Tab("Search", systemImage: "magnifyingglass") { NavigationStack { SearchScreen() }.withMiniPlayer() }
-            Tab("Library", systemImage: "music.note.list") { NavigationStack { LibraryScreen() }.withMiniPlayer() }
-            Tab("Settings", systemImage: "gearshape") { NavigationStack { PhoneSettings() }.withMiniPlayer() }
+            Tab("Home", systemImage: "house") { NavigationStack { HomeScreen() }.playerBarBefore26() }
+            Tab("Library", systemImage: "square.stack") { NavigationStack { LibraryScreen() }.playerBarBefore26() }
+            Tab(role: .search) { NavigationStack { SearchScreen() }.playerBarBefore26() }
         }
+        .playerAccessory26()
         .sheet(isPresented: $player.showNowPlaying) { NowPlayingScreen() }
+    }
+}
+
+extension View {
+    /// iOS 26: the player on the tab bar (its bottom accessory, glass), and the tab bar shrinking as you scroll down.
+    @ViewBuilder
+    func playerAccessory26() -> some View {
+        if #available(iOS 26, *) {
+            self.tabViewBottomAccessory { MiniPlayer(docked: true) }
+                .tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
+
+    /// Before iOS 26: the player as a glass bar just above the tab bar, over each tab's content.
+    @ViewBuilder
+    func playerBarBefore26() -> some View {
+        if #available(iOS 26, *) { self } else { safeAreaInset(edge: .bottom) { MiniPlayer(docked: false) } }
     }
 }
