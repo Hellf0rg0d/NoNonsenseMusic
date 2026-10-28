@@ -755,6 +755,12 @@ final class Player {
     #if DEBUG
     /// Self-tests: the copy queued behind the playing song.
     var queuedKeyForTests: String? { queued?.listing.key }
+    /// Self-tests: what the queue player itself is doing, for a failure's message.
+    var playerStateForTests: String {
+        let item = (player.currentItem?.asset as? AVURLAsset)?.url.lastPathComponent ?? "none"
+        return "item \(item), \(player.items().count) in its queue, rate \(player.rate), status \(player.timeControlStatus.rawValue), "
+            + "at \(String(format: "%.2f", livePosition)) s, playing \(isPlaying), listing \(playingListing?.title ?? "none")"
+    }
     #endif
 
     private func unqueue() {
@@ -770,7 +776,8 @@ final class Player {
         guard let track = current else { return }
         report("finish", track, at: Int(duration))
         queued = nil
-        player.actionAtItemEnd = .pause
+        // `.advance` stays until the switch: set back to `.pause` now, when the end notification came before the queue
+        // player moved on, it paused on the ended song instead (CI, 28 Oct: no switch, nothing playing)
         moved(to: next.index, playing: next.listing)
         // the rest once the queued song is current: its status, and the song after it queued behind it, not the old one
         let expected = ObjectIdentifier(next.item)
@@ -800,6 +807,7 @@ final class Player {
     private func switched(to now: ObjectIdentifier?, expecting expected: ObjectIdentifier) {
         guard now == expected, switchObservation != nil, let item = player.currentItem else { return }
         switchObservation = nil
+        player.actionAtItemEnd = .pause                           // until the next song is queued (announceNext)
         observe(item)
         statusChanged(item.status, of: expected)                 // ready already: no change for KVO to report
         announceNext()

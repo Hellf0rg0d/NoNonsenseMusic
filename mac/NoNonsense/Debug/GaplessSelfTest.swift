@@ -96,10 +96,11 @@ extension SelfTest {
             check("Up Next cleared: nothing is queued any more", await until(2) { player.queuedKeyForTests == nil })
             let after = await gap(songs[0], songs[1])
             report("gapless: on, the gap between songs is \(ms(after))")
-            check("on: no gap (under 20 ms of the player's clock)", after.map { abs($0) < 0.02 } ?? false, ms(after))
+            check("on: no gap (under 20 ms of the player's clock)", after.map { abs($0) < 0.02 } ?? false,
+                  "\(ms(after)); \(player.playerStateForTests)")
             check("…where off had one, so the test can see a gap", (before ?? 0) > (after ?? 0) + 0.03, "\(ms(before)) off")
             check("the second song is the one playing, as after any change", player.playingListing?.key == songs[1].key
-                  && player.current?.best.key == songs[1].key && player.isPlaying)
+                  && player.current?.best.key == songs[1].key && player.isPlaying, player.playerStateForTests)
             check("its own length is read, not the first's (6 s)", abs(player.duration - 6) < 0.5, String(format: "%.2f s", player.duration))
 
             // C. ⏭ with a song queued
