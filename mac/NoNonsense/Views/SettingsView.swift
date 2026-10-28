@@ -521,6 +521,15 @@ private struct PlaybackSettings: View {
                 Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. Without the limiter, a quiet song goes up only as far as it can without distorting.")
                     .foregroundStyle(.secondary)
             }
+            Section {
+                Toggle(isOn: Binding(get: { SoundProfiles.shared.on }, set: { SoundProfiles.shared.setOn($0) })) {
+                    Text("Sound for each output")
+                    Text(SoundProfiles.shared.on
+                         ? "Now: \(SoundProfiles.shared.output?.name ?? "this output"). The equalizer, headphone correction and crossfeed below are kept for each output and switch with it."
+                         : "The equalizer, headphone correction and crossfeed below are the same for every output.")
+                        .foregroundStyle(.secondary)
+                }
+            }
             HeadphoneSection()
             EqualizerSection()
         }

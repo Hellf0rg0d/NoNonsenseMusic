@@ -26,7 +26,8 @@ extension SelfTest {
             func db(_ value: Double?) -> String { value.map { String(format: "%+.2f dB", $0) } ?? "no audio" }
             let leveller = Leveller.shared, chain = SoundChain.shared
             try? await Task.sleep(for: .seconds(2))
-            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "vocalClarity", "headphoneCorrection", "eqOn", "audioCacheMB", "autoplay"])
+            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "vocalClarity", "headphoneCorrection", "soundProfiles", "soundOutputID", "soundOutputName",
+                            "soundPerOutput", "eqGains", "eqPreset", "eqOn", "audioCacheMB", "autoplay"])
             var keys: [String] = []
             @MainActor func finish() {
                 leveller.setOn(false)
@@ -209,6 +210,36 @@ extension SelfTest {
 
             leveller.setOn(false)
             check("switched off, the song's tap is taken away", await until(3) { !player.itemHasTapForTests })
+
+            // D2. sound for each output, on two made-up outputs (CI has no headphones to plug in)
+            let profiles = SoundProfiles.shared, eq = Equalizer.shared
+            profiles.followsSystem = false
+            profiles.setOn(true)
+            let speakers = SoundProfiles.Output(id: "selftest-speakers", name: "Self-Test Speakers")
+            let buds = SoundProfiles.Output(id: "selftest-buds-\(UUID().uuidString)", name: "Self-Test Buds")
+            profiles.switched(to: speakers)
+            eq.setOn(true)
+            eq.choose(.bassBoost)
+            HeadphoneCorrection.shared.useForTests(nil, [])
+            profiles.switched(to: buds)
+            check("an output met for the first time starts from the settings as they are",
+                  eq.on && eq.preset == .bassBoost, "\(eq.on), \(eq.preset.rawValue)")
+            eq.choose(.vocal)
+            HeadphoneCorrection.shared.useForTests(.init(name: "Self-Test Buds", path: "selftest/Buds"), CorrectionFilter.parse(
+                "Filter 1: ON PK Fc 1000 Hz Gain 3.0 dB Q 1.00"))
+            profiles.switched(to: speakers)
+            check("back on the speakers: their equalizer, and no correction", eq.preset == .bassBoost && eq.gains == Equalizer.Preset.bassBoost.gains
+                  && HeadphoneCorrection.shared.model == nil, "\(eq.preset.rawValue), \(HeadphoneCorrection.shared.model?.name ?? "none")")
+            profiles.switched(to: buds)
+            check("on the buds again: their equalizer and their correction", eq.preset == .vocal
+                  && HeadphoneCorrection.shared.model?.name == "Self-Test Buds" && HeadphoneCorrection.shared.filters.count == 1,
+                  "\(eq.preset.rawValue), \(HeadphoneCorrection.shared.model?.name ?? "none")")
+            profiles.setOn(false)
+            eq.choose(.flat)
+            profiles.switched(to: speakers)
+            check("off: one setting for every output (the speakers keep what the buds had)", eq.preset == .flat, eq.preset.rawValue)
+            HeadphoneCorrection.shared.useForTests(nil, [])
+            eq.setOn(false)
 
             // E. headphone correction, live from GitHub: the list, then one model's filters, and the tap for it
             let correction = HeadphoneCorrection.shared

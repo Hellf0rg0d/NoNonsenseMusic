@@ -30,11 +30,17 @@ final class HeadphoneCorrection {
 
     static let base = URL(string: "https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results/")!
 
-    private init() {
+    private init() { reload() }
+
+    /// At launch, and when SoundProfiles puts another output's settings in place.
+    func reload() {
         if let data = UserDefaults.standard.data(forKey: "headphoneCorrection"),
            let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             model = saved.model
             filters = saved.filters
+        } else {
+            model = nil
+            filters = []
         }
     }
 
@@ -106,7 +112,11 @@ final class HeadphoneCorrection {
     #if DEBUG
     /// Self-tests: a correction used without fetching it.
     func useForTests(_ chosen: Model?, _ parsed: [CorrectionFilter]) {
-        if let chosen { use(chosen, parsed) } else { Task { await choose(nil) } }
+        if let chosen { use(chosen, parsed); return }
+        model = nil
+        filters = []
+        UserDefaults.standard.removeObject(forKey: "headphoneCorrection")
+        SoundChain.shared.settingChanged()
     }
     #endif
 }

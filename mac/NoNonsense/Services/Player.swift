@@ -95,6 +95,7 @@ final class Player {
         order.repeatMode = UserDefaults.standard.string(forKey: "repeat").flatMap(PlayQueue.Repeat.init(rawValue:)) ?? .off
         // the equalizer switched on or off: the song playing gets its tap, or loses it, at once
         SoundChain.shared.changed = { [weak self] in self?.soundChanged() }
+        _ = SoundProfiles.shared                            // each output's equalizer and correction, from launch
         endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification,
                                                              object: nil, queue: .main) { [weak self] note in
             let item = note.object as? AVPlayerItem

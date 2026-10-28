@@ -56,6 +56,7 @@
 		7C3F83393CA321A64FA0909C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C646EB60CF5521894381A0AB /* RootView.swift */; };
 		819E08205BF5C0D90D795E17 /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F7CD8D9DD581E357889DAF /* Account.swift */; };
 		84686E9E5E599CE8BF15A495 /* ServerLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA9BFC4261D1B1DA125FFCA /* ServerLauncher.swift */; };
+		881E1DDB1D46834786221A48 /* SoundProfiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03362F227F7148FC5A803F7F /* SoundProfiles.swift */; };
 		8A2E113A742983C215DC9639 /* Matching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87F9F3A792DD71494F621530 /* Matching.swift */; };
 		8B5636ECE639853CE0235274 /* HomeHeroSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F03798D2E0871DFCE15FF63 /* HomeHeroSelfTest.swift */; };
 		8BF2E46ECD073C5DCC238688 /* HomeHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D233642141D053435470851 /* HomeHero.swift */; };
@@ -91,6 +92,7 @@
 /* Begin PBXFileReference section */
 		0029102565E8036146C9F1B0 /* BrowseSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseSelfTest.swift; sourceTree = "<group>"; };
 		00C1B5E468195CB2D992A02B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		03362F227F7148FC5A803F7F /* SoundProfiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundProfiles.swift; sourceTree = "<group>"; };
 		042D0FF9C7398E462F7EEAD9 /* Jam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Jam.swift; sourceTree = "<group>"; };
 		04C66CE5AA2573A220BAF1FD /* CacheSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSelfTest.swift; sourceTree = "<group>"; };
 		065566838EF587BE46F586CF /* PlayQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayQueue.swift; sourceTree = "<group>"; };
@@ -309,6 +311,7 @@
 				57E61BBC7E329399CCCFF251 /* Shuffle.swift */,
 				0EC180CBD9CAE5022E863BAD /* Social.swift */,
 				618A1D0EE3F89CF391B14495 /* SoundChain.swift */,
+				03362F227F7148FC5A803F7F /* SoundProfiles.swift */,
 				E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */,
 				D2B2FE4C7E6EEAA589159B7F /* ThemeStore.swift */,
 				A561235C0692FB4B426F29EF /* Updater.swift */,
@@ -469,6 +472,7 @@
 				D14701BCE220BFFE52359ABA /* Social.swift in Sources */,
 				F0E2C30026FE94064660905F /* SongRow.swift in Sources */,
 				FF8CAE6F1B5B90DD4746E3B4 /* SoundChain.swift in Sources */,
+				881E1DDB1D46834786221A48 /* SoundProfiles.swift in Sources */,
 				50493A6732F168A78D258680 /* SpotifyImport.swift in Sources */,
 				AE2446E87AE50D3E1F6FAE13 /* ThemeStore.swift in Sources */,
 				E3C1BAD6A0079F7A5A5860C2 /* Translation.swift in Sources */,

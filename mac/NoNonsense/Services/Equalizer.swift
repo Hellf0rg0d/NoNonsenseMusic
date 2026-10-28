@@ -40,12 +40,20 @@ final class Equalizer {
     @ObservationIgnored var changed: (() -> Void)?
 
     private init() {
+        (on, gains, preset) = Self.stored()
+    }
+
+    private static func stored() -> (Bool, [Double], Preset) {
         let defaults = UserDefaults.standard
-        on = defaults.bool(forKey: "eqOn")
         let saved = (defaults.array(forKey: "eqGains") as? [Double]) ?? []
-        gains = saved.count == Self.bands.count ? saved.map { min(max($0, Self.range.lowerBound), Self.range.upperBound) }
-                                                : Array(repeating: 0, count: Self.bands.count)
-        preset = Preset(rawValue: defaults.string(forKey: "eqPreset") ?? "") ?? .flat
+        let gains = saved.count == bands.count ? saved.map { min(max($0, range.lowerBound), range.upperBound) }
+                                               : Array(repeating: 0, count: bands.count)
+        return (defaults.bool(forKey: "eqOn"), gains, Preset(rawValue: defaults.string(forKey: "eqPreset") ?? "") ?? .flat)
+    }
+
+    /// SoundProfiles: another output's settings were put in place; the taps follow (SoundChain.settingChanged).
+    func reload() {
+        (on, gains, preset) = Self.stored()
     }
 
     func setOn(_ value: Bool) {
