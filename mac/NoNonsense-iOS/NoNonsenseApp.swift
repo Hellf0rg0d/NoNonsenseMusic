@@ -37,7 +37,15 @@ struct NoNonsensePhoneApp: App {
         _downloads = State(initialValue: downloads)
         _player = State(initialValue: player)
         _account = State(initialValue: account)
+        // loudness compensation follows the iPhone's own volume
+        SoundChain.shared.volumeChanged(place: Double(AVAudioSession.sharedInstance().outputVolume))
+        volumeObservation = AVAudioSession.sharedInstance().observe(\.outputVolume, options: [.new]) { session, _ in
+            let place = Double(session.outputVolume)
+            Task { @MainActor in SoundChain.shared.volumeChanged(place: place) }
+        }
     }
+
+    private let volumeObservation: NSKeyValueObservation?
 
     var body: some Scene {
         WindowGroup {

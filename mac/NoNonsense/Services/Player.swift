@@ -95,6 +95,9 @@ final class Player {
         self.downloads = downloads
         self.presence = presence
         setUp(player)
+        #if os(macOS)
+        SoundChain.shared.volumeChanged(place: Double(volume))
+        #endif
         order.repeatMode = UserDefaults.standard.string(forKey: "repeat").flatMap(PlayQueue.Repeat.init(rawValue:)) ?? .off
         // the equalizer switched on or off: the song playing gets its tap, or loses it, at once
         SoundChain.shared.changed = { [weak self] in self?.soundChanged() }
@@ -343,6 +346,7 @@ final class Player {
         volume = min(1, max(0, level))
         player.volume = Self.gain(volume)
         outgoing?.volume = player.volume
+        SoundChain.shared.volumeChanged(place: Double(volume))     // loudness compensation follows the volume
         if isMuted { isMuted = false; player.isMuted = jamSilent; outgoing?.isMuted = jamSilent }
         // saved once the slider settles, not on every pointer move of a drag
         volumeSave?.cancel()

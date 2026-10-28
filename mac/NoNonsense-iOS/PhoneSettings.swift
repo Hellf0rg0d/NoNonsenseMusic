@@ -8,6 +8,7 @@ struct PhoneSettings: View {
     @AppStorage("crossfeed") private var crossfeed = false
     @AppStorage("crossfadeSeconds") private var crossfade = 0.0
     @AppStorage("vocalClarity") private var vocalClarity = 0.0
+    @AppStorage("loudnessCompensation") private var loudness = false
     private var leveller: Leveller { .shared }
     private var profiles: SoundProfiles { .shared }
 
@@ -37,6 +38,11 @@ struct PhoneSettings: View {
                     Text("A little of each side's bass reaches the other ear, as from speakers.")
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
+                Toggle(isOn: $loudness) {
+                    Text("Fuller sound at low volume")
+                    Text("Adds back the bass and treble your ears lose when the volume is down.")
+                }
+                .onChange(of: loudness) { _, _ in SoundChain.shared.loudnessChanged() }
                 VStack(alignment: .leading) {
                     Text("Vocal clarity: " + (vocalClarity > 0 ? String(format: "+%g dB", vocalClarity) : "off"))
                     Slider(value: $vocalClarity, in: 0...6, step: 0.5)

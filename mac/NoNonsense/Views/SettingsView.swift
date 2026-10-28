@@ -435,6 +435,7 @@ private struct PlaybackSettings: View {
     @AppStorage("crossfeed") private var crossfeed = false                   // SoundChain.crossfeeding
     @AppStorage("crossfadeSeconds") private var crossfade = 0.0              // Player.crossfade
     @AppStorage("vocalClarity") private var vocalClarity = 0.0               // SoundChain.vocalClarity
+    @AppStorage("loudnessCompensation") private var loudness = false         // SoundChain.loudnessCompensation
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -502,6 +503,13 @@ private struct PlaybackSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
+                // two more filters in the equalizer's cascade (its 14 bands: 0.12% of one core, 25 Oct)
+                Toggle(isOn: $loudness) {
+                    Text("Fuller sound at low volume")
+                    Text("Adds back the bass and treble your ears lose when the volume is down, more the lower it goes.")
+                        .foregroundStyle(.secondary)
+                }
+                .onChange(of: loudness) { _, _ in SoundChain.shared.loudnessChanged() }
                 // measured 28 Oct: 0.021% of one core (an hour of stereo through it, offline)
                 LabeledContent {
                     Slider(value: $vocalClarity, in: 0...6, step: 0.5)

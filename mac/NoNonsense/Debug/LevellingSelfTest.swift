@@ -26,7 +26,7 @@ extension SelfTest {
             func db(_ value: Double?) -> String { value.map { String(format: "%+.2f dB", $0) } ?? "no audio" }
             let leveller = Leveller.shared, chain = SoundChain.shared
             try? await Task.sleep(for: .seconds(2))
-            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "vocalClarity", "headphoneCorrection", "soundProfiles", "soundOutputID", "soundOutputName",
+            borrowDefaults(["levelOn", "limiterOn", "crossfeed", "vocalClarity", "loudnessCompensation", "headphoneCorrection", "soundProfiles", "soundOutputID", "soundOutputName",
                             "soundPerOutput", "eqGains", "eqPreset", "eqOn", "audioCacheMB", "autoplay"])
             var keys: [String] = []
             @MainActor func finish() {
@@ -119,6 +119,22 @@ extension SelfTest {
             check("vocal clarity +6 dB: a centred voice at 2.5 kHz comes up 6 dB", near(voice, 6, 0.3), db(voice))
             check("…what differs between the ears (the side) stays as it was", near(side, 0, 0.3), db(side))
             check("…and centred bass is untouched", near(lows, 0, 0.3), db(lows))
+
+            // B3c. loudness compensation: at half volume (18 dB down) +6 dB at 105 Hz, +2.25 dB at 8 kHz, the middle as it was
+            let shelves = SoundChain.loudnessShelves(place: 0.5)
+            check("loudness: at full volume there is nothing to add", SoundChain.loudnessShelves(place: 1).isEmpty)
+            check("…at half volume, a 6 dB bass shelf and a 2.25 dB treble shelf", shelves.count == 2
+                  && near(shelves[0].gain, 6.02, 0.05) && near(shelves[1].gain, 2.26, 0.05),
+                  shelves.map { String(format: "%.2f", $0.gain) }.joined(separator: ", "))
+            @MainActor func compensated(_ hz: Double) -> Double {
+                let processor = SoundProcessor(gains: flat)
+                processor.update(loudness: shelves)
+                return processor.offline(frequency: hz, seconds: 1)
+            }
+            let low = compensated(60), middle = compensated(1000), high = compensated(14000)
+            // the shelves' response worked out offline (28 Oct): 60 Hz +5.38 dB (a 105 Hz shelf), 1 kHz 0, 14 kHz +2.19
+            check("…in the chain: 60 Hz up 5.4 dB, 1 kHz as it was, 14 kHz up 2.2 dB, and no preamp taking it back",
+                  near(low, 5.38, 0.4) && near(middle, 0, 0.3) && near(high, 2.19, 0.4), "\(db(low)), \(db(middle)), \(db(high))")
 
             // B4. headphone correction: AutoEq's AirPods Pro file (crinacle's measurement), as fetched
             let airpods = """

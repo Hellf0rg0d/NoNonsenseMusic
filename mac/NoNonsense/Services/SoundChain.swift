@@ -24,12 +24,48 @@ final class SoundChain {
     }
 
     var active: Bool {
-        Self.vocalClarity > 0 || Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
+        Self.vocalClarity > 0 || Self.loudnessCompensation || Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
             || Player.crossfade > 0                       // its fades are shaped in the taps
     }
 
     /// Settings › Playback › Crossfeed (off by default).
     static var crossfeeding: Bool { UserDefaults.standard.bool(forKey: "crossfeed") }
+
+    /// Settings › Playback › Loudness compensation (28 Oct; off by default): as the volume goes down, ears lose bass and
+    /// treble sooner than the middle (ISO 226's equal-loudness contours), so quiet music sounds thin. Two shelves, at
+    /// 105 Hz and 8 kHz, rise as the volume falls: a third of the volume's cut for the bass (at most 10 dB), an eighth
+    /// for the treble (at most 4 dB). An approximation of the contours' gaps, not a fit to them.
+    static var loudnessCompensation: Bool { UserDefaults.standard.bool(forKey: "loudnessCompensation") }
+
+    /// The volume control's place, 0 to 1 (the Mac's slider, the iPhone's system volume); its cut is the cube's.
+    private(set) var listeningPlace: Double = 1
+
+    nonisolated static func loudnessShelves(place: Double) -> [CorrectionFilter] {
+        let cut = -60 * log10(max(place, 0.01))                        // dB the volume takes off (gain = place³)
+        let bass = min(cut / 3, 10), treble = min(cut / 8, 4)
+        guard bass >= 0.5 else { return [] }
+        return [CorrectionFilter(kind: .lowShelf, frequency: 105, gain: bass, q: 0.7),
+                CorrectionFilter(kind: .highShelf, frequency: 8000, gain: treble, q: 0.7)]
+    }
+
+    private var shelvesNow: [CorrectionFilter] { Self.loudnessCompensation ? Self.loudnessShelves(place: listeningPlace) : [] }
+
+    /// The volume moved: every tap's shelves follow (only when they change by half a dB or more).
+    func volumeChanged(place: Double) {
+        let before = shelvesNow
+        listeningPlace = min(max(place, 0), 1)
+        let after = shelvesNow
+        guard abs((before.first?.gain ?? 0) - (after.first?.gain ?? 0)) >= 0.5 || before.isEmpty != after.isEmpty else { return }
+        for entry in processors { entry.processor.processor?.update(loudness: after) }
+    }
+
+    /// Loudness compensation switched: every tap follows.
+    func loudnessChanged() {
+        if Self.loudnessCompensation && !active { changed?() }
+        let shelves = shelvesNow
+        for entry in processors { entry.processor.processor?.update(loudness: shelves) }
+        changed?()
+    }
 
     /// Settings › Playback › Vocal clarity: the mid's boost, 0 (off) to 6 dB.
     static var vocalClarity: Double { min(max(UserDefaults.standard.double(forKey: "vocalClarity"), 0), 6) }
@@ -53,6 +89,7 @@ final class SoundChain {
                                        limiting: leveller.limiting, crossfeeding: Self.crossfeeding,
                                        correction: HeadphoneCorrection.shared.filters, vocal: Self.vocalClarity)
         if let fadeIn { processor.fade(in: true, over: fadeIn) }
+        if Self.loudnessCompensation { processor.update(loudness: shelvesNow) }
         processors.removeAll { $0.processor.processor == nil }
         processors.append((key, ObjectIdentifier(item), Weak(processor: processor)))
         Task {
@@ -114,6 +151,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var vocalGain: Double                  // vocal clarity's boost, dB; 0: none
     private var vocal: VocalClarity?
     private let correction: [CorrectionFilter]     // headphone correction, before the equalizer's bands
+    private var loudness: [CorrectionFilter] = []  // loudness compensation's shelves (SoundChain.loudnessShelves)
     /// A crossfade's fade: in (from silence) or out (to silence), its length, and how far along it is, in frames.
     private var fading: (incoming: Bool, seconds: Double, done: Int)?
     private var silenced = false                   // a fade out is over: silence from here
@@ -194,17 +232,29 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             self.gains = gains
             return (sampleRate, channels)
         }
-        install(Self.build(gains: gains, correction: correction, sampleRate: rate, channels: count, limiting: limiting,
-                           vocal: lock.withLockUnchecked { vocalGain }))
+        let (boost, shelves) = lock.withLockUnchecked { (vocalGain, loudness) }
+        install(Self.build(gains: gains, correction: correction, loudness: shelves, sampleRate: rate, channels: count,
+                           limiting: limiting, vocal: boost))
+    }
+
+    /// Loudness compensation's shelves for the volume now ([] when off or at full volume).
+    func update(loudness shelves: [CorrectionFilter]) {
+        let (rate, count, current, boost) = lock.withLockUnchecked { () -> (Double, Int, [Double], Double) in
+            loudness = shelves
+            return (sampleRate, channels, gains, vocalGain)
+        }
+        install(Self.build(gains: current, correction: correction, loudness: shelves, sampleRate: rate, channels: count,
+                           limiting: limiting, vocal: boost))
     }
 
     /// Vocal clarity's boost, in dB (0: off), as its slider moves: the filter and the preamp made again.
     func update(vocal gain: Double) {
-        let (rate, count, current) = lock.withLockUnchecked { () -> (Double, Int, [Double]) in
+        let (rate, count, current, shelves) = lock.withLockUnchecked { () -> (Double, Int, [Double], [CorrectionFilter]) in
             vocalGain = gain
-            return (sampleRate, channels, gains)
+            return (sampleRate, channels, gains, loudness)
         }
-        install(Self.build(gains: current, correction: correction, sampleRate: rate, channels: count, limiting: limiting, vocal: gain),
+        install(Self.build(gains: current, correction: correction, loudness: shelves, sampleRate: rate, channels: count,
+                           limiting: limiting, vocal: gain),
                 vocal: count == 2 && gain > 0 ? VocalClarity(gain: gain, sampleRate: rate) : nil, vocalChanges: true)
     }
 
@@ -238,9 +288,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return gains
         }
         let count = Int(format.mChannelsPerFrame)
-        let boost = lock.withLockUnchecked { vocalGain }
-        install(Self.build(gains: current, correction: correction, sampleRate: format.mSampleRate, channels: count, limiting: limiting,
-                           vocal: boost),
+        let (boost, shelves) = lock.withLockUnchecked { (vocalGain, loudness) }
+        install(Self.build(gains: current, correction: correction, loudness: shelves, sampleRate: format.mSampleRate,
+                           channels: count, limiting: limiting, vocal: boost),
                 limiter: limiting && count > 0 ? PeakLimiter(sampleRate: format.mSampleRate, channels: count) : nil,
                 crossfeed: crossfeeding && count == 2 ? Crossfeed(sampleRate: format.mSampleRate) : nil,
                 vocal: count == 2 && boost > 0 ? VocalClarity(gain: boost, sampleRate: format.mSampleRate) : nil, vocalChanges: true)
@@ -249,13 +299,16 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     /// The headphone correction's filters, then the bands', in one cascade; the preamp lowers the whole curve by its peak.
     /// `vocal`: vocal clarity's boost, which the preamp makes room for too (the mid up by g, the side as it was: no
     /// sample can grow by more than g).
-    private static func build(gains: [Double], correction: [CorrectionFilter] = [], sampleRate: Double, channels: Int,
-                              limiting: Bool, vocal: Double = 0) -> Cascade? {
+    /// `loudness`: loudness compensation's shelves, last and outside the preamp: the volume after the tap always takes
+    /// off more than they add (SoundChain.loudnessShelves), so they cannot make the output louder than full volume would.
+    private static func build(gains: [Double], correction: [CorrectionFilter] = [], loudness: [CorrectionFilter] = [],
+                              sampleRate: Double, channels: Int, limiting: Bool, vocal: Double = 0) -> Cascade? {
         guard channels > 0 else { return nil }
         let coefficients = correction.flatMap { $0.coefficients(sampleRate: sampleRate) } + coefficients(gains: gains, sampleRate: sampleRate)
         let room: Double = peak(coefficients: coefficients, sampleRate: sampleRate) + max(0, vocal)
         let preamp = limiting ? 1 : Float(pow(10, -room / 20))
-        return Cascade(coefficients: coefficients, sections: coefficients.count / 5, channels: channels, preamp: preamp)
+        let all = coefficients + loudness.flatMap { $0.coefficients(sampleRate: sampleRate) }
+        return Cascade(coefficients: all, sections: all.count / 5, channels: channels, preamp: preamp)
     }
 
     /// Swapped in under the lock; the old ones are let go here, never on the audio thread.
