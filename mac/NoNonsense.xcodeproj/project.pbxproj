@@ -15,6 +15,7 @@
 		0C147EA7316845A0564616B5 /* CacheSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C66CE5AA2573A220BAF1FD /* CacheSelfTest.swift */; };
 		0C826E77A187FE0CCA50931C /* EqualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 326F676677E65041C04439B3 /* EqualizerView.swift */; };
 		0E59F343C250DEB67EB7B342 /* Screens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 187B65FDE5C1D9B4300ACE83 /* Screens.swift */; };
+		1444FC6D569E2C512593FA19 /* NowPlayingWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363890CE0E21F043D187DD44 /* NowPlayingWidget.swift */; };
 		17813284BACA1473B2D4D42D /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB45FC8B97BCB1B51DE69335 /* Platform.swift */; };
 		19A9BED03715E71FB1C17E4F /* BrowseSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0029102565E8036146C9F1B0 /* BrowseSelfTest.swift */; };
 		1E08B3BDC26FC1CD16BD2F78 /* UpdateSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A69F2C0E44D5E0708A6D0F4 /* UpdateSelfTest.swift */; };
@@ -87,8 +88,10 @@
 		9C06DDCCC56A776BA0DDD09E /* Screens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA1F377D529AC06BD5D8330 /* Screens.swift */; };
 		9DF50AC9EFC8F64B885295A1 /* LibrarySearchSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 950478B4535521B0AE1EAA67 /* LibrarySearchSelfTest.swift */; };
 		9F804D830BC9D35D72B713CE /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73F3F3979510A3CCDB133168 /* API.swift */; };
+		A309D54434C4C7E4DC7878DA /* NoNonsenseWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D66109BF3B7B7E8B4AF0B01A /* NoNonsenseWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A66DC6D35E35B04108B7EA14 /* NoNonsenseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 990E0DB832F7D7C8D25D4453 /* NoNonsenseApp.swift */; };
 		A9023AAA1F6E63CEE2C6160F /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F7CD8D9DD581E357889DAF /* Account.swift */; };
+		A9869EBAE17D9F9D870C7A77 /* WidgetFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59813407D940F2826A2A02EC /* WidgetFeed.swift */; };
 		AB757A5B421B253B7D246E6E /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8186E89FB9026CB640031 /* Player.swift */; };
 		ABC21877BBFAF7C2D3926F94 /* Prefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C1A9DC93EAF19E0637D439 /* Prefetcher.swift */; };
 		AC27727CE31320E20CA90F5F /* Connectivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1CCB0A2FA5D8AEBEEC6204F /* Connectivity.swift */; };
@@ -100,6 +103,7 @@
 		B426F3AB7B68BACDFE6F8B0A /* Compat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 073460EB5596CE556DF8D082 /* Compat.swift */; };
 		B7813FB852ACDF26231C0475 /* CommandBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A0C69655F5CC80CAFA2EAC /* CommandBar.swift */; };
 		B99AE23AF1B1EA2642638CDC /* BoundedRangeLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B787910CB0D1FA64514F6A52 /* BoundedRangeLoader.swift */; };
+		BAA9B2D0956BCF1F35FADDB6 /* WidgetFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59813407D940F2826A2A02EC /* WidgetFeed.swift */; };
 		BD5B300141EDC58A26525276 /* Prefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18C1A9DC93EAF19E0637D439 /* Prefetcher.swift */; };
 		BE935D27A81011CB5E14057E /* JamSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4959C1E1E9DCDBE27CFF964F /* JamSelfTest.swift */; };
 		BF2A4109865D0EEB2A78B713 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = A561235C0692FB4B426F29EF /* Updater.swift */; };
@@ -125,6 +129,30 @@
 		F72DD52D3A19BE855522588B /* PlayerViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BE09B7F546BD239B2AFD81C /* PlayerViews.swift */; };
 		FF8CAE6F1B5B90DD4746E3B4 /* SoundChain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 618A1D0EE3F89CF391B14495 /* SoundChain.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		045C6D9C67D0B340C646C8C8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F9E63E35AE171762FCC4BEC5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 45311A9EB9228FE32FB6BC20;
+			remoteInfo = NoNonsenseWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5A3E5ECBB62F07D046FF648C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A309D54434C4C7E4DC7878DA /* NoNonsenseWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0029102565E8036146C9F1B0 /* BrowseSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseSelfTest.swift; sourceTree = "<group>"; };
@@ -152,6 +180,7 @@
 		2D869B6085400D8899979E78 /* EqualizerSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerSelfTest.swift; sourceTree = "<group>"; };
 		326F676677E65041C04439B3 /* EqualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerView.swift; sourceTree = "<group>"; };
 		329D0FA5B9551CCD2A1718DE /* ImportSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportSelfTest.swift; sourceTree = "<group>"; };
+		363890CE0E21F043D187DD44 /* NowPlayingWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingWidget.swift; sourceTree = "<group>"; };
 		3A75F29E0A353CA93B68D4C6 /* CrossfadeSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossfadeSelfTest.swift; sourceTree = "<group>"; };
 		3BE09B7F546BD239B2AFD81C /* PlayerViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViews.swift; sourceTree = "<group>"; };
 		413FB74B40D0CE16AB8515BB /* DownloadStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStore.swift; sourceTree = "<group>"; };
@@ -162,6 +191,7 @@
 		4BE03707689D95331FD49A82 /* Equalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Equalizer.swift; sourceTree = "<group>"; };
 		4EA9BFC4261D1B1DA125FFCA /* ServerLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerLauncher.swift; sourceTree = "<group>"; };
 		57E61BBC7E329399CCCFF251 /* Shuffle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shuffle.swift; sourceTree = "<group>"; };
+		59813407D940F2826A2A02EC /* WidgetFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFeed.swift; sourceTree = "<group>"; };
 		59E95712FCE99BAF615654D6 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		5F5EA99D1EBE71A439B8643B /* AccountViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountViews.swift; sourceTree = "<group>"; };
 		618A1D0EE3F89CF391B14495 /* SoundChain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundChain.swift; sourceTree = "<group>"; };
@@ -184,6 +214,7 @@
 		85833779043E8BDC558137EC /* AudioCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCache.swift; sourceTree = "<group>"; };
 		87F9F3A792DD71494F621530 /* Matching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Matching.swift; sourceTree = "<group>"; };
 		881C5D7D7460D755FDFC0061 /* LyricsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsStore.swift; sourceTree = "<group>"; };
+		8A16A789A9FC3AE0E9247A60 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		93FF752447B1866FD59A5D9D /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		950478B4535521B0AE1EAA67 /* LibrarySearchSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySearchSelfTest.swift; sourceTree = "<group>"; };
 		98DB0EEED76BDE29D7783DAB /* ShellSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellSelfTest.swift; sourceTree = "<group>"; };
@@ -208,10 +239,12 @@
 		D250D6817494B5B25927534F /* PhoneSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSettings.swift; sourceTree = "<group>"; };
 		D2B2FE4C7E6EEAA589159B7F /* ThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeStore.swift; sourceTree = "<group>"; };
 		D3A107F0B5844D7248A1C29E /* BarSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarSelfTest.swift; sourceTree = "<group>"; };
+		D66109BF3B7B7E8B4AF0B01A /* NoNonsenseWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NoNonsenseWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBBC3A27A4E50168D10CEC6D /* Loudness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Loudness.swift; sourceTree = "<group>"; };
 		E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyImport.swift; sourceTree = "<group>"; };
 		E270AA16C5BE02590D718911 /* NoNonsenseiOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NoNonsenseiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E45C9839E6D148278A97358A /* TranslationSelfTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationSelfTest.swift; sourceTree = "<group>"; };
+		E5E6669294DB009FC163A82D /* Widget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Widget.entitlements; sourceTree = "<group>"; };
 		EB45FC8B97BCB1B51DE69335 /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		F07FEC0506650B4C844D25EA /* PlaylistLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistLink.swift; sourceTree = "<group>"; };
 		F1A0C69655F5CC80CAFA2EAC /* CommandBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandBar.swift; sourceTree = "<group>"; };
@@ -342,6 +375,7 @@
 			children = (
 				375AE5E2D847C0D1DF4402E1 /* NoNonsense */,
 				07509021D3C28B65ED4FE465 /* NoNonsense-iOS */,
+				FA2EE27A2FCBD4ADE6AA2119 /* NoNonsense-Widget */,
 				F2530425FD98B301C896071A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -377,6 +411,7 @@
 				E154740FDBEA3594ABF53ACE /* SpotifyImport.swift */,
 				D2B2FE4C7E6EEAA589159B7F /* ThemeStore.swift */,
 				A561235C0692FB4B426F29EF /* Updater.swift */,
+				59813407D940F2826A2A02EC /* WidgetFeed.swift */,
 				172BF860B15E1251D0DF0E1C /* YouTubeLookup.swift */,
 			);
 			path = Services;
@@ -387,8 +422,19 @@
 			children = (
 				1ED8D65E869B635E8873CD76 /* NoNonsense.app */,
 				E270AA16C5BE02590D718911 /* NoNonsenseiOS.app */,
+				D66109BF3B7B7E8B4AF0B01A /* NoNonsenseWidget.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		FA2EE27A2FCBD4ADE6AA2119 /* NoNonsense-Widget */ = {
+			isa = PBXGroup;
+			children = (
+				8A16A789A9FC3AE0E9247A60 /* Info.plist */,
+				363890CE0E21F043D187DD44 /* NowPlayingWidget.swift */,
+				E5E6669294DB009FC163A82D /* Widget.entitlements */,
+			);
+			path = "NoNonsense-Widget";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -412,6 +458,23 @@
 			productReference = E270AA16C5BE02590D718911 /* NoNonsenseiOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		45311A9EB9228FE32FB6BC20 /* NoNonsenseWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3BEE956A3FD04E2D08AA0054 /* Build configuration list for PBXNativeTarget "NoNonsenseWidget" */;
+			buildPhases = (
+				039A969F99C0A7DDB572EC8F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NoNonsenseWidget;
+			packageProductDependencies = (
+			);
+			productName = NoNonsenseWidget;
+			productReference = D66109BF3B7B7E8B4AF0B01A /* NoNonsenseWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		B419CBFB9AF0AFE8B2D18F2A /* NoNonsense */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77D1ACE3D806251E5E1ED900 /* Build configuration list for PBXNativeTarget "NoNonsense" */;
@@ -419,10 +482,12 @@
 				5221CE03EFCDC5AE2A7E4BAF /* Sources */,
 				6AC872CC6D858ED48A5DA8F1 /* Resources */,
 				4312AB45C9D68D2C83D45289 /* Frameworks */,
+				5A3E5ECBB62F07D046FF648C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				EB4AA13DBD58E8CDA22132B9 /* PBXTargetDependency */,
 			);
 			name = NoNonsense;
 			packageProductDependencies = (
@@ -441,6 +506,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					45311A9EB9228FE32FB6BC20 = {
+						ProvisioningStyle = Manual;
+					};
 					B419CBFB9AF0AFE8B2D18F2A = {
 						ProvisioningStyle = Manual;
 					};
@@ -465,6 +533,7 @@
 			targets = (
 				B419CBFB9AF0AFE8B2D18F2A /* NoNonsense */,
 				3A5FE439FFBD8588E9308D38 /* NoNonsenseiOS */,
+				45311A9EB9228FE32FB6BC20 /* NoNonsenseWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -489,6 +558,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		039A969F99C0A7DDB572EC8F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1444FC6D569E2C512593FA19 /* NowPlayingWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5221CE03EFCDC5AE2A7E4BAF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -570,6 +647,7 @@
 				646E0989884970389B751CCE /* TranslationSelfTest.swift in Sources */,
 				1E08B3BDC26FC1CD16BD2F78 /* UpdateSelfTest.swift in Sources */,
 				BF2A4109865D0EEB2A78B713 /* Updater.swift in Sources */,
+				A9869EBAE17D9F9D870C7A77 /* WidgetFeed.swift in Sources */,
 				28B98636A1E0595CBA384EC3 /* YouTubeLookup.swift in Sources */,
 				247AC5B08012F05B68A9FAE3 /* YouTubeSelfTest.swift in Sources */,
 			);
@@ -613,11 +691,20 @@
 				C3FB1DA9FD1BE8440D2EA28C /* SoundProfiles.swift in Sources */,
 				1FDE566454E931785038C31A /* SpotifyImport.swift in Sources */,
 				7DDD497D6C7D50D0BBB746CC /* ThemeStore.swift in Sources */,
+				BAA9B2D0956BCF1F35FADDB6 /* WidgetFeed.swift in Sources */,
 				35C2E4E3480242C8C35F68AE /* YouTubeLookup.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EB4AA13DBD58E8CDA22132B9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 45311A9EB9228FE32FB6BC20 /* NoNonsenseWidget */;
+			targetProxy = 045C6D9C67D0B340C646C8C8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		08C3C4D6B2CF6F5B8A7EE19A /* Release */ = {
@@ -743,6 +830,29 @@
 			};
 			name = Debug;
 		};
+		7530A5D498A83B55174ED84A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "NoNonsense-Widget/Widget.entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 13;
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = "NoNonsense-Widget/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music.widget;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+			};
+			name = Release;
+		};
 		7C52B7F176EA973513046A5C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -836,9 +946,41 @@
 			};
 			name = Release;
 		};
+		C58BC6C4CF28A20519DB4C31 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "NoNonsense-Widget/Widget.entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 13;
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = "NoNonsense-Widget/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 0.5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.nononsense.music.debug.widget;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		3BEE956A3FD04E2D08AA0054 /* Build configuration list for PBXNativeTarget "NoNonsenseWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C58BC6C4CF28A20519DB4C31 /* Debug */,
+				7530A5D498A83B55174ED84A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		77D1ACE3D806251E5E1ED900 /* Build configuration list for PBXNativeTarget "NoNonsense" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

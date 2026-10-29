@@ -1108,6 +1108,9 @@ final class Player {
     // MARK: - Now Playing (Control Center, media keys) + Discord
 
     private func publish() {
+        #if os(macOS)
+        WidgetFeed.update(current, playing: isPlaying)
+        #endif
         let center = MPNowPlayingInfoCenter.default()
         guard let track = current else {
             center.nowPlayingInfo = nil
