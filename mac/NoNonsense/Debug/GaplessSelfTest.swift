@@ -60,8 +60,15 @@ extension SelfTest {
             /// Plays `first` then `second` and returns the silence between them, in seconds (negative: overlap).
             @MainActor func gap(_ first: Listing, _ second: Listing) async -> Double? {
                 player.play(tracks([first, second]))
-                guard await until(10, { player.isPlaying && player.livePosition > 0.2 && player.playingListing?.key == first.key }) else {
-                    report("gapless: the first song never played: \(player.playerStateForTests)")
+                var timeline: [String] = []        // what the player did in the first seconds, for a failure's message
+                let began = Date()
+                guard await until(10, {
+                    if timeline.count < 16, Date().timeIntervalSince(began) > Double(timeline.count) * 0.25 {
+                        timeline.append(String(format: "%.2f s: ", Date().timeIntervalSince(began)) + player.playerStateForTests)
+                    }
+                    return player.isPlaying && player.livePosition > 0.2 && player.playingListing?.key == first.key
+                }) else {
+                    report("gapless: the first song never played: \(player.playerStateForTests); timeline: " + timeline.joined(separator: " | "))
                     return nil
                 }
                 // the last look at the first song, every 5 ms, until the second takes over
@@ -116,8 +123,9 @@ extension SelfTest {
             player.play(tracks([songs[0], songs[1], songs[2]]))
             _ = await until(5) { player.queuedKeyForTests == songs[1].key }
             player.next()
-            check("⏭ with a song queued plays the next song", await until(5) { player.playingListing?.key == songs[1].key && player.livePosition > 0.2 })
-            check("…and queues the one after it", await until(5) { player.queuedKeyForTests == songs[2].key })
+            check("⏭ with a song queued plays the next song", await until(5) { player.playingListing?.key == songs[1].key && player.livePosition > 0.2 },
+                  player.playerStateForTests)
+            check("…and queues the one after it", await until(5) { player.queuedKeyForTests == songs[2].key }, player.playerStateForTests)
 
             if player.isPlaying { player.togglePlayPause() }
             finish()

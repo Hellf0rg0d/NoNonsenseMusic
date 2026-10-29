@@ -408,6 +408,7 @@ final class Player {
         seeks += 1
         endFade()
         player.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+        if let plan = endPlan, seconds >= plan.at { moveEnd(of: plan.item) }     // a boundary is only crossed by playing
         publish()
     }
     /// Counts every seek. `position` alone can miss one: ⏮ in the middle of a song seeks to 0, and `position` may
@@ -568,6 +569,7 @@ final class Player {
         switchObservation = nil
         endFade()
         cancelFadePlan()
+        cancelEndPlan()
         position = 0
         playingQuality = nil
         audioLength = nil                                         // the listed length, until this copy says its own
@@ -875,6 +877,34 @@ final class Player {
     @ObservationIgnored private var fadePlan: (player: AVQueuePlayer, item: ObjectIdentifier, token: Any)?
     @ObservationIgnored private var fadeEnd: Task<Void, Never>?
 
+    /// The end of the song playing, to move up to the file's own (`statusChanged`): the item, where it moves, the observer.
+    @ObservationIgnored private var endPlan: (player: AVQueuePlayer, item: ObjectIdentifier, at: Double, token: Any)?
+
+    private func planEnd(for item: AVPlayerItem, listedEnd end: Double) {
+        cancelEndPlan()
+        let own = item.duration.seconds
+        guard end.isFinite, own.isFinite, own > 3, own <= end else { return }
+        let at = 1.0
+        let id = ObjectIdentifier(item)
+        let token = player.addBoundaryTimeObserver(forTimes: [NSValue(time: CMTime(seconds: at, preferredTimescale: 600))], queue: .main) { [weak self] in
+            MainActor.assumeIsolated { self?.moveEnd(of: id) }
+        }
+        endPlan = (player, id, at, token)
+    }
+
+    private func moveEnd(of id: ObjectIdentifier) {
+        guard let plan = endPlan, plan.item == id else { return }
+        cancelEndPlan()
+        guard let item = player.currentItem, ObjectIdentifier(item) == id else { return }
+        item.forwardPlaybackEndTime = item.duration
+    }
+
+    private func cancelEndPlan() {
+        guard let plan = endPlan else { return }
+        plan.player.removeTimeObserver(plan.token)
+        endPlan = nil
+    }
+
     /// The song is ready: the crossfade's start is set at its length less the fade.
     private func planFade(for item: AVPlayerItem) {
         cancelFadePlan()
@@ -963,14 +993,12 @@ final class Player {
             if !playReported, let track = current { playReported = true; report("play", track, at: 0) }
             // its length as it will play (the audio's, or the end set in `load` when that comes first): the bar, the
             // times and Control Center follow it from here. An end time that is not set reads as nan
-            var end = loaded.forwardPlaybackEndTime.seconds
-            // a file that ends before the listed length + 1 s plays to its own end: past it, AVPlayer played silence up
-            // to that time, so even a gapless change had up to a second of silence (measured 28 Oct: a 3 s file with its
-            // end time at 4 s ended at 4.2 s). The end time stays only for audio that runs on past it (Redbone)
-            if end.isFinite, loaded.duration.seconds.isFinite, loaded.duration.seconds <= end {
-                loaded.forwardPlaybackEndTime = .invalid
-                end = .nan
-            }
+            let end = loaded.forwardPlaybackEndTime.seconds
+            // a file that ends before the listed length + 1 s: the end is moved up to the file's own a second before it, so
+            // there is no silence after it (measured 28 Oct: a 3 s file with its end at 4 s ended at 4.2 s). Moved mid-song,
+            // not now: now, 1 song in 4 was reported finished at 0:00 (29 Oct, 12 runs without the move: none), and with no
+            // end time at all a song sometimes never ended. It stays as it was for audio that runs on past its length (Redbone)
+            planEnd(for: loaded, listedEnd: end)
             let length = end.isFinite ? min(loaded.duration.seconds, end) : loaded.duration.seconds
             if length.isFinite, length > 0, length != audioLength { audioLength = length; publish() }
             planFade(for: loaded)                                 // needs the length, just set
