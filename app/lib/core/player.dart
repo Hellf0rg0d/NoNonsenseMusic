@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 
+import 'android_sound.dart';
 import 'api.dart';
 import 'audio_cache.dart';
 import 'audio_download.dart';
@@ -92,7 +93,7 @@ class Player extends ChangeNotifier implements JamPlayer {
 
   /// [audio] and [fetches]: tests give fakes; the app uses the system's player and the shared cache.
   Player({ja.AudioPlayer? audio, AudioDownloads? fetches})
-      : _audio = audio ?? ja.AudioPlayer(),
+      : _audio = audio ?? ja.AudioPlayer(audioPipeline: AndroidSound.available ? AndroidSound.shared.pipeline : null),
         _fetches = fetches ?? AudioDownloads.shared,
         _cache = (fetches ?? AudioDownloads.shared).cache {
     _subs.add(_audio.playerStateStream.listen((st) {

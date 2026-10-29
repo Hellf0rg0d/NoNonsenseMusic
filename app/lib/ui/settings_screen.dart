@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../core/android_sound.dart';
 import '../core/api.dart';
 import '../core/discord.dart';
 import '../core/settings.dart';
@@ -216,6 +217,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: const Text('Play the explicit version'),
           subtitle: const Text('When a song has both, the explicit or the clean copy plays. Applies to lists loaded after the change.'),
         ),
+        if (AndroidSound.available) ...[heading('Sound'), const _AndroidSoundSettings()],
         heading('Storage'),
         const StorageSettings(),
         heading('Lyrics'),
@@ -530,4 +532,51 @@ class _Fit extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(constraints: const BoxConstraints(maxWidth: 200), child: child);
+}
+
+
+/// Android's own equalizer and loudness boost (core/android_sound.dart). Its bands are the phone's: their number and
+/// frequencies are not the Mac app's 14. They appear once a song has played, which is when the phone reports them.
+class _AndroidSoundSettings extends StatelessWidget {
+  const _AndroidSoundSettings();
+
+  @override
+  Widget build(BuildContext context) {
+    final sound = AndroidSound.shared;
+    final theme = Theme.of(context);
+    return ListenableBuilder(
+      listenable: sound,
+      builder: (context, _) {
+        final found = sound.parameters;
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SwitchListTile(
+            value: sound.on,
+            onChanged: found == null ? null : sound.setOn,
+            title: const Text('Equalizer'),
+            subtitle: Text(found == null ? 'Available once a song has played.' : 'Your phone\'s own, not the Mac\'s 14 bands.'),
+          ),
+          if (found != null && sound.on)
+            for (var i = 0; i < found.bands.length; i++)
+              Row(children: [
+                SizedBox(width: 52, child: Text(frequencyLabel(found.bands[i].centerFrequency), style: theme.textTheme.bodySmall)),
+                Expanded(
+                  child: Slider(
+                    value: (i < sound.gains.length ? sound.gains[i] : 0).clamp(found.minDecibels, found.maxDecibels).toDouble(),
+                    min: found.minDecibels,
+                    max: found.maxDecibels,
+                    onChanged: (v) => sound.setBand(i, v),
+                  ),
+                ),
+                SizedBox(width: 48, child: Text('${(i < sound.gains.length ? sound.gains[i] : 0).toStringAsFixed(1)} dB', style: theme.textTheme.bodySmall)),
+              ]),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(sound.boost > 0 ? 'Loudness boost: +${sound.boost.toStringAsFixed(0)} dB' : 'Loudness boost: off'),
+            subtitle: const Text('Louder, up to 12 dB. Loud songs can distort.'),
+          ),
+          Slider(value: sound.boost, min: 0, max: AndroidSound.maxBoost, divisions: 12, onChanged: sound.setBoost),
+        ]);
+      },
+    );
+  }
 }

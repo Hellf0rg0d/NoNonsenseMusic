@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 
+import 'core/android_sound.dart';
 import 'core/api.dart';
 import 'core/audio_cache.dart';
 import 'core/auth.dart';
@@ -73,6 +74,7 @@ Future<void> main() async {
   if (const bool.fromEnvironment('BEHIND')) Timer(const Duration(seconds: 2), () => inFront.value = false);
   final lyrics = LyricsStore();
   DownloadStore.shared.onDownloaded = lyrics.keep; // offline lyrics, as the Mac keeps them
+  if (AndroidSound.available) unawaited(AndroidSound.shared.restore()); // waits for the first song's bands
   unawaited(DownloadStore.shared.keepMissingCovers()); // covers of downloads made before covers were kept
   runApp(NoNonsenseApp(player: player, library: library, lyrics: lyrics, settings: settings, auth: auth));
   // the update self-test (a build with --dart-define=NN_SELFTEST_UPDATE_FEED=…): the update flow at once, signed in or not
