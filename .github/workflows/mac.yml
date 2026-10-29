@@ -332,6 +332,7 @@ jobs:
             -serverURL http://127.0.0.1:8765 -backendFolder "$GITHUB_WORKSPACE/backend" \
             -discordEnabled NO -ApplePersistenceIgnoreState YES -look new > gapless.log 2>&1 || true
           grep SELFTEST gapless.log
+          grep -v "^SELFTEST" gapless.log | tail -40 | cut -c1-220     # the app's own log, for a failure to be read against
           grep -q "gapless: all checks pass" gapless.log
       - name: Self-test, crossfade (NN_SELFTEST_CROSSFADE), on tones made here
         if: ${{ !cancelled() }}

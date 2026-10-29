@@ -13,6 +13,9 @@ enum WidgetFeed {
     private static var last = ""
 
     static func update(_ track: Track?, playing: Bool) {
+        #if DEBUG
+        if SelfTest.isRunning { return }              // a test writes nothing to the widget's files and asks WidgetKit for nothing
+        #endif
         let key = "\(track?.id ?? "")|\(playing)"
         guard key != last else { return }
         let songChanged = last.split(separator: "|").first.map(String.init) != track?.id
