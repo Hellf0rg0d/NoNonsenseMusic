@@ -27,7 +27,7 @@ struct SignInScreen: View {
                 } header: {
                     Text("Server")
                 } footer: {
-                    Text("The address of your NoNonsenseMusic server. The app has none of its own.")
+                    Text("Host your own, or ask a friend for theirs.")
                 }
                 Section {
                     TextField("Username", text: $username)
@@ -58,6 +58,8 @@ struct SignInScreen: View {
                 .disabled(!ready)
             }
             .scrollDismissesKeyboard(.interactively)
+            .frame(maxWidth: 520)                    // an iPad's full width is too wide for a form
+            .frame(maxWidth: .infinity)
             .navigationTitle("NoNonsenseMusic")
         }
     }

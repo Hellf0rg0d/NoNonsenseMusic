@@ -174,7 +174,7 @@ struct NowPlayingScreen: View {
     private func titleRow(_ track: Track) -> some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(track.title).font(.title2.weight(.bold)).lineLimit(1)
+                Text(track.title).font(.title2.weight(.bold)).lineLimit(2).minimumScaleFactor(0.85)
                 Text(track.artistLine).font(.body).opacity(0.75).lineLimit(1)
             }
             Spacer(minLength: 0)

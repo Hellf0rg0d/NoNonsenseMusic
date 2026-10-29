@@ -473,18 +473,18 @@ private struct PlaybackSettings: View {
                 // gain, 0.0009% of one core (an hour of stereo), in the equalizer's tap (0.12% with all 14 filters, 25 Oct)
                 Toggle(isOn: Binding(get: { Leveller.shared.on }, set: { Leveller.shared.setOn($0) })) {
                     Text("Same volume for every song")
-                    Text("Measures each song once, in about 0.1 s, then plays it as loud as the rest.")
+                    Text("Every song plays equally loud. Each is measured once.")
                         .foregroundStyle(.secondary)
                 }
                 // measured 28 Oct: 0.040% of one core (an hour of stereo through it, offline); 5 ms of delay
                 Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
                     Text("Limiter")
-                    Text("Catches the few peaks that would distort, so equalizer boosts and quiet songs keep their volume.")
+                    Text("Catches peaks that would distort, so boosts keep their volume.")
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: $gapless) {
                     Text("No gaps between songs")
-                    Text("The next song waits ready behind this one, so an album or a mix flows on without a pause.")
+                    Text("Albums and mixes play straight through.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: gapless) { _, _ in player.gaplessChanged() }
@@ -493,20 +493,20 @@ private struct PlaybackSettings: View {
                     ForEach([2.0, 4, 6, 8, 12], id: \.self) { Text("\(Int($0)) seconds").tag($0) }
                 } label: {
                     Text("Crossfade")
-                    Text("Each song fades out as the next fades in.").foregroundStyle(.secondary)
+                    Text("Songs blend into each other.").foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfade) { _, _ in SoundChain.shared.settingChanged() }
                 // measured 28 Oct: 0.026% of one core (an hour of stereo through it, offline)
                 Toggle(isOn: $crossfeed) {
                     Text("Crossfeed for headphones")
-                    Text("A little of each side's bass reaches the other ear, as from speakers, so songs panned hard to one side are easier to listen to.")
+                    Text("Some of each ear's bass reaches the other, like speakers.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
                 // two more filters in the equalizer's cascade (its 14 bands: 0.12% of one core, 25 Oct)
                 Toggle(isOn: $loudness) {
                     Text("Fuller sound at low volume")
-                    Text("Adds back the bass and treble your ears lose when the volume is down, more the lower it goes.")
+                    Text("Adds bass and treble as the volume drops, more the lower it goes.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: loudness) { _, _ in SoundChain.shared.loudnessChanged() }
@@ -516,7 +516,7 @@ private struct PlaybackSettings: View {
                         .frame(maxWidth: 180)
                 } label: {
                     Text("Vocal clarity" + (vocalClarity > 0 ? String(format: ": +%g dB", vocalClarity) : ": off"))
-                    Text("Brings the voice forward: only what's in the middle of the mix is lifted, not the instruments to the sides.")
+                    Text("Lifts the voice, not the instruments at the sides.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: vocalClarity) { old, new in
@@ -526,15 +526,15 @@ private struct PlaybackSettings: View {
             } header: {
                 Text("Sound")
             } footer: {
-                Text("Loud songs are turned down and quiet ones up, to the level Spotify and YouTube play at. Without the limiter, a quiet song goes up only as far as it can without distorting.")
+                Text("Songs are levelled to −14 LUFS, the level Spotify and YouTube use. Without the limiter, a quiet song rises only until it would distort.")
                     .foregroundStyle(.secondary)
             }
             Section {
                 Toggle(isOn: Binding(get: { SoundProfiles.shared.on }, set: { SoundProfiles.shared.setOn($0) })) {
                     Text("Sound for each output")
                     Text(SoundProfiles.shared.on
-                         ? "Now: \(SoundProfiles.shared.output?.name ?? "this output"). The equalizer, headphone correction and crossfeed below are kept for each output and switch with it."
-                         : "The equalizer, headphone correction and crossfeed below are the same for every output.")
+                         ? "Now: \(SoundProfiles.shared.output?.name ?? "this output"). Equalizer, headphone correction and crossfeed are saved per output."
+                         : "Equalizer, headphone correction and crossfeed are the same for every output.")
                         .foregroundStyle(.secondary)
                 }
             }

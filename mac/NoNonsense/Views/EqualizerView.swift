@@ -24,8 +24,8 @@ struct EqualizerSection: View {
         } header: {
             Text("Equalizer")
         } footer: {
-            Text(Leveller.shared.limiting ? "A boost keeps its volume: the limiter (Volume, above) catches the peaks that would distort."
-                                          : "A boost turns the rest of the song down by as much, so nothing distorts. The limiter (Volume, above) keeps it loud instead.")
+            Text(Leveller.shared.limiting ? "Boosts keep their volume. The limiter, above, catches the peaks."
+                                          : "A boost lowers the whole song by as much, so nothing clips. The limiter, above, avoids that.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -130,7 +130,7 @@ struct HeadphoneSection: View {
         } header: {
             Text("Headphones")
         } footer: {
-            Text("Corrects your headphones' measured flaws, so they sound neutral. Corrections come from AutoEq, downloaded from GitHub when you choose; your equalizer works on top.")
+            Text("Evens out your headphones' sound. Corrections are AutoEq's, fetched from GitHub when you pick a model. Your equalizer applies on top.")
                 .foregroundStyle(.secondary)
         }
         .sheet(isPresented: $picking) { HeadphonePicker(done: { picking = false }) }

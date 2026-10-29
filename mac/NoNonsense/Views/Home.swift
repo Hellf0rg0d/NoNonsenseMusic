@@ -142,8 +142,8 @@ struct HomeView: View {
     private var firstStep: some View {
         VStack(spacing: 14) {
             Image(systemName: "music.note.house").font(.system(size: 44)).foregroundStyle(.secondary)
-            Text("Your music lives here").textStyle(.title2, weight: .semibold)
-            Text("Search for a song you love, then play it, like it, or add it to a playlist.")
+            Text("No music yet").textStyle(.title2, weight: .semibold)
+            Text("Search for a song and play it.")
                 .foregroundStyle(.secondary)
             Button { open(.section(.search)) } label: { Label("Search", systemImage: "magnifyingglass") }
                 .compatGlassButton(prominent: true)

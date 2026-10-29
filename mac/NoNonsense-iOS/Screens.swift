@@ -6,6 +6,8 @@ import SwiftUI
 struct HomeScreen: View {
     @Environment(LibraryStore.self) private var library
     @Environment(Player.self) private var player
+    @Environment(\.horizontalSizeClass) private var width
+    private var tile: CGFloat { width == .regular ? 176 : 132 }          // larger covers on an iPad
 
     var body: some View {
         ScrollView {
@@ -16,7 +18,7 @@ struct HomeScreen: View {
                 if !library.recent.isEmpty {
                     Shelf(title: "Recently played") {
                         ForEach(Array(library.recent.prefix(20).enumerated()), id: \.offset) { i, track in
-                            CoverTile(url: track.image, title: track.title, subtitle: track.artistLine, size: 132) {
+                            CoverTile(url: track.image, title: track.title, subtitle: track.artistLine, size: tile) {
                                 player.play(Array(library.recent.prefix(20)), startAt: i)
                             }
                             .songMenu(track)

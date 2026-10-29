@@ -17,15 +17,15 @@ struct PhoneSettings: View {
             Section {
                 Toggle(isOn: Binding(get: { leveller.on }, set: { leveller.setOn($0) })) {
                     Text("Same volume for every song")
-                    Text("Measures each song once, then plays it as loud as the rest.")
+                    Text("Every song plays equally loud.")
                 }
                 Toggle(isOn: Binding(get: { leveller.limiting }, set: { leveller.setLimiting($0) })) {
                     Text("Limiter")
-                    Text("Equalizer boosts and quiet songs keep their volume; only peaks that would distort are caught.")
+                    Text("Catches peaks that would distort, so boosts keep their volume.")
                 }
                 Toggle(isOn: $gapless) {
                     Text("No gaps between songs")
-                    Text("Albums and mixes flow on without a pause.")
+                    Text("Albums and mixes play straight through.")
                 }
                 .onChange(of: gapless) { _, _ in player.gaplessChanged() }
                 Picker("Crossfade", selection: $crossfade) {
@@ -35,12 +35,12 @@ struct PhoneSettings: View {
                 .onChange(of: crossfade) { _, _ in SoundChain.shared.settingChanged() }
                 Toggle(isOn: $crossfeed) {
                     Text("Crossfeed for headphones")
-                    Text("A little of each side's bass reaches the other ear, as from speakers.")
+                    Text("Some of each ear's bass reaches the other, like speakers.")
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
                 Toggle(isOn: $loudness) {
                     Text("Fuller sound at low volume")
-                    Text("Adds back the bass and treble your ears lose when the volume is down.")
+                    Text("Adds bass and treble as the volume drops.")
                 }
                 .onChange(of: loudness) { _, _ in SoundChain.shared.loudnessChanged() }
                 VStack(alignment: .leading) {
@@ -57,8 +57,8 @@ struct PhoneSettings: View {
             Section {
                 Toggle(isOn: Binding(get: { profiles.on }, set: { profiles.setOn($0) })) {
                     Text("Sound for each output")
-                    Text(profiles.on ? "Now: \(profiles.output?.name ?? "this output"). AirPods, a cable and the speaker each keep their own."
-                                     : "The same for every output.")
+                    Text(profiles.on ? "Now: \(profiles.output?.name ?? "this output"). Each output keeps its own."
+                                     : "Same for every output.")
                 }
                 NavigationLink { HeadphonePicker() } label: {
                     LabeledContent("Headphone correction", value: HeadphoneCorrection.shared.model?.name ?? "None")
@@ -107,8 +107,8 @@ struct EqualizerScreen: View {
                         .font(.footnote)
                     }
                 } footer: {
-                    Text(Leveller.shared.limiting ? "A boost keeps its volume: the limiter catches the peaks."
-                                                  : "A boost turns the rest of the song down by as much, so nothing distorts.")
+                    Text(Leveller.shared.limiting ? "Boosts keep their volume. The limiter catches the peaks."
+                                                  : "A boost lowers the whole song by as much, so nothing clips.")
                 }
             }
         }

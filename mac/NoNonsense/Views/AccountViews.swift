@@ -18,7 +18,7 @@ struct RecoveryCodesSheet: View {
                 .foregroundStyle(.tint)
             VStack(spacing: 6) {
                 Text("Save Your Recovery Codes").textStyle(.title2, weight: .semibold)
-                Text("If you forget your password, a code lets you set a new one. Each code works once, and they are not shown again.")
+                Text("Each code resets your password once. They are not shown again.")
                     .textStyle(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
