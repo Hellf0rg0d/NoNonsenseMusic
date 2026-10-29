@@ -85,7 +85,8 @@ def main() -> None:
     source = build(args.version, args.build, args.ipa, args.icon, args.base_url.rstrip("/"), plain_notes(args.notes), args.date)
     app = source["apps"][0]
     problems = [name for name in ("downloadURL", "iconURL", "version", "size") if not app.get(name)]
-    if not app["downloadURL"].endswith(args.ipa.name) or app["size"] < 1_000_000:
+    # the app is under a megabyte zipped (884 KB, 29 Oct); an empty or failed zip is a few KB
+    if not app["downloadURL"].endswith(args.ipa.name) or app["size"] < 200_000:
         problems.append("the .ipa looks wrong (name or size)")
     if problems:
         sys.exit(f"not written: {', '.join(problems)}")
