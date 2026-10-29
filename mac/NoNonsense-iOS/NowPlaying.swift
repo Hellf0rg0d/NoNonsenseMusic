@@ -390,6 +390,7 @@ private struct LyricsPanel: View {
     @Environment(LyricsStore.self) private var lyrics
     @Environment(Player.self) private var player
     let track: Track
+    @State private var current: Int?
 
     var body: some View {
         Group {
@@ -407,37 +408,43 @@ private struct LyricsPanel: View {
         .task(id: track.id) { if lyrics.state(for: track) == nil { lyrics.fetch(track) } }
     }
 
+    /// The line being sung is looked at four times a second, but the view is drawn again only when it changes.
     private func timed(_ found: Lyrics) -> some View {
-        TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-            let now = found.line(at: player.livePosition)
-            ScrollViewReader { reader in
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        ForEach(Array(found.lines.enumerated()), id: \.offset) { i, line in
-                            Button {
-                                if let ms = line.startMs { player.seek(to: Double(ms) / 1000) }
-                            } label: {
-                                Text(line.text.isEmpty ? "♪" : line.text)
-                                    .font(.title2.weight(.bold))
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .opacity(i == now ? 1 : 0.35)
-                                    .scaleEffect(i == now ? 1 : 0.96, anchor: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .id(i)
+        ScrollViewReader { reader in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(Array(found.lines.enumerated()), id: \.offset) { i, line in
+                        Button {
+                            if let ms = line.startMs { player.seek(to: Double(ms) / 1000) }
+                        } label: {
+                            Text(line.text.isEmpty ? "♪" : line.text)
+                                .font(.title2.weight(.bold))
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .opacity(i == current ? 1 : 0.35)
+                                .scaleEffect(i == current ? 1 : 0.96, anchor: .leading)
                         }
+                        .buttonStyle(.plain)
+                        .id(i)
                     }
-                    .padding(.vertical, 120)
                 }
-                .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.15),
-                                             .init(color: .black, location: 0.85), .init(color: .clear, location: 1)],
-                                     startPoint: .top, endPoint: .bottom))
-                .onChange(of: now) { _, line in
-                    guard let line else { return }
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { reader.scrollTo(line, anchor: .center) }
-                }
-                .animation(.easeOut(duration: 0.3), value: now)
+                .padding(.vertical, 120)
+            }
+            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.15),
+                                         .init(color: .black, location: 0.85), .init(color: .clear, location: 1)],
+                                 startPoint: .top, endPoint: .bottom))
+            .onChange(of: current) { _, line in
+                guard let line else { return }
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) { reader.scrollTo(line, anchor: .center) }
+            }
+            .animation(.easeOut(duration: 0.3), value: current)
+        }
+        .task(id: track.id) {
+            current = nil
+            while !Task.isCancelled {
+                let now = found.line(at: player.livePosition)
+                if now != current { current = now }
+                try? await Task.sleep(for: .milliseconds(250))
             }
         }
     }

@@ -634,7 +634,9 @@ nonisolated final class PeakLimiter {
     /// more on loud masters, and clips in the converter. Each gap is read at ¼, ½ and ¾ by a 12-tap windowed-sinc
     /// interpolator, so a peak is known `tail` samples after it happens: the audio is held back that much longer.
     private static let taps = 12, tail = 6
-    private static let phases: [[Float]] = (1...3).map { quarter in
+    /// The three phases' taps, one after another (36 floats): a flat table read through a pointer, not an array of arrays
+    /// looked up for every sample.
+    private static let phaseTable: [Float] = (1...3).flatMap { quarter -> [Float] in
         let offset = Double(quarter) / 4
         func bessel(_ x: Double) -> Double { (0..<30).reduce(0.0) { $0 + pow(pow(x / 2, Double($1)) / tgamma(Double($1) + 1), 2) } }
         let weights: [Double] = (0..<taps).map { j in
@@ -650,6 +652,7 @@ nonisolated final class PeakLimiter {
     private let latency: Int                       // L: the look-ahead, in samples
     private let window: Int                        // L + 1: the minimum's and the average's span
     private let hold: Int                          // L + tail: samples the audio is held back
+    private let table: UnsafeMutablePointer<Float>         // the interpolator's 36 taps (phaseTable)
     private let history: UnsafeMutablePointer<Float>       // each channel's last 12 samples, kept twice so they are in a row
     private var historyAt = 0
     private let delay: UnsafeMutablePointer<Float>         // channels × hold
@@ -670,6 +673,8 @@ nonisolated final class PeakLimiter {
         latency = max(1, Int((sampleRate * Self.lookahead).rounded()))
         window = latency + 1
         hold = latency + Self.tail
+        table = .allocate(capacity: 3 * Self.taps)
+        table.update(from: Self.phaseTable, count: 3 * Self.taps)
         history = .allocate(capacity: channels * 2 * Self.taps)
         history.initialize(repeating: 0, count: channels * 2 * Self.taps)
         delay = .allocate(capacity: channels * hold)
@@ -683,7 +688,7 @@ nonisolated final class PeakLimiter {
     }
 
     deinit {
-        delay.deallocate(); held.deallocate(); order.deallocate(); lows.deallocate(); history.deallocate()
+        delay.deallocate(); held.deallocate(); order.deallocate(); lows.deallocate(); history.deallocate(); table.deallocate()
     }
 
     /// `samples`: one pointer per channel (from the stack: nothing is allocated on the audio thread).
@@ -699,13 +704,11 @@ nonisolated final class PeakLimiter {
                 line[historyAt + Self.taps] = samples[c][i]
                 let recent = line + historyAt + 1                 // the last 12 samples, oldest first
                 loudest = max(loudest, abs(recent[5]))
-                Self.phases.withUnsafeBufferPointer { phases in
-                    for phase in phases {
-                        let weights = phase
-                        var between: Float = 0
-                        for j in 0..<Self.taps { between += weights[j] * recent[j] }
-                        loudest = max(loudest, abs(between))
-                    }
+                for phase in 0..<3 {
+                    let weights = table + phase * Self.taps
+                    var between: Float = 0
+                    for j in 0..<Self.taps { between += weights[j] * recent[j] }
+                    loudest = max(loudest, abs(between))
                 }
             }
             historyAt = (historyAt + 1) % Self.taps
