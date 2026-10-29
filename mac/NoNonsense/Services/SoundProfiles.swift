@@ -5,7 +5,7 @@ import CoreAudio
 import Foundation
 import Observation
 
-/// Settings › Playback › Sound for each output (28 Oct; on by default): the equalizer, the headphone correction and
+/// Settings › Playback › Per-output profiles (28 Oct; on by default): the equalizer, the headphone correction and
 /// crossfeed are kept per output device, so AirPods keep their correction and the Mac's speakers theirs, and switching
 /// puts the right ones in place. macOS says when the default output changes (a property listener: nothing is polled).
 /// An output met for the first time starts from the settings as they are. The rest (levelling, the limiter, gapless,

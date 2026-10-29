@@ -2,7 +2,7 @@ import Accelerate
 import AVFoundation
 import Observation
 
-/// Settings › Playback › Same volume for every song (28 Oct): each copy's loudness is measured once from its file, as
+/// Settings › Playback › Loudness normalization (28 Oct): each copy's loudness is measured once from its file, as
 /// ITU-R BS.1770-4 measures it (the LUFS that Spotify, YouTube and Apple Music level by), and the song is played turned
 /// up or down to −14 LUFS, the level Spotify and YouTube play at. A boost stops 1 dB under the song's loudest sample, so
 /// levelling never clips. Off by default; off, nothing is measured and no tap is attached for it.

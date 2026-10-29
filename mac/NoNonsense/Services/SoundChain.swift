@@ -67,7 +67,7 @@ final class SoundChain {
         changed?()
     }
 
-    /// Settings › Playback › Bass harmonics: 0 (off) to 1.
+    /// Settings › Playback › Psychoacoustic bass: 0 (off) to 1.
     static var bassHarmonics: Double { min(max(UserDefaults.standard.double(forKey: "bassHarmonics"), 0), 1) }
 
     /// Its slider moved: every tap follows at once.
@@ -75,7 +75,7 @@ final class SoundChain {
         for entry in processors { entry.processor.processor?.update(bass: Self.bassHarmonics) }
     }
 
-    /// Settings › Playback › Vocal clarity: the mid's boost, 0 (off) to 6 dB.
+    /// Settings › Playback › Vocal presence: the mid's boost, 0 (off) to 6 dB.
     static var vocalClarity: Double { min(max(UserDefaults.standard.double(forKey: "vocalClarity"), 0), 6) }
 
     /// Its slider moved: every tap follows at once, without being made again.
@@ -248,7 +248,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                            limiting: limiting, vocal: boost))
     }
 
-    /// Bass harmonics' amount, 0 (off) to 1.
+    /// Psychoacoustic bass' amount, 0 (off) to 1.
     func update(bass amount: Double) { lock.withLockUnchecked { bassAmount = Float(amount) } }
 
     /// Loudness compensation's shelves for the volume now ([] when off or at full volume).
@@ -261,7 +261,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                            limiting: limiting, vocal: boost))
     }
 
-    /// Vocal clarity's boost, in dB (0: off), as its slider moves: the filter and the preamp made again.
+    /// Vocal presence's boost, in dB (0: off), as its slider moves: the filter and the preamp made again.
     func update(vocal gain: Double) {
         let (rate, count, current, shelves) = lock.withLockUnchecked { () -> (Double, Int, [Double], [CorrectionFilter]) in
             vocalGain = gain
@@ -485,7 +485,7 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     }
 }
 
-/// Settings › Playback › Bass harmonics (29 Oct): bass a small speaker or earbuds cannot play, heard anyway. The ear
+/// Settings › Playback › Psychoacoustic bass (29 Oct): bass a small speaker or earbuds cannot play, heard anyway. The ear
 /// hears the pitch of a low note from its harmonics too, so a low band (under 120 Hz) is pushed through a soft clipper,
 /// which makes odd harmonics (3×, 5× its frequency), and only those (110 to 420 Hz) are added back to the song. A 50 Hz
 /// note then also sounds at 150 Hz. Each channel on its own; the song itself is not changed below 110 Hz.
@@ -551,7 +551,7 @@ nonisolated final class BassHarmonics {
     }
 }
 
-/// Settings › Playback › Vocal clarity (28 Oct): the voice brought forward without the instruments around it. The
+/// Settings › Playback › Vocal presence (28 Oct): the voice brought forward without the instruments around it. The
 /// song is split into mid (what both ears share, where a lead vocal sits) and side (what differs, where most guitars,
 /// pads and reverb sit); only the mid is boosted, around 2.5 kHz (Q 0.7: about 1 to 5 kHz, the voice's presence), and
 /// the two put back together. The equalizer boosts both ears alike, so it lifts everything in that range. Stereo only.
@@ -579,7 +579,7 @@ nonisolated final class VocalClarity {
     }
 }
 
-/// Crossfeed for headphones (Settings › Playback): a little of each channel's bass goes to the other ear, as from
+/// Headphone crossfeed (Settings › Playback): a little of each channel's bass goes to the other ear, as from
 /// speakers in a room, so a song panned hard to one side is less tiring. Bauer's stereophonic-to-binaural filter as
 /// libbs2b (MIT) builds it, at its default level (cut at 700 Hz, fed 4.5 dB under the direct sound): each channel through
 /// a one-pole low pass to the other side, and a high boost on its own side, then a gain that keeps the bass where it was.

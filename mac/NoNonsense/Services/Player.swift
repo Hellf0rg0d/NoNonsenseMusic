@@ -744,7 +744,7 @@ final class Player {
 
     // MARK: - gapless
 
-    /// Settings › Playback › No gaps between songs (28 Oct; off by default). The next song, when its file is on this
+    /// Settings › Playback › Gapless playback (28 Oct; off by default). The next song, when its file is on this
     /// Mac (the cache, where it was fetched while this one played, or Downloads), waits behind the playing one in the
     /// queue player, which goes straight into it: no load at the change. Measured 8 Oct, a song from a file took ~0.15 s
     /// to sound: that was the gap. A song that would stream, repeat one and a jam change songs as before.

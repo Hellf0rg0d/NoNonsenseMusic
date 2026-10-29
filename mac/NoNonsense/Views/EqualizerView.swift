@@ -130,7 +130,7 @@ struct HeadphoneSection: View {
         } header: {
             Text("Headphones")
         } footer: {
-            Text("Evens out your headphones' sound. Corrections are AutoEq's, fetched from GitHub when you pick a model. Your equalizer applies on top.")
+            Text("AutoEq filters (MIT), fetched from GitHub when a model is selected. The equalizer is applied after them.")
                 .foregroundStyle(.secondary)
         }
         .sheet(isPresented: $picking) { HeadphonePicker(done: { picking = false }) }
@@ -151,7 +151,7 @@ private struct HeadphonePicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Your headphones").font(.headline)
+            Text("Headphone model").font(.headline)
             TextField("Search 6,000 models", text: $typed)
                 .textFieldStyle(.roundedBorder)
             if correction.loading && correction.models.isEmpty {

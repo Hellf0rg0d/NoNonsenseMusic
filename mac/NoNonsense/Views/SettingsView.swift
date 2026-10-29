@@ -473,19 +473,19 @@ private struct PlaybackSettings: View {
                 // measured 28 Oct: 0.10 s of one core to measure a 4-minute song (12 songs from the cache), once; then the
                 // gain, 0.0009% of one core (an hour of stereo), in the equalizer's tap (0.12% with all 14 filters, 25 Oct)
                 Toggle(isOn: Binding(get: { Leveller.shared.on }, set: { Leveller.shared.setOn($0) })) {
-                    Text("Same volume for every song")
-                    Text("Every song plays equally loud. Each is measured once.")
+                    Text("Loudness normalization")
+                    Text("Target −14 LUFS (ITU-R BS.1770-4). Measured once per track.")
                         .foregroundStyle(.secondary)
                 }
                 // measured 29 Oct: 0.05% of one core (an hour of stereo through it, offline, with true-peak detection); 5 ms of delay
                 Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
-                    Text("Limiter")
-                    Text("Catches peaks that would distort, even between samples, so boosts keep their volume.")
+                    Text("True-peak limiter")
+                    Text("Look-ahead limiter, −1 dBTP ceiling. Prevents clipping when gain is applied.")
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: $gapless) {
-                    Text("No gaps between songs")
-                    Text("Albums and mixes play straight through.")
+                    Text("Gapless playback")
+                    Text("Needs the next track cached or downloaded.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: gapless) { _, _ in player.gaplessChanged() }
@@ -494,13 +494,13 @@ private struct PlaybackSettings: View {
                     ForEach([2.0, 4, 6, 8, 12], id: \.self) { Text("\(Int($0)) seconds").tag($0) }
                 } label: {
                     Text("Crossfade")
-                    Text("Songs blend into each other.").foregroundStyle(.secondary)
+                    Text("Equal-power overlap of consecutive tracks.").foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfade) { _, _ in SoundChain.shared.settingChanged() }
                 // measured 28 Oct: 0.026% of one core (an hour of stereo through it, offline)
                 Toggle(isOn: $crossfeed) {
-                    Text("Crossfeed for headphones")
-                    Text("Some of each ear's bass reaches the other, like speakers.")
+                    Text("Headphone crossfeed")
+                    Text("Mixes a low-passed copy of each channel into the opposite ear (bs2b).")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
@@ -509,16 +509,16 @@ private struct PlaybackSettings: View {
                     Slider(value: $bassHarmonics, in: 0...1)
                         .frame(maxWidth: 180)
                 } label: {
-                    Text("Bass harmonics" + (bassHarmonics > 0 ? ": \(Int((bassHarmonics * 100).rounded()))%" : ": off"))
-                    Text("Lets small speakers and earbuds suggest the low notes.").foregroundStyle(.secondary)
+                    Text("Psychoacoustic bass" + (bassHarmonics > 0 ? ": \(Int((bassHarmonics * 100).rounded()))%" : ": off"))
+                    Text("Adds harmonics of content below 120 Hz, so small drivers imply the fundamental.").foregroundStyle(.secondary)
                 }
                 .onChange(of: bassHarmonics) { old, new in
                     if (old > 0) != (new > 0) { SoundChain.shared.settingChanged() } else { SoundChain.shared.bassHarmonicsChanged() }
                 }
                 // two more filters in the equalizer's cascade (its 14 bands: 0.12% of one core, 25 Oct)
                 Toggle(isOn: $loudness) {
-                    Text("Fuller sound at low volume")
-                    Text("Adds bass and treble as the volume drops, more the lower it goes.")
+                    Text("Loudness compensation")
+                    Text("Raises the low and high shelves as the volume falls.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: loudness) { _, _ in SoundChain.shared.loudnessChanged() }
@@ -527,8 +527,8 @@ private struct PlaybackSettings: View {
                     Slider(value: $vocalClarity, in: 0...6, step: 0.5)
                         .frame(maxWidth: 180)
                 } label: {
-                    Text("Vocal clarity" + (vocalClarity > 0 ? String(format: ": +%g dB", vocalClarity) : ": off"))
-                    Text("Lifts the voice, not the instruments at the sides.")
+                    Text("Vocal presence" + (vocalClarity > 0 ? String(format: ": +%g dB", vocalClarity) : ": off"))
+                    Text("Boosts the center channel at 2.5 kHz. The side channel is unchanged.")
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: vocalClarity) { old, new in
@@ -538,15 +538,15 @@ private struct PlaybackSettings: View {
             } header: {
                 Text("Sound")
             } footer: {
-                Text("Songs are levelled to −14 LUFS, the level Spotify and YouTube use. Without the limiter, a quiet song rises only until it would distort.")
+                Text("Normalization targets −14 LUFS, the level Spotify and YouTube use. Without the limiter, boosts are capped so peaks stay under −1 dBFS.")
                     .foregroundStyle(.secondary)
             }
             Section {
                 Toggle(isOn: Binding(get: { SoundProfiles.shared.on }, set: { SoundProfiles.shared.setOn($0) })) {
-                    Text("Sound for each output")
+                    Text("Per-output profiles")
                     Text(SoundProfiles.shared.on
-                         ? "Now: \(SoundProfiles.shared.output?.name ?? "this output"). Equalizer, headphone correction and crossfeed are saved per output."
-                         : "Equalizer, headphone correction and crossfeed are the same for every output.")
+                         ? "Now: \(SoundProfiles.shared.output?.name ?? "this output"). Equalizer, headphone correction and crossfeed are saved per output device."
+                         : "Equalizer, headphone correction and crossfeed are shared by all outputs.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -1005,16 +1005,16 @@ private struct FootprintSettings: View {
                 // its filters measured on 14 bands in stereo (25 Oct): 0.12% of one core; its curve is in Settings › Playback
                 Toggle(isOn: Binding(get: { Equalizer.shared.on }, set: { Equalizer.shared.setOn($0) })) {
                     Text("Equalizer")
-                    Text("Uses about 0.1% of one core while music plays. Its bands are in Settings › Playback.")
+                    Text("About 0.1% of one core during playback. Its bands are in Settings › Playback.")
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: Binding(get: { Leveller.shared.on }, set: { Leveller.shared.setOn($0) })) {
-                    Text("Same volume for every song")
-                    Text("About 0.1 s of one core to measure each new song, and under 0.1% while music plays.")
+                    Text("Loudness normalization")
+                    Text("About 0.1 s of one core to measure each new track, under 0.1% during playback.")
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
-                    Text("Limiter")
+                    Text("True-peak limiter")
                     Text("Uses about 0.05% of one core while music plays.")
                         .foregroundStyle(.secondary)
                 }
@@ -1022,20 +1022,20 @@ private struct FootprintSettings: View {
                     UserDefaults.standard.set($0, forKey: "crossfeed")
                     SoundChain.shared.settingChanged()
                 })) {
-                    Text("Crossfeed for headphones")
+                    Text("Headphone crossfeed")
                     Text("Uses about 0.03% of one core while music plays.")
                         .foregroundStyle(.secondary)
                 }
                 LabeledContent {
                     Text(SoundChain.vocalClarity > 0 ? String(format: "+%g dB", SoundChain.vocalClarity) : "Off")
                 } label: {
-                    Text("Vocal clarity")
+                    Text("Vocal presence")
                     Text("About 0.02% of one core while on. Its slider is in Settings › Playback.").foregroundStyle(.secondary)
                 }
                 LabeledContent {
                     Text(SoundChain.bassHarmonics > 0 ? "\(Int((SoundChain.bassHarmonics * 100).rounded()))%" : "Off")
                 } label: {
-                    Text("Bass harmonics")
+                    Text("Psychoacoustic bass")
                     Text("About 0.04% of one core while on. Its slider is in Settings › Playback.").foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {

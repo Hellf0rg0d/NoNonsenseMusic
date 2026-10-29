@@ -17,16 +17,16 @@ struct PhoneSettings: View {
         Form {
             Section {
                 Toggle(isOn: Binding(get: { leveller.on }, set: { leveller.setOn($0) })) {
-                    Text("Same volume for every song")
-                    Text("Every song plays equally loud.")
+                    Text("Loudness normalization")
+                    Text("Target −14 LUFS (ITU-R BS.1770-4).")
                 }
                 Toggle(isOn: Binding(get: { leveller.limiting }, set: { leveller.setLimiting($0) })) {
-                    Text("Limiter")
-                    Text("Catches peaks that would distort, so boosts keep their volume.")
+                    Text("True-peak limiter")
+                    Text("Look-ahead limiter, −1 dBTP ceiling.")
                 }
                 Toggle(isOn: $gapless) {
-                    Text("No gaps between songs")
-                    Text("Albums and mixes play straight through.")
+                    Text("Gapless playback")
+                    Text("Needs the next track cached or downloaded.")
                 }
                 .onChange(of: gapless) { _, _ in player.gaplessChanged() }
                 Picker("Crossfade", selection: $crossfade) {
@@ -35,24 +35,24 @@ struct PhoneSettings: View {
                 }
                 .onChange(of: crossfade) { _, _ in SoundChain.shared.settingChanged() }
                 Toggle(isOn: $crossfeed) {
-                    Text("Crossfeed for headphones")
-                    Text("Some of each ear's bass reaches the other, like speakers.")
+                    Text("Headphone crossfeed")
+                    Text("Mixes a low-passed copy of each channel into the opposite ear (bs2b).")
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
                 VStack(alignment: .leading) {
-                    Text("Bass harmonics: " + (bassHarmonics > 0 ? "\(Int((bassHarmonics * 100).rounded()))%" : "off"))
+                    Text("Psychoacoustic bass: " + (bassHarmonics > 0 ? "\(Int((bassHarmonics * 100).rounded()))%" : "off"))
                     Slider(value: $bassHarmonics, in: 0...1)
                 }
                 .onChange(of: bassHarmonics) { old, new in
                     if (old > 0) != (new > 0) { SoundChain.shared.settingChanged() } else { SoundChain.shared.bassHarmonicsChanged() }
                 }
                 Toggle(isOn: $loudness) {
-                    Text("Fuller sound at low volume")
-                    Text("Adds bass and treble as the volume drops.")
+                    Text("Loudness compensation")
+                    Text("Raises the low and high shelves as the volume falls.")
                 }
                 .onChange(of: loudness) { _, _ in SoundChain.shared.loudnessChanged() }
                 VStack(alignment: .leading) {
-                    Text("Vocal clarity: " + (vocalClarity > 0 ? String(format: "+%g dB", vocalClarity) : "off"))
+                    Text("Vocal presence: " + (vocalClarity > 0 ? String(format: "+%g dB", vocalClarity) : "off"))
                     Slider(value: $vocalClarity, in: 0...6, step: 0.5)
                 }
                 .onChange(of: vocalClarity) { old, new in
@@ -64,9 +64,9 @@ struct PhoneSettings: View {
 
             Section {
                 Toggle(isOn: Binding(get: { profiles.on }, set: { profiles.setOn($0) })) {
-                    Text("Sound for each output")
-                    Text(profiles.on ? "Now: \(profiles.output?.name ?? "this output"). Each output keeps its own."
-                                     : "Same for every output.")
+                    Text("Per-output profiles")
+                    Text(profiles.on ? "Now: \(profiles.output?.name ?? "this output"). Saved per output device."
+                                     : "Shared by all outputs.")
                 }
                 NavigationLink { HeadphonePicker() } label: {
                     LabeledContent("Headphone correction", value: HeadphoneCorrection.shared.model?.name ?? "None")
