@@ -50,6 +50,12 @@ nonisolated struct Listing: Codable, Hashable, Sendable {
         try c.encodeIfPresent(albumId, forKey: .albumId)
         try c.encodeIfPresent(kind, forKey: .kind)
     }
+    /// This copy showing `cover`: the song's own, which every list shows, not the one this copy was uploaded with (a
+    /// jam room shows the copy it was sent, so the sender puts the song's cover on it; 29 Oct).
+    func covered(by cover: String?) -> Listing {
+        Listing(source: source, id: id, title: title, artists: artists, album: album, duration: duration, popularity: popularity,
+                image: cover ?? image, explicit: explicit, artistIds: artistIds, albumId: albumId, kind: kind)
+    }
     var sourceName: String { Listing.name(ofSource: source) }
     /// YouTube Music and plain YouTube copies are YouTube videos: their links are looked up on this Mac, as the IP that
     /// asks for a link is the only one it plays from.

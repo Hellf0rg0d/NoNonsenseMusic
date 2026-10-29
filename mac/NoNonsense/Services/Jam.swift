@@ -201,7 +201,7 @@ final class JamSession {
     private var songOnScreen: JamSong? {
         guard let player, let track = player.current else { return nil }
         let listing = player.playingListing ?? track.best
-        return JamSong(listing: listing, copies: Self.otherCopies(track, playing: listing), seconds: player.livePosition,
+        return JamSong(listing: listing.covered(by: track.image?.absoluteString), copies: Self.otherCopies(track, playing: listing), seconds: player.livePosition,
                        playing: player.isPlaying)
     }
 
@@ -364,7 +364,7 @@ final class JamSession {
     func add(_ tracks: [Track], _ asked: Placement = .end) {
         guard !tracks.isEmpty else { return }
         let placement = canControl ? asked : .end
-        guard send(JamCommand(type: "add", listings: tracks.map(\.best), copies: tracks.map { Self.otherCopies($0) },
+        guard send(JamCommand(type: "add", listings: tracks.map { $0.best.covered(by: $0.image?.absoluteString) }, copies: tracks.map { Self.otherCopies($0) },
                               placement: placement.rawValue)) else { return }
         let what = tracks.count == 1 ? "“\(tracks[0].title)”" : "\(tracks.count) songs"
         let notice = switch placement {
@@ -427,7 +427,7 @@ final class JamSession {
             station = seed
             let tracks = songs.map { Track($0) }
             autoplayed += tracks.map(\.best)
-            send(JamCommand(type: "add", listings: tracks.map(\.best), copies: tracks.map { Self.otherCopies($0) }), quietly: true)
+            send(JamCommand(type: "add", listings: tracks.map { $0.best.covered(by: $0.image?.absoluteString) }, copies: tracks.map { Self.otherCopies($0) }), quietly: true)
         }
     }
 
