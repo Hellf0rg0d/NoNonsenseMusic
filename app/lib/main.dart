@@ -8,6 +8,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 import 'core/android_sound.dart';
 import 'core/api.dart';
@@ -37,6 +38,28 @@ final accent = Accent();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isLinux) {
+    String? libmpv;
+    final appLib = '${File(Platform.resolvedExecutable).parent.path}/lib';
+    final candidates = [
+      '$appLib/libmpv.so',
+      '$appLib/libmpv.so.2',
+      '/home/linuxbrew/.linuxbrew/lib/libmpv.so',
+      '/home/linuxbrew/.linuxbrew/lib/libmpv.so.2',
+      '/usr/lib/x86_64-linux-gnu/libmpv.so',
+      '/usr/lib/x86_64-linux-gnu/libmpv.so.2',
+      '/usr/lib/x86_64-linux-gnu/libmpv.so.1',
+      '/usr/lib/libmpv.so',
+      '/usr/local/lib/libmpv.so',
+    ];
+    for (final c in candidates) {
+      if (File(c).existsSync()) {
+        libmpv = c;
+        break;
+      }
+    }
+    JustAudioMediaKit.ensureInitialized(linux: true, windows: false, libmpv: libmpv);
+  }
   PlaylistLinks.start(); // Started early: the link that opened the app is not missed.
   final settings = Settings();
   await settings.load();
