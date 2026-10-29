@@ -101,6 +101,36 @@ extension SelfTest {
             check("…10 kHz stays on its side (under −20 dB)", treble.other < -20, db(treble.other))
             check("…and bass in both ears stays as loud", near(mono.same, 0, 0.3), db(mono.same))
 
+            // B2b. true peak: a quarter-rate tone whose samples all sit at 85% while the wave between them reaches 120%
+            @MainActor func truePeak(_ x: [Float], from: Int, to: Int) -> Float {         // an independent measure: 16×, 64-tap Hann sinc
+                var peak: Float = 0
+                for k in from..<to {
+                    for step in 0..<16 {
+                        let d = Double(step) / 16
+                        var acc = 0.0
+                        for m in -31...32 {
+                            let t = Double(m) - d
+                            let sinc = t == 0 ? 1 : sin(Double.pi * t) / (Double.pi * t)
+                            acc += Double(x[k + m]) * sinc * (0.5 + 0.5 * cos(Double.pi * t / 32.5))
+                        }
+                        peak = max(peak, Float(abs(acc)))
+                    }
+                }
+                return peak
+            }
+            var hidden = (0..<88_200).map { Float(1.2 * sin(Double.pi * Double($0) / 2 + Double.pi / 4)) }
+            let sampleOnly = hidden[44_100..<45_600].map(abs).max() ?? 0, hiddenBefore = truePeak(hidden, from: 44_100, to: 45_600)
+            let tpLimiter = PeakLimiter(sampleRate: 44_100, channels: 1)
+            hidden.withUnsafeMutableBufferPointer { buffer in
+                var channels = [buffer.baseAddress!]
+                channels.withUnsafeMutableBufferPointer { tpLimiter.process($0, frames: 88_200) }
+            }
+            let hiddenAfter = truePeak(hidden, from: 44_400, to: 45_900)
+            check("true peak: the tone's samples peak under the ceiling but the wave between them is over it (a sample-only limiter would pass it)",
+                  sampleOnly < PeakLimiter.ceiling && hiddenBefore > 1.1, "samples \(sampleOnly), wave \(hiddenBefore)")
+            check("…the limiter brings the wave itself to the −1 dBFS ceiling (measured at 16× oversampling)",
+                  hiddenAfter < PeakLimiter.ceiling * 1.02, "\(hiddenAfter) against \(PeakLimiter.ceiling)")
+
             // B3b. vocal clarity: a centred voice up by the boost, the side as it was, bass untouched
             @MainActor func clarified(_ hz: Double, right sign: Float) -> Double {
                 let rate = 44_100.0, frames = Int(rate)

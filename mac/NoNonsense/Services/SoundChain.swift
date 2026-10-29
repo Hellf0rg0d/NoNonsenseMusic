@@ -630,11 +630,29 @@ nonisolated final class Crossfeed {
 nonisolated final class PeakLimiter {
     static let ceiling = Float(pow(10, -1.0 / 20))
     static let lookahead = 0.005, release = 0.08
+    /// True peak (ITU-R BS.1770-4's 4× oversampling): the wave between two samples can rise above both, up to 3 dB or
+    /// more on loud masters, and clips in the converter. Each gap is read at ¼, ½ and ¾ by a 12-tap windowed-sinc
+    /// interpolator, so a peak is known `tail` samples after it happens: the audio is held back that much longer.
+    private static let taps = 12, tail = 6
+    private static let phases: [[Float]] = (1...3).map { quarter in
+        let offset = Double(quarter) / 4
+        func bessel(_ x: Double) -> Double { (0..<30).reduce(0.0) { $0 + pow(pow(x / 2, Double($1)) / tgamma(Double($1) + 1), 2) } }
+        let weights: [Double] = (0..<taps).map { j in
+            let t: Double = Double(j - 5) - offset
+            let sinc: Double = t == 0 ? 1 : sin(Double.pi * t) / (Double.pi * t)
+            return sinc * bessel(8 * (1 - (t / 6) * (t / 6)).squareRoot()) / bessel(8)
+        }
+        let total: Double = weights.reduce(0, +)
+        return weights.map { Float($0 / total) }
+    }
 
     let channels: Int
-    private let latency: Int                       // L: samples the audio is held back
+    private let latency: Int                       // L: the look-ahead, in samples
     private let window: Int                        // L + 1: the minimum's and the average's span
-    private let delay: UnsafeMutablePointer<Float>         // channels × L
+    private let hold: Int                          // L + tail: samples the audio is held back
+    private let history: UnsafeMutablePointer<Float>       // each channel's last 12 samples, kept twice so they are in a row
+    private var historyAt = 0
+    private let delay: UnsafeMutablePointer<Float>         // channels × hold
     private let held: UnsafeMutablePointer<Float>          // the last `window` minimums, for the average
     private let order: UnsafeMutablePointer<Int>           // the sliding minimum: sample numbers…
     private let lows: UnsafeMutablePointer<Float>          // …and their needed gains, rising from the front
@@ -651,8 +669,11 @@ nonisolated final class PeakLimiter {
         self.channels = channels
         latency = max(1, Int((sampleRate * Self.lookahead).rounded()))
         window = latency + 1
-        delay = .allocate(capacity: channels * latency)
-        delay.initialize(repeating: 0, count: channels * latency)
+        hold = latency + Self.tail
+        history = .allocate(capacity: channels * 2 * Self.taps)
+        history.initialize(repeating: 0, count: channels * 2 * Self.taps)
+        delay = .allocate(capacity: channels * hold)
+        delay.initialize(repeating: 0, count: channels * hold)
         held = .allocate(capacity: window)
         held.initialize(repeating: 1, count: window)
         order = .allocate(capacity: window)
@@ -662,15 +683,32 @@ nonisolated final class PeakLimiter {
     }
 
     deinit {
-        delay.deallocate(); held.deallocate(); order.deallocate(); lows.deallocate()
+        delay.deallocate(); held.deallocate(); order.deallocate(); lows.deallocate(); history.deallocate()
     }
 
     /// `samples`: one pointer per channel (from the stack: nothing is allocated on the audio thread).
     func process(_ samples: UnsafeMutableBufferPointer<UnsafeMutablePointer<Float>>, frames: Int) {
         guard samples.count == channels else { return }
         for i in 0..<frames {
+            // the loudest the wave gets in the gap that has just become readable: sample k (6 back) and the three points
+            // between it and the next, in every channel
             var loudest: Float = 0
-            for c in 0..<channels { loudest = max(loudest, abs(samples[c][i])) }
+            for c in 0..<channels {
+                let line = history + c * 2 * Self.taps
+                line[historyAt] = samples[c][i]
+                line[historyAt + Self.taps] = samples[c][i]
+                let recent = line + historyAt + 1                 // the last 12 samples, oldest first
+                loudest = max(loudest, abs(recent[5]))
+                Self.phases.withUnsafeBufferPointer { phases in
+                    for phase in phases {
+                        let weights = phase
+                        var between: Float = 0
+                        for j in 0..<Self.taps { between += weights[j] * recent[j] }
+                        loudest = max(loudest, abs(between))
+                    }
+                }
+            }
+            historyAt = (historyAt + 1) % Self.taps
             let need = loudest > Self.ceiling ? Self.ceiling / loudest : 1
             // the sliding minimum of the last `window` needs: a queue kept rising, so its front is the minimum
             while count > 0, lows[(front + count - 1) % window] >= need { count -= 1 }
@@ -688,12 +726,12 @@ nonisolated final class PeakLimiter {
             deepest = min(deepest, gain)
             #endif
             for c in 0..<channels {
-                let slot = c * latency + delayAt
+                let slot = c * hold + delayAt
                 let late = delay[slot]
                 delay[slot] = samples[c][i]
                 samples[c][i] = late * gain
             }
-            delayAt = (delayAt + 1) % latency
+            delayAt = (delayAt + 1) % hold
             sample += 1
         }
     }

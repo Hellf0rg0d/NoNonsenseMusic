@@ -477,10 +477,10 @@ private struct PlaybackSettings: View {
                     Text("Every song plays equally loud. Each is measured once.")
                         .foregroundStyle(.secondary)
                 }
-                // measured 28 Oct: 0.040% of one core (an hour of stereo through it, offline); 5 ms of delay
+                // measured 29 Oct: 0.24% of one core (an hour of stereo through it, offline, with true-peak detection); 5 ms of delay
                 Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
                     Text("Limiter")
-                    Text("Catches peaks that would distort, so boosts keep their volume.")
+                    Text("Catches peaks that would distort, even between samples, so boosts keep their volume.")
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: $gapless) {
@@ -1015,7 +1015,7 @@ private struct FootprintSettings: View {
                 }
                 Toggle(isOn: Binding(get: { Leveller.shared.limiting }, set: { Leveller.shared.setLimiting($0) })) {
                     Text("Limiter")
-                    Text("Uses about 0.04% of one core while music plays.")
+                    Text("Uses about 0.25% of one core while music plays.")
                         .foregroundStyle(.secondary)
                 }
                 Toggle(isOn: Binding(get: { SoundChain.crossfeeding }, set: {
