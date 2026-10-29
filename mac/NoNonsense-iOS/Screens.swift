@@ -232,7 +232,12 @@ struct SearchScreen: View {
         .searchable(text: $query, prompt: "Songs, artists, albums")
         .searchFocused($typing)
         .scrollDismissesKeyboard(.immediately)                  // the results scroll: the keyboard goes
-        .onAppear { if query.isEmpty { typing = true } }         // opening Search with nothing typed: straight to typing
+        // opening Search with nothing typed: straight to typing. Straight away is too early on iOS 26, where the field
+        // is still moving into the tab bar (seen on 26.4 in the simulator, 29 Oct), so a moment later
+        .task {
+            try? await Task.sleep(for: .milliseconds(400))
+            if query.isEmpty { typing = true }
+        }
         .onSubmit(of: .search) { remember() }
         .task(id: query) {
             let typed = query.trimmingCharacters(in: .whitespaces)

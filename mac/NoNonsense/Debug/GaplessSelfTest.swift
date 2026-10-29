@@ -60,18 +60,27 @@ extension SelfTest {
             /// Plays `first` then `second` and returns the silence between them, in seconds (negative: overlap).
             @MainActor func gap(_ first: Listing, _ second: Listing) async -> Double? {
                 player.play(tracks([first, second]))
-                guard await until(10, { player.isPlaying && player.livePosition > 0.2 && player.playingListing?.key == first.key }) else { return nil }
+                guard await until(10, { player.isPlaying && player.livePosition > 0.2 && player.playingListing?.key == first.key }) else {
+                    report("gapless: the first song never played: \(player.playerStateForTests)")
+                    return nil
+                }
                 // the last look at the first song, every 5 ms, until the second takes over
                 var end: Date?
                 while player.playingListing?.key == first.key {
                     let left = player.duration - player.livePosition
                     if left >= 0, player.livePosition > 0 { end = Date().addingTimeInterval(left) }
                     try? await Task.sleep(for: .milliseconds(5))
-                    if Date().timeIntervalSince(end ?? .distantFuture) > 5 { return nil }
+                    if Date().timeIntervalSince(end ?? .distantFuture) > 5 {
+                        report("gapless: the first song ended 5 s ago and the second has not taken over: \(player.playerStateForTests)")
+                        return nil
+                    }
                 }
                 // the second song's own clock: in its first second (until the queue player swaps items, the first's reads ~6 s)
                 guard await until(5, { player.playingListing?.key == second.key && player.livePosition > 0.05 && player.livePosition < 1 })
-                else { return nil }
+                else {
+                    report("gapless: the second song never showed a clock in its first second: \(player.playerStateForTests)")
+                    return nil
+                }
                 let start = Date().addingTimeInterval(-player.livePosition)
                 return end.map { start.timeIntervalSince($0) }
             }
