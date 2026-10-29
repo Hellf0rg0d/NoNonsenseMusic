@@ -9,6 +9,7 @@ struct PhoneSettings: View {
     @AppStorage("crossfadeSeconds") private var crossfade = 0.0
     @AppStorage("vocalClarity") private var vocalClarity = 0.0
     @AppStorage("loudnessCompensation") private var loudness = false
+    @AppStorage("bassHarmonics") private var bassHarmonics = 0.0
     private var leveller: Leveller { .shared }
     private var profiles: SoundProfiles { .shared }
 
@@ -38,6 +39,13 @@ struct PhoneSettings: View {
                     Text("Some of each ear's bass reaches the other, like speakers.")
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
+                VStack(alignment: .leading) {
+                    Text("Bass harmonics: " + (bassHarmonics > 0 ? "\(Int((bassHarmonics * 100).rounded()))%" : "off"))
+                    Slider(value: $bassHarmonics, in: 0...1)
+                }
+                .onChange(of: bassHarmonics) { old, new in
+                    if (old > 0) != (new > 0) { SoundChain.shared.settingChanged() } else { SoundChain.shared.bassHarmonicsChanged() }
+                }
                 Toggle(isOn: $loudness) {
                     Text("Fuller sound at low volume")
                     Text("Adds bass and treble as the volume drops.")

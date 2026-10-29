@@ -436,6 +436,7 @@ private struct PlaybackSettings: View {
     @AppStorage("crossfadeSeconds") private var crossfade = 0.0              // Player.crossfade
     @AppStorage("vocalClarity") private var vocalClarity = 0.0               // SoundChain.vocalClarity
     @AppStorage("loudnessCompensation") private var loudness = false         // SoundChain.loudnessCompensation
+    @AppStorage("bassHarmonics") private var bassHarmonics = 0.0              // SoundChain.bassHarmonics
     @Environment(Player.self) private var player
 
     var body: some View {
@@ -503,6 +504,17 @@ private struct PlaybackSettings: View {
                         .foregroundStyle(.secondary)
                 }
                 .onChange(of: crossfeed) { _, _ in SoundChain.shared.settingChanged() }
+                // measured 29 Oct: 0.035% of one core (an hour of stereo through it, offline)
+                LabeledContent {
+                    Slider(value: $bassHarmonics, in: 0...1)
+                        .frame(maxWidth: 180)
+                } label: {
+                    Text("Bass harmonics" + (bassHarmonics > 0 ? ": \(Int((bassHarmonics * 100).rounded()))%" : ": off"))
+                    Text("Lets small speakers and earbuds suggest the low notes.").foregroundStyle(.secondary)
+                }
+                .onChange(of: bassHarmonics) { old, new in
+                    if (old > 0) != (new > 0) { SoundChain.shared.settingChanged() } else { SoundChain.shared.bassHarmonicsChanged() }
+                }
                 // two more filters in the equalizer's cascade (its 14 bands: 0.12% of one core, 25 Oct)
                 Toggle(isOn: $loudness) {
                     Text("Fuller sound at low volume")
@@ -1019,6 +1031,12 @@ private struct FootprintSettings: View {
                 } label: {
                     Text("Vocal clarity")
                     Text("About 0.02% of one core while on. Its slider is in Settings › Playback.").foregroundStyle(.secondary)
+                }
+                LabeledContent {
+                    Text(SoundChain.bassHarmonics > 0 ? "\(Int((SoundChain.bassHarmonics * 100).rounded()))%" : "Off")
+                } label: {
+                    Text("Bass harmonics")
+                    Text("About 0.04% of one core while on. Its slider is in Settings › Playback.").foregroundStyle(.secondary)
                 }
                 Picker(selection: $searchPrefetch) {
                     Text("None").tag(0)

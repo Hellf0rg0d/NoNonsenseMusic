@@ -136,6 +136,29 @@ extension SelfTest {
             check("…in the chain: 60 Hz up 5.4 dB, 1 kHz as it was, 14 kHz up 2.2 dB, and no preamp taking it back",
                   near(low, 5.38, 0.4) && near(middle, 0, 0.3) && near(high, 2.19, 0.4), "\(db(low)), \(db(middle)), \(db(high))")
 
+            // B3d. bass harmonics: a low note gains its 3rd harmonic and keeps itself; what is above 110 Hz is left alone
+            @MainActor func goertzel(_ x: [Float], _ hz: Double, rate: Double) -> Double {
+                let c = 2 * cos(2 * Double.pi * hz / rate)
+                var a = 0.0, b = 0.0
+                for v in x { let t = Double(v) + c * a - b; b = a; a = t }
+                return (a * a + b * b - c * a * b).squareRoot() * 2 / Double(x.count)
+            }
+            @MainActor func shaped(_ hz: Double, amplitude: Float) -> (Double, Double, Float) {
+                let rate = 44_100.0, frames = 88_200
+                guard let stage = BassHarmonics(sampleRate: rate, channels: 1) else { return (0, 0, 0) }
+                var x = (0..<frames).map { amplitude * Float(sin(2 * Double.pi * hz * Double($0) / rate)) }
+                x.withUnsafeMutableBufferPointer { stage.process($0.baseAddress!, channel: 0, frames: frames, amount: 1) }
+                let tail = Array(x[(frames / 2)...])
+                return (goertzel(tail, hz, rate: rate), goertzel(tail, 3 * hz, rate: rate), tail.map(abs).max() ?? 0)
+            }
+            let (note, third, _) = shaped(60, amplitude: 0.3)
+            check("bass harmonics: a 60 Hz note gains its 3rd harmonic (180 Hz, at least −26 dB under it)", third / note > 0.05,
+                  String(format: "%.1f dB", 20 * log10(third / max(note, 1e-9))))
+            check("…and the note itself is not made quieter (within 1 dB)", abs(20 * log10(note / 0.3)) < 1, db(20 * log10(note / 0.3)))
+            let (kilohertz, _, _) = shaped(1000, amplitude: 0.3)
+            check("…a 1 kHz tone is left as it was (within 0.1 dB)", abs(20 * log10(kilohertz / 0.3)) < 0.1, db(20 * log10(kilohertz / 0.3)))
+            check("…and a loud low note stays within full scale", shaped(60, amplitude: 0.95).2 <= 1)
+
             // B4. headphone correction: AutoEq's AirPods Pro file (crinacle's measurement), as fetched
             let airpods = """
                 Preamp: -6.0 dB

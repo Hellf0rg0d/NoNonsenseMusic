@@ -24,7 +24,7 @@ final class SoundChain {
     }
 
     var active: Bool {
-        Self.vocalClarity > 0 || Self.loudnessCompensation || Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
+        Self.bassHarmonics > 0 || Self.vocalClarity > 0 || Self.loudnessCompensation || Equalizer.shared.on || Leveller.shared.on || Leveller.shared.limiting || Self.crossfeeding || HeadphoneCorrection.shared.model != nil
             || Player.crossfade > 0                       // its fades are shaped in the taps
     }
 
@@ -67,6 +67,14 @@ final class SoundChain {
         changed?()
     }
 
+    /// Settings › Playback › Bass harmonics: 0 (off) to 1.
+    static var bassHarmonics: Double { min(max(UserDefaults.standard.double(forKey: "bassHarmonics"), 0), 1) }
+
+    /// Its slider moved: every tap follows at once.
+    func bassHarmonicsChanged() {
+        for entry in processors { entry.processor.processor?.update(bass: Self.bassHarmonics) }
+    }
+
     /// Settings › Playback › Vocal clarity: the mid's boost, 0 (off) to 6 dB.
     static var vocalClarity: Double { min(max(UserDefaults.standard.double(forKey: "vocalClarity"), 0), 6) }
 
@@ -88,6 +96,7 @@ final class SoundChain {
         let processor = SoundProcessor(gains: eq.on ? eq.gains : Self.flat, level: leveller.on ? leveller.gain(for: key) : 0,
                                        limiting: leveller.limiting, crossfeeding: Self.crossfeeding,
                                        correction: HeadphoneCorrection.shared.filters, vocal: Self.vocalClarity)
+        processor.update(bass: Self.bassHarmonics)
         if let fadeIn { processor.fade(in: true, over: fadeIn) }
         if Self.loudnessCompensation { processor.update(loudness: shelvesNow) }
         processors.removeAll { $0.processor.processor == nil }
@@ -148,6 +157,8 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
     private var limiter: PeakLimiter?
     private let crossfeeding: Bool
     private var crossfeed: Crossfeed?
+    private var bassAmount: Float = 0              // bass harmonics, 0 to 1 (BassHarmonics)
+    private var bass: BassHarmonics?               // made when the format is known
     private var vocalGain: Double                  // vocal clarity's boost, dB; 0: none
     private var vocal: VocalClarity?
     private let correction: [CorrectionFilter]     // headphone correction, before the equalizer's bands
@@ -237,6 +248,9 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                            limiting: limiting, vocal: boost))
     }
 
+    /// Bass harmonics' amount, 0 (off) to 1.
+    func update(bass amount: Double) { lock.withLockUnchecked { bassAmount = Float(amount) } }
+
     /// Loudness compensation's shelves for the volume now ([] when off or at full volume).
     func update(loudness shelves: [CorrectionFilter]) {
         let (rate, count, current, boost) = lock.withLockUnchecked { () -> (Double, Int, [Double], Double) in
@@ -279,12 +293,14 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
 
     /// The tap's prepare: the format is known now.
     fileprivate func prepare(format: AudioStreamBasicDescription) {
+        let harmonics = BassHarmonics(sampleRate: format.mSampleRate, channels: Int(format.mChannelsPerFrame))
         let float = format.mFormatFlags & kAudioFormatFlagIsFloat != 0 && format.mBitsPerChannel == 32
         let separate = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0 || format.mChannelsPerFrame == 1
         let current = lock.withLockUnchecked { () -> [Double] in
             sampleRate = format.mSampleRate
             channels = Int(format.mChannelsPerFrame)
             usable = float && separate
+            bass = harmonics
             return gains
         }
         let count = Int(format.mChannelsPerFrame)
@@ -366,6 +382,12 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
                             var first = start, step = (finish - start) / Float(frames)
                             vDSP_vrampmul(samples, 1, &first, &step, samples, 1, vDSP_Length(frames))
                         }
+                    }
+                }
+                if bassAmount > 0, let bass {
+                    for (channel, buffer) in buffers.enumerated() {
+                        guard let samples = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+                        bass.process(samples, channel: channel, frames: frames, amount: bassAmount)
                     }
                 }
                 if buffers.count == 2, let left = buffers[0].mData?.assumingMemoryBound(to: Float.self),
@@ -460,6 +482,72 @@ nonisolated final class SoundProcessor: @unchecked Sendable {
             return nil
         }
         return tap
+    }
+}
+
+/// Settings › Playback › Bass harmonics (29 Oct): bass a small speaker or earbuds cannot play, heard anyway. The ear
+/// hears the pitch of a low note from its harmonics too, so a low band (under 120 Hz) is pushed through a soft clipper,
+/// which makes odd harmonics (3×, 5× its frequency), and only those (110 to 420 Hz) are added back to the song. A 50 Hz
+/// note then also sounds at 150 Hz. Each channel on its own; the song itself is not changed below 110 Hz.
+nonisolated final class BassHarmonics {
+    private static let chunk = 4096
+    private let low: vDSP_biquad_Setup, band: vDSP_biquad_Setup
+    private let lowDelay: [UnsafeMutablePointer<Float>], bandDelay: [UnsafeMutablePointer<Float>]
+    private let scratch: UnsafeMutablePointer<Float>, shaped: UnsafeMutablePointer<Float>
+
+    init?(sampleRate rate: Double, channels: Int) {
+        guard channels > 0 else { return nil }
+        let lowPass = Self.biquad(high: false, at: 120, rate: rate)
+        let highPass = Self.biquad(high: true, at: 110, rate: rate), topPass = Self.biquad(high: false, at: 420, rate: rate)
+        guard let low = vDSP_biquad_CreateSetup(lowPass, 1), let band = vDSP_biquad_CreateSetup(highPass + highPass + highPass + topPass, 4) else { return nil }
+        self.low = low
+        self.band = band
+        func lines(_ sections: Int) -> [UnsafeMutablePointer<Float>] {
+            (0..<channels).map { _ in
+                let line = UnsafeMutablePointer<Float>.allocate(capacity: 2 * sections + 2)
+                line.initialize(repeating: 0, count: 2 * sections + 2)
+                return line
+            }
+        }
+        lowDelay = lines(1)
+        bandDelay = lines(4)
+        scratch = .allocate(capacity: Self.chunk)
+        shaped = .allocate(capacity: Self.chunk)
+    }
+
+    deinit {
+        vDSP_biquad_DestroySetup(low)
+        vDSP_biquad_DestroySetup(band)
+        lowDelay.forEach { $0.deallocate() }
+        bandDelay.forEach { $0.deallocate() }
+        scratch.deallocate()
+        shaped.deallocate()
+    }
+
+    /// A second-order Butterworth low or high pass (Audio EQ Cookbook), as vDSP takes it.
+    private static func biquad(high: Bool, at frequency: Double, rate: Double) -> [Double] {
+        let w: Double = 2 * Double.pi * frequency / rate, c: Double = cos(w), alpha: Double = sin(w) / (2 * 0.7071)
+        let a0: Double = 1 + alpha
+        let edge: Double = (high ? 1 + c : 1 - c) / 2 / a0
+        return [edge, (high ? -2 : 2) * edge, edge, -2 * c / a0, (1 - alpha) / a0]
+    }
+
+    /// `amount` 0 to 1 scales the added harmonics (at most about a third of the song's own level at 1).
+    func process(_ samples: UnsafeMutablePointer<Float>, channel: Int, frames: Int, amount: Float) {
+        var start = 0
+        while start < frames {
+            let n = min(Self.chunk, frames - start), at = samples + start
+            scratch.update(from: at, count: n)
+            vDSP_biquad(low, lowDelay[channel], scratch, 1, scratch, 1, vDSP_Length(n))
+            var drive: Float = 6, count = Int32(n)
+            vDSP_vsmul(scratch, 1, &drive, scratch, 1, vDSP_Length(n))
+            vvtanhf(shaped, scratch, &count)
+            vDSP_biquad(band, bandDelay[channel], shaped, 1, shaped, 1, vDSP_Length(n))
+            var gain: Float = 0.35 * amount, floor: Float = -1, ceiling: Float = 1
+            vDSP_vsma(shaped, 1, &gain, at, 1, at, 1, vDSP_Length(n))
+            vDSP_vclip(at, 1, &floor, &ceiling, at, 1, vDSP_Length(n))      // never past full scale (the limiter, when on, is gentler)
+            start += n
+        }
     }
 }
 
