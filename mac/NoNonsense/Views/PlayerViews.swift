@@ -530,7 +530,7 @@ private struct CopyMenu: View {
 
     var body: some View {
         let playing = player.playingListing ?? track.best
-        let label = "\(playing.sourceName) · \(playing.quality)"
+        let label = "\(playing.sourceName) · \(player.playingQuality ?? playing.quality)"
         if track.listings.count > 1 {
             Menu {
                 ForEach(track.listings, id: \.key) { listing in

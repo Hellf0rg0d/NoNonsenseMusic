@@ -70,6 +70,9 @@ final class Player {
     @ObservationIgnored private let downloads: DownloadStore
     /// True while the playing copy is a downloaded file (no server, no internet needed).
     private(set) var playingFile = false
+    /// The playing file's own codec and bitrate ("AAC 129 kbps"), read once it is ready; nil until then. The listing's
+    /// `quality` is what its source usually serves, this is what is playing.
+    private(set) var playingQuality: String?
     @ObservationIgnored private let presence: Presence
     /// AVPlayer's own playing / waiting / paused state, observed when it changes (no timer: see `position`)
     @ObservationIgnored private var controlStatusObservation: NSKeyValueObservation?
@@ -566,6 +569,7 @@ final class Player {
         endFade()
         cancelFadePlan()
         position = 0
+        playingQuality = nil
         audioLength = nil                                         // the listed length, until this copy says its own
         isBuffering = true                                        // the spinner, until audio arrives
         playingListing = listing
@@ -704,6 +708,38 @@ final class Player {
         }
     }
 
+    /// A bitrate the file's header can vouch for. The rate is bytes over the file's own duration, and some YouTube files
+    /// state double their length in the header (checked 29 Oct on 150 of them: decoded 128.3 s where the header said
+    /// 256.5), which halves it. The listing's duration, from the source, says which: equal, the reading stands; double,
+    /// it is doubled; anything else, the header cannot be trusted and nil leaves the listing's usual label.
+    nonisolated static func trustedKbps(_ kbps: Double, header: Double, listed: Double) -> Double? {
+        guard header.isFinite, listed > 0 else { return nil }
+        let ratio = header / listed
+        if abs(ratio - 2) < 0.1 { return kbps * 2 }
+        return abs(ratio - 1) <= 0.1 ? kbps : nil
+    }
+
+    /// The codec and bitrate of the file playing, from its audio track.
+    private func measureQuality(of item: AVPlayerItem) {
+        Task {
+            guard let track = try? await item.asset.loadTracks(withMediaType: .audio).first,
+                  let rate = try? await track.load(.estimatedDataRate), rate > 0,
+                  let format = try? await track.load(.formatDescriptions).first else { return }
+            let codec = switch CMFormatDescriptionGetMediaSubType(format) {
+            case kAudioFormatMPEG4AAC: "AAC"
+            case kAudioFormatOpus: "Opus"
+            case kAudioFormatMPEGLayer3: "MP3"
+            case kAudioFormatFLAC: "FLAC"
+            case kAudioFormatAppleLossless: "Lossless"
+            default: "Audio"
+            }
+            guard item === player.currentItem else { return }          // another song since
+            guard let kbps = Self.trustedKbps(Double(rate) / 1000, header: item.duration.seconds, listed: Double(playingListing?.duration ?? 0))
+            else { return }
+            playingQuality = "\(codec) \(Int(kbps.rounded())) kbps"
+        }
+    }
+
     // MARK: - gapless
 
     /// Settings › Playback › No gaps between songs (28 Oct; off by default). The next song, when its file is on this
@@ -806,6 +842,7 @@ final class Player {
         freshRetried = []
         firstCopy = listing.key
         position = 0
+        playingQuality = nil
         audioLength = nil
         playingListing = listing
         playingFile = downloads.localURL(for: listing) != nil
@@ -937,6 +974,7 @@ final class Player {
             let length = end.isFinite ? min(loaded.duration.seconds, end) : loaded.duration.seconds
             if length.isFinite, length > 0, length != audioLength { audioLength = length; publish() }
             planFade(for: loaded)                                 // needs the length, just set
+            measureQuality(of: loaded)
             // another copy chosen mid-song: it carries on from the same moment
             if let saved = resumeAt {
                 let at = resumeFromRoom ? jam?.playhead ?? saved : saved

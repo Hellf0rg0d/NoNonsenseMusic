@@ -176,6 +176,8 @@ struct NowPlayingScreen: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(track.title).font(.title2.weight(.bold)).lineLimit(2).minimumScaleFactor(0.85)
                 Text(track.artistLine).font(.body).opacity(0.75).lineLimit(1)
+                Text("\((player.playingListing ?? track.best).sourceName) · \(player.playingQuality ?? (player.playingListing ?? track.best).quality)")
+                    .font(.caption).opacity(0.55).lineLimit(1)
             }
             Spacer(minLength: 0)
             let liked = library.isLiked(track)

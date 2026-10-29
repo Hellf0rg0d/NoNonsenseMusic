@@ -159,6 +159,12 @@ extension SelfTest {
             check("…a 1 kHz tone is left as it was (within 0.1 dB)", abs(20 * log10(kilohertz / 0.3)) < 0.1, db(20 * log10(kilohertz / 0.3)))
             check("…and a loud low note stays within full scale", shaped(60, amplitude: 0.95).2 <= 1)
 
+            // B5. the bitrate shown for the playing file: a header that agrees with the listing, one that doubles it, neither
+            check("bitrate: header and listing agree: the reading stands", Player.trustedKbps(129, header: 256, listed: 256) == 129)
+            check("…the header says double (some YouTube files): doubled", Player.trustedKbps(65, header: 256.5, listed: 128) == 130)
+            check("…neither: not shown (the listing's label stays)", Player.trustedKbps(65, header: 300, listed: 128) == nil
+                  && Player.trustedKbps(65, header: 128, listed: 0) == nil)
+
             // B4. headphone correction: AutoEq's AirPods Pro file (crinacle's measurement), as fetched
             let airpods = """
                 Preamp: -6.0 dB
@@ -225,6 +231,12 @@ extension SelfTest {
             player.play([Track(best: loudSong, listings: [loudSong], choosingVersion: false)])
             check("(the loud tone plays)", await until(10) { player.isPlaying && player.livePosition > 1 })
             check("off: the song has no tap at all", !player.itemHasTapForTests)
+            let real = Double(loud.count) * 8 / 30 / 1000                       // the tone's size over its 30 s
+            check("the playing file's codec and bitrate are read (AAC, within 10% of size over length)",
+                  await until(5) { player.playingQuality != nil } && (player.playingQuality.flatMap {
+                      $0.hasPrefix("AAC ") ? Double($0.split(separator: " ")[1]) : nil } ?? 0) / real > 0.9
+                      && (Double(player.playingQuality?.split(separator: " ")[1] ?? "0") ?? 0) / real < 1.1,
+                  "\(player.playingQuality ?? "nothing") against \(Int(real)) kbps")
 
             leveller.setOn(true)
             check("switched on mid-song, the song playing from a file is measured within 2 s",
